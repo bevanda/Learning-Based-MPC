@@ -1,7 +1,7 @@
 %% Init.m
 % Writes relevant data to binary file.
 % author: Xiaojing ZHANG
-% date: October 17, 2011
+% date: October 28, 2011
 
 
 clc; 
