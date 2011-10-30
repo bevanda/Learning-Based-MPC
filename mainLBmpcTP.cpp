@@ -1,6 +1,6 @@
 // mainLBmpcTP.cpp
 // example file to test simple examples 
-// date: October 17, 2011
+// date: October 28, 2011
 // author: Xiaojing ZHANG
 // 
 // horizon: N = 4
@@ -27,9 +27,9 @@ int main()
 	const int _nSt = 10;	// # state constraints
 	const int _nInp = 4;	// # state constraints
 	const int _nF_xTheta = 10;	// # Omega constraints
-	const int _pos_omega = 10;	// <= _N
+	const int _pos_omega = 4;	// <= _N
 	
-	// ----------- declaration of matrices ---------------
+	// ----------- SPECIFY sizes of matrices ---------------
 	Matrix<double, _n , _n> A_arg;		// n x n
 	Matrix<double, _n, _m> B_arg;		// n x m; resizng for non-square matrices doesn't work
 	Matrix<double, _n, 1> s_arg;		// n x 1
@@ -58,6 +58,7 @@ int main()
 	double kappa_arg;	// for PhaseII
 	double kappa_PhaseI_arg;	// for PhaseI	
 	int n_iter_arg;
+	int n_iter_PhaseI_arg;
 	double mu_arg;
 	double eps_barrier_arg;
 	double eps_nt_arg;
@@ -67,6 +68,7 @@ int main()
 	double beta_ls_arg;
 	double reg_arg;		// regularization term for PhaseII
 	double reg_PhaseI_arg;	// regularization term for PhaseI
+	double weight_PhaseI_arg;	// weight for linear cost in PhaseI
 	
 	// ---------------- read from binary file ------------------
 	ifstream fin;			 	// Definition input file object
@@ -80,6 +82,7 @@ int main()
 	// read 
 	fin.read((char *) &kappa_arg, sizeof(double));
 	fin.read((char *) &kappa_PhaseI_arg, sizeof(double));
+	fin.read((char *) &n_iter_PhaseI_arg, sizeof(int));
 	fin.read((char *) &n_iter_arg, sizeof(int));
 	fin.read((char *) &mu_arg, sizeof(double));
 	fin.read((char *) &eps_barrier_arg, sizeof(double));
@@ -90,8 +93,9 @@ int main()
 	fin.read((char *) &beta_ls_arg, sizeof(double));
 	fin.read((char *) &reg_arg, sizeof(double));
 	fin.read((char *) &reg_PhaseI_arg, sizeof(double));
+	fin.read((char *) &weight_PhaseI_arg, sizeof(double));
 	
-
+	
 	// read A_arg
 	for (int i = 0; i <= _n-1; i++)		
 	{
@@ -224,6 +228,7 @@ int main()
 	cout << "kappa_arg: " << kappa_arg << endl << endl;
 	cout << "kappa_PhaseI_arg " << kappa_PhaseI_arg << endl << endl;
 	cout << "n_iter_arg: " << n_iter_arg << endl << endl;
+	cout << "n_iter_PhaseI_arg: " << n_iter_PhaseI_arg << endl << endl;
 	cout << "mu_arg: " << mu_arg << endl << endl;
 	cout << "eps_barrier_arg: " << eps_barrier_arg  << endl << endl;
 	cout << "eps_nt_arg: " << eps_nt_arg << endl << endl;
@@ -234,6 +239,7 @@ int main()
 	cout << "n_iter_arg: " << n_iter_arg << endl << endl;
 	cout << "reg_arg: " << reg_arg << endl << endl;
 	cout << "reg_PhaseI_arg: " << reg_PhaseI_arg << endl << endl;
+	cout << "weight_PhaseI_arg: " << weight_PhaseI_arg << endl << endl;
 	cout << "A_arg: " << endl << A_arg << endl << endl;
 	cout << "B_arg: " << endl << B_arg << endl << endl;
 	cout << "s_arg:" << endl << s_arg << endl << endl;
@@ -251,7 +257,7 @@ int main()
 	}
 	for (int i = 0; i <= _N-1; i++)
 	{
-		cout << "Fu_arg[" << i << "]: " << endl << Fu_arg[i] << endl << endl;
+		cout << "Fu_arg[" << i << "]: " << endl << Fu_arg[0] << endl << endl;
 	}
 	for (int i = 0; i <= _N-1; i++)
 	{
@@ -261,18 +267,14 @@ int main()
 	cout << "F_theta_arg: " << endl << F_theta_arg << endl << endl;
 	cout << "f_xTheta_arg: " << endl << f_xTheta_arg << endl << endl;
 	cout << "K_arg:" << endl << K_arg << endl << endl;
-	*/
-	
+	 */
 	
 	// -------- object instantiation -----------
 	 LBmpcTP<double, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> myObj(				// constructor
-	 		 	  	 			 	kappa_arg, kappa_PhaseI_arg, n_iter_arg,  mu_arg,  eps_barrier_arg,  eps_nt_arg, eps_normRp_arg, eps_ls_arg, 
-									alpha_ls_arg, beta_ls_arg, reg_arg, reg_PhaseI_arg, A_arg, B_arg, Q_tilde_arg, Q_tilde_f_arg, R_arg, Fx_arg, 
-	 		 	 	 	 		   	fx_arg, Fu_arg, fu_arg, F_xTheta_arg, F_theta_arg, f_xTheta_arg, K_arg, s_arg);
+	 	  	 			 	kappa_arg, kappa_PhaseI_arg, n_iter_arg, n_iter_PhaseI_arg,  mu_arg,  eps_barrier_arg,  eps_nt_arg, eps_normRp_arg, eps_ls_arg, 
+							alpha_ls_arg, beta_ls_arg, reg_arg, reg_PhaseI_arg, weight_PhaseI_arg, A_arg, B_arg, Q_tilde_arg, Q_tilde_f_arg, R_arg, Fx_arg, 
+	 	 	 	 		   	fx_arg, Fu_arg, fu_arg, F_xTheta_arg, F_theta_arg, f_xTheta_arg, K_arg, s_arg);
 		 	
-
-
-	
 	// ----------- SPECIFY arguments for step() ---------------
 	// -------- they are updated at each time step ------------
 	
@@ -291,25 +293,15 @@ int main()
 	tm_arg << -1, 2, 1, 1, 2;
 	x_hat_arg << 3, 3, -2, 3, 4;
 
-	srand((unsigned)time(0));
-	
 	for(int i = 0; i <= _N-1; i++)
 	{
 		x_star_arg[i].setZero();
 	}
 	
-	// the following matrices are only needed for test purposes
-	Matrix<double, _N*(_m+_n+_n)+_m,1> z_warm_arg;	// N*(m+n+n)+m	
-	
-	z_warm_arg.setRandom();
-	z_warm_arg = 10*z_warm_arg;
-
-
-	u_opt = myObj.step(	Lm_arg, Mm_arg, tm_arg,	x_hat_arg, z_warm_arg, x_star_arg);
+	u_opt = myObj.step(	Lm_arg, Mm_arg, tm_arg,	x_hat_arg, x_star_arg);
 	cout << "optimal input:" << endl << u_opt << endl << endl;
 
 	return 0;
-	
 }
 
 

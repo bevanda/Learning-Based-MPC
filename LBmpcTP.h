@@ -1,8 +1,8 @@
 // Ompctp.h -- a Learning Based MPC class template
 // header for class LBmpcTP
-// date: September 6, 2011
+// date: October 28, 2011
 // author: Xiaojing ZHANG
-// version: 0.0
+// version: 0.1
 
 
 /* Remarks:
@@ -15,12 +15,7 @@
 9) upper bound size of d_diag in compPhi and compPhi_hat_PhaseI()
 10) omit isFeasible in step() and phaseI() and testPos() and testPos_hat();
 11) compGamma(): use vector addition rather than piece by piece addition?
-12) don't need testPos() after having computed T
-13) replace offset and offset1
-14) move compMatrices_PhaseI() into constructor to avoid initialization overhead when calling step()
-15) use DiagonalMatrix for eye, esp. PhaseI()
 */
-
 
 #ifndef LBMPCTP_H_
 #define LBMPCTP_H_
@@ -50,7 +45,7 @@ private:
 // ----------- input variables ------------
 	double kappa;	// barrier parameter
 	double kappa_start;	// each new MPC step in PhaseII is initialized with kappa_start
-	int n_iter;		// number of Newton iterations
+	int n_iter;		// number of Newton iterations for fixed kappa in PhaseII
 	double mu;		// decrease rate of kappa, i.e. kappa := mu* kappa, mu < 1
 	double eps_barrier;	// accept eps_barrier - suboptimal solution of original problem,
 						// given by: kappa * num_constr < eps_barrier
@@ -144,7 +139,7 @@ private:
 	Matrix<Type, _n, _n> L_offDiag[2][2*_N];	// off-diag matrices are general square matrices
 	Matrix<Type, _n, _n> L_offDiag_transp[2][2*_N];	// transpose of above
 	
-	// !!!!!!!! Variables to represent Phi = L*L'
+	// !!!!!!!! Variables to represent Phi = L_Phi*L_Phi'
 	// !!!!!!!! need explicitly: double, Dynamic, array-length, e.g. horizon = 50
 	LLT<Matrix<double, Dynamic, Dynamic>, Lower> LOmicron_diag[50+1];	//*** [horizon +1]
 	Matrix<double, _m, _m> LOmicron_diag_transp[_N+1];
@@ -193,103 +188,106 @@ private:
 	Matrix<Type, _N*(_m + _n + _n) + _m, 1> z_opt;	// contains optimal variable
 	double compTime;	// stores computational time
 	
+	Matrix<Type, _m, 1> dc_tmp;		// use this to temporarily copy c-blocks out of dz
+	Matrix<Type, _n, 1> dx_bar_tmp;	// use this to temporarily copy x_bar-blocks out of dz
+	Matrix<Type, _nSt, 1> dcheckX;	// dcheck = P*dz
+	Matrix<Type, _nInp, 1> dcheckU;
+	Matrix<Type, _nF_xTheta, 1> dcheckTheta;
+	Matrix<Type, _nSt, 1> t_vecX;		// t_vec = check ./ dcheck
+	Matrix<Type, _nInp, 1> t_vecU;
+	Matrix<Type, _nF_xTheta, 1> t_vecTheta;
+	Matrix<Type, _m+1, 1> dc_hat_tmp;	// copy blocks from dz_hat
+	Matrix<Type, _n+1, 1> dx_bar_hat_tmp;	// use this to temporarily copy x_bar-blocks out of dz_hat
+	
+	
 // ---------- vvv  Matrices for PhaseI() -------------
 	double kappa_start_PhaseI;
-
-	// Matrix<Type, Dynamic, 1, 0, _N*(_nInp+_nSt)+_nF_xTheta, 1> gamma;
-	Matrix<Type, _N*(_nInp+_nSt)+_nF_xTheta, 1> gamma;
-	// Matrix<Type, Dynamic, 1, 0, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> z_hat;	// long vector
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> z_hat;	// long vector
-	// Matrix<Type, Dynamic, 1, 0, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> dz_hat;	// long vector
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> dz_hat;	// long vector
-	// Matrix<Type, Dynamic, 1, 0, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> r_d_hat;	// long vector
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> r_d_hat;	// long vector
+	double weight_cost_PhaseI;
+	int offset2;
+	double weight_PhaseI;	// weight 
+	int n_iter_PhaseI;	// max. number of Newton iterations for fixed kappa in PhaseI
 	double reg_hat;		// regularisation term in Matrix H_hat
 	
-	// Matrix<Type, Dynamic, Dynamic, 0, _nSt, _n+_nSt> Fx_hat[_N];	// array of full-rank state constraint matrices
-	Matrix<Type, _nSt, _n+_nSt> Fx_hat[_N];	// array of full-rank state constraint matrices
-	// Matrix<Type, Dynamic, Dynamic, 0, _n+_nSt, _nSt> Fx_hat_transp[_N];	// transpose of above
-	Matrix<Type, _n+_nSt, _nSt> Fx_hat_transp[_N];	// transpose of above
-	// Matrix<Type, Dynamic, Dynamic, 0, _nInp, _m+_nInp> Fu_hat[_N];	// array of (full-rank) input constraint matrices
-	Matrix<Type, _nInp, _m+_nInp> Fu_hat[_N];	// array of (full-rank) input constraint matrices
-	// Matrix<Type, Dynamic, Dynamic, 0, _m+_nInp, _nInp> Fu_hat_transp[_N];	//transpose of above
-	Matrix<Type, _m+_nInp, _nInp> Fu_hat_transp[_N];	//transpose of above
-	Matrix<Type, _nF_xTheta, _n+_nSt> F_xTheta_hat;	// F_xTheta*x[m+N]+F_theta*theta <= f_xTheta
-	Matrix<Type, _n+_nSt, _nF_xTheta> F_xTheta_hat_transp;	// transpose of above
-	Matrix<Type, _nF_xTheta, _m+_nF_xTheta> F_theta_hat;	// full-rank constraint matrix on theta
-	Matrix<Type, _m+_nF_xTheta, _nF_xTheta> F_theta_hat_transp;	// transpose of above
-	// Matrix<Type, Dynamic, Dynamic, 0, _nInp, _n+_nSt> Fu_bar_hat[_N-1];	// array of (full-rank) input constraint matrices, #row may change, but <= nInp
-	Matrix<Type, _nInp, _n+_nSt> Fu_bar_hat[_N-1];	// array of (full-rank) input constraint matrices, #row may change, but <= nInp
-	// Matrix<Type, Dynamic, Dynamic, 0, _n+_nSt, _nInp> Fu_bar_hat_transp[_N-1];	//transpose of above
-	Matrix<Type, _n+_nSt, _nInp> Fu_bar_hat_transp[_N-1];	//transpose of above
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> z_hat;	// long vector
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> z_hat_orig;	// long vector
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> dz_hat;	// long vector
+	Matrix<Type, 2*_N*(_n+1)-1,1> nu_hat;
+	Matrix<Type, 2*_N*(_n+1)-1,1> nu_hat_orig;
+	Matrix<Type, 2*_N*(_n+1)-1,1> dnu_hat;
+
+	Matrix<Type, 2*_N+1, 1> gamma;		// contains the s0, s1 , ..., s2N
+	Matrix<Type, 2*_N*(_n+1)-1, 1> r_p_hat;
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> r_d_hat;	// long vector
+	Matrix<Type, 2*_N*(_n+1)-1, 1> beta_hat;
 	
-	// Matrix<Type, Dynamic, 1, 0, _m+_nInp, 1> g_hat_c[_N];	// elements in cost g_hat 
-	Matrix<Type, _m+_nInp, 1> g_hat_c[_N];	// elements in cost g_hat 
-	// Matrix<Type, Dynamic, 1, 0, _n+_nSt , 1> g_hat_x[_N];	// elements in cost g_hat
-	Matrix<Type, _n+_nSt , 1> g_hat_x[_N];	// elements in cost g_hat
-	Matrix<Type, _m+_nF_xTheta, 1> g_hat_theta;
+	Matrix<Type, _nSt, _n+1> Fx_hat[_N];	// array of full-rank state constraint matrices
+	Matrix<Type, _n+1, _nSt> Fx_hat_transp[_N];	// transpose of above
+	Matrix<Type, _nInp, _m+1> Fu_hat[_N];	// array of (full-rank) input constraint matrices
+	Matrix<Type, _m+1, _nInp> Fu_hat_transp[_N];	//transpose of above
+	Matrix<Type, _nF_xTheta, _n+1> F_xTheta_hat;	// F_xTheta*x[m+N]+F_theta*theta <= f_xTheta
+	Matrix<Type, _n+1, _nF_xTheta> F_xTheta_hat_transp;	// transpose of above
+	Matrix<Type, _nF_xTheta, _m+1> F_theta_hat;	// full-rank constraint matrix on theta
+	Matrix<Type, _m+1, _nF_xTheta> F_theta_hat_transp;	// transpose of above
+	Matrix<Type, _nInp, _n+1> Fu_bar_hat[_N-1];	// array of (full-rank) input constraint matrices, #row may change, but <= nInp
+	Matrix<Type, _n+1, _nInp> Fu_bar_hat_transp[_N-1];	//transpose of above
 	
-	// Matrix<Type, _n, Dynamic, 0, _n, _m+_nInp> Bm_hat[_N];	// Dynamic, b/c #columns depend on # constraints
-	Matrix<Type, _n, _m+_nInp> Bm_hat[_N];	// Dynamic, b/c #columns depend on # constraints
-	// Matrix<Type, Dynamic, _n, 0, _m+_nInp, _n> Bm_hat_transp[_N];	// Dynamic, b/c #columns depend on # constraints
-	Matrix<Type, _m+_nInp, _n> Bm_hat_transp[_N];	// Dynamic, b/c #columns depend on # constraints
-	// Matrix<Type, _n, Dynamic, 0, _n, _m+_nInp> B_hat[_N];
-	Matrix<Type, _n, _m+_nInp> B_hat[_N];
-	// Matrix<Type, Dynamic, _n, 0, _m+_nInp, _n> B_hat_transp[_N];
-	Matrix<Type, _m+_nInp, _n> B_hat_transp[_N];
-	// Matrix<Type, _n, Dynamic, 0, _n, _n+_nSt> Bm_bar_hat[_N-1];
-	Matrix<Type, _n, _n+_nSt> Bm_bar_hat[_N-1];
-	// Matrix<Type, Dynamic, _n, 0, _n+_nSt, _n> Bm_bar_hat_transp[_N-1];
-	Matrix<Type, _n+_nSt, _n> Bm_bar_hat_transp[_N-1];
-	// Matrix<Type, _n, Dynamic, 0, _n, _n+_nSt> A_bar_hat[_N-1];
-	Matrix<Type, _n, _n+_nSt> A_bar_hat[_N-1];
-	// Matrix<Type, Dynamic, _n, 0, _n+_nSt, _n> A_bar_hat_transp[_N-1];
-	Matrix<Type, _n+_nSt, _n> A_bar_hat_transp[_N-1];
-	// Matrix<Type, _n, Dynamic, 0, _n, _n+_nSt> Identity_hat[_N];
-	Matrix<Type, _n, _n+_nSt> Identity_hat[_N];
-	// Matrix<Type, Dynamic, _n, 0, _n+_nSt, _n> Identity_hat_transp[_N];
-	Matrix<Type, _n+_nSt, _n> Identity_hat_transp[_N];
+	Matrix<Type, _n+1, _m+1> Bm_hat;	// Bm_hat is not used for first block row in C_hat b/c is has a row less
+	Matrix<Type, _m+1, _n+1> Bm_hat_transp;	// see above
+	Matrix<Type, _n, _m+1> Bm_hat0;		// replaces the Bm_hat above for first block row
+	Matrix<Type, _m+1, _n> Bm_hat0_transp;
+	Matrix<Type, _n+1, _m+1> B_hat;
+	Matrix<Type, _m+1, _n+1> B_hat_transp;
+	Matrix<Type, _n+1, _n+1> Bm_bar_hat;
+	Matrix<Type, _n+1, _n+1> Bm_bar_hat_transp;
+	Matrix<Type, _n+1, _n+1> A_bar_hat;
+	Matrix<Type, _n+1, _n+1> A_bar_hat_transp;
+	Matrix<Type, _n+1, _n> Identity1_hat;		// Identity1_hat[0] is not used for first block row in C_hat b/c it has a row less
+	Matrix<Type, _n, _n+1> Identity1_hat_transp;	// see above
+	Matrix<Type, _n+1, _n+1> Identity2_hat;		
+	Matrix<Type, _n+1, _n+1> Identity2_hat_transp;
+	Matrix<Type, _n+1, _n> Am_tilde_hat;
+	Matrix<Type, _n, _n+1> Am_tilde_hat_transp;
 	
-	Matrix<Type, Dynamic, Dynamic> Omicron_hat[_N+1];	// upper bound either _m+_nInp or _m+_nF_xTheta
-	// Matrix<Type, Dynamic, Dynamic, 0, _n+_nSt, _n+_nSt> Rho_hat[_N];
-	Matrix<Type, _n+_nSt, _n+_nSt> Rho_hat[_N];
-	Matrix<Type, Dynamic, Dynamic> Sigma_hat[_N];		// upper bound either ...+_nInp or ...+_nF_xTheta
+	Matrix<Type, _n+1, 1> x_bar_hat_tmp;	// temporary variables needed in compD_hat_PhaseI, compT_PhaseI, ...
+	Matrix<Type, _m+1, 1> c_hat_tmp;		
 	
-	Matrix<Type, Dynamic, Dynamic> LOmicron_hat_diag_transp[_N+1];
+	Matrix<Type, _m+1, _m+1> Omicron_hat[_N+1];
+	Matrix<Type, _n+1, _n+1> Rho_hat[_N];
+	Matrix<Type, _n+1, _m+1> Sigma_hat[_N];
+	
+	Matrix<Type, _m+1, _m+1> LOmicron_hat_diag_transp[_N+1];
 	Matrix<Type, _n, _n> LPi_hat_diag_transp[_N];	// stores the transpose
-	Matrix<Type, _n+_nSt, _n+_nSt> LRho_hat_diag_transp[_N];
-	// Matrix<Type, Dynamic, Dynamic, 0, _n+_nSt, _n+_nSt> LRho_hat_diag_transp[_N];
-	Matrix<Type, Dynamic, Dynamic> LSigma_hat_offDiag[_N];
-	Matrix<Type, Dynamic, Dynamic> LSigma_hat_offDiag_transp[_N];
-	Matrix<Type, Dynamic, Dynamic> LLambda0_hat;		// used for LLT decomposition if _pos_omega != _N
-	Matrix<Type, Dynamic, Dynamic> LLambda0_hat_transp;
-	Matrix<Type, Dynamic, Dynamic> LLambda1_hat;		// used for LLT decomposition if _pos_omega != _N
-	Matrix<Type, Dynamic, Dynamic> LLambda1_hat_transp;
+	Matrix<Type, _n+1, _n+1> LRho_hat_diag_transp[_N];
+	Matrix<Type, _m+1, _n+1> LSigma_hat_offDiag[_N];
+	Matrix<Type, _n+1, _m+1> LSigma_hat_offDiag_transp[_N];
+	Matrix<Type, _m+1, _n+1> LLambda0_hat;		// used for LLT decomposition if _pos_omega != _N
+	Matrix<Type, _n+1, _m+1> LLambda0_hat_transp;
+	Matrix<Type, _m+1, _m+1> LLambda1_hat;		// used for LLT decomposition if _pos_omega != _N
+	Matrix<Type, _m+1, _m+1> LLambda1_hat_transp;
 	
-	Matrix<Type, Dynamic, _n> U_hat[3+(_N-1)*3];		// L*U = C', needed to compute Y
-	Matrix<Type, Dynamic, _n> U_bar_hat[2+(_N-1)*5];	// L*U = C'
-	Matrix<Type, Dynamic, _n> UO_hat[3];
-	Matrix<Type, Dynamic, _n> X_hat[3+(_N-1)*3];		// L'*X = U
-	Matrix<Type, Dynamic, _n> X_bar_hat[2+(_N-1)*5];	// L'*X = U
-	Matrix<Type, Dynamic, _n> XO_hat[3];
+	Matrix<Type, Dynamic, Dynamic, 0, _n+1, _n+1> Y_hat[3][2*_N];	// Y[i][j] = Y_{i+1,j+1}, i=0,1,2
+	Matrix<Type, Dynamic, Dynamic, 0, _n+1, _n+1> L_hat_diag_transp[2*_N];
+	Matrix<Type, Dynamic, Dynamic, 0, _n+1, _n+1> L_hat_offDiag[2][2*_N];	// off-diag matrices are general square matrices
+	Matrix<Type, Dynamic, Dynamic, 0, _n+1, _n+1> L_hat_offDiag_transp[2][2*_N];	// transpose of above
 	
+	Matrix<Type, Dynamic, Dynamic, 0, _m+1, _n+1> U_hat[3+(_N-1)*3];		// L*U = C', needed to compute Y, 
+	Matrix<Type, Dynamic, Dynamic, 0, _n+1, _n+1> U_bar_hat[2+(_N-1)*5];	// L*U = C'
+	Matrix<Type, _m+1, _n+1> UO_hat[3];
+	Matrix<Type, Dynamic, Dynamic, 0, _m+1, _n+1> X_hat[3+(_N-1)*3];		// L'*X = U
+	Matrix<Type, Dynamic, Dynamic, 0, _n+1, _n+1> X_bar_hat[2+(_N-1)*5];	// L'*X = U
+	Matrix<Type, _m+1, _n+1> XO_hat[3];
 	
-	double difference;
+	double difference;	// parameter needed to compute gamma
 // ------------ ^^^ end Matrices PhaseI() --------------	
 	
 	
-	
-	
-	
-	
-	
+
 
 // ---------- private methods ----------
 	// "testPos" tests if the given z_warm satisfies P*z_warm < h								
 	bool testPos();		// returns 1, inequality is satisfied
 						// return 0, if inequality is violated
-	
-	void phaseI();	// in case P*z_warm >= h, phaseI will retrieve a good starting point
+	bool phaseI();	// in case P*z_warm >= h, phaseI will retrieve a good starting point
 	void compD();	// compute "d"-vector
 	void compRdRp(); 	// compute the dual and primal residua
 	void compDzDnu();
@@ -313,8 +311,10 @@ private:
 	void compPhi_hat_tilde_PhaseI();
 	void compY_hat_PhaseI();
 	void compBeta_hat_PhaseI();
+	void compL_hat();
+	void compDnu_hat();
 	void compDz_hat_PhaseI();
-	bool testPos_PhaseI();
+	// bool testPos_PhaseI();
 	void compD_hat_PhaseI();
 	bool testNeg_PhaseI();
 	double compT_PhaseI();		// computes largest t: P_hat*(z_hat+t*dz_hat) < h
@@ -325,10 +325,10 @@ private:
 public:
 	LBmpcTP();	// default constructor
 	
-	// usual constructor: uses references whenever possible to avoid copying of big matrices
+	// standard constructor: uses references whenever possible to avoid copying of big matrices
 	// note: arrays cannot be copied by value, always given as pointers, length implicitly given by _N
-	LBmpcTP(double kappa_arg, double kappa_PhaseI_arg, int n_iter_arg, double mu_arg, double eps_barrier_arg, double eps_nt_arg, double eps_normRp_arg,
-		  	double eps_ls_arg, double alpha_ls_arg, double beta_ls_arg, double reg_arg, double reg_PhaseI_arg,
+	LBmpcTP(double kappa_arg, double kappa_PhaseI_arg, int n_iter_arg, int n_iter_PhaseI_arg, double mu_arg, double eps_barrier_arg, double eps_nt_arg, double eps_normRp_arg,
+		  	double eps_ls_arg, double alpha_ls_arg, double beta_ls_arg, double reg_arg, double reg_PhaseI_arg, double weight_PhaseI_arg,
 		   const Matrix<Type, _n, _n> &A_arg, Matrix<Type, _n, _m> &B_arg,
 		   const Matrix<Type, _n, _n> &Q_tilde_arg, const Matrix<Type, _n, _n> &Q_tilde_f_arg,
 		   const Matrix<Type, _m, _m> &R_arg, const Matrix<Type, _nSt, _n> Fx_arg[], 
@@ -339,33 +339,31 @@ public:
 	      );	
 	
 
-	// "step" computes and returns the optimal z-vector containing the optimal offset c[m]
+	// "step" computes and returns the optimal input 
 	Matrix<Type, _m, 1> step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
-														const Matrix<Type, _n, 1> &x_hat_arg, Matrix<Type, _N*(_m + _n + _n) + _m, 1> &z_warm_arg,
+														const Matrix<Type, _n, 1> &x_hat_arg,
 														const Matrix<Type, _n, 1> x_star_arg[]
 													   );
 													
-	//	const Matrix<Type, _n, 1> &q_tilde_arg, const Matrix<Type, _n, 1> &q_tilde_f_arg,
-	// const Matrix<Type, _m, 1> &r_arg,
-	
 	//~LBmpcTP();	// destructor
 };
 
 
 
-
 //  ==================== Implementation of Methods ==================
 
+// default constructor
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP()
 {
 	// do nothing
 }
 
+// constructor
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
-LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP(double kappa_arg, double kappa_PhaseI_arg, int n_iter_arg, 
+LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP(double kappa_arg, double kappa_PhaseI_arg, int n_iter_arg, int n_iter_PhaseI_arg,
 	   double mu_arg, double eps_barrier_arg, double eps_nt_arg, double eps_normRp_arg, double eps_ls_arg, double alpha_ls_arg, double beta_ls_arg,
-	   double reg_arg, double reg_PhaseI_arg, const Matrix<Type, _n, _n> &A_arg, Matrix<Type, _n, _m> &B_arg,
+	   double reg_arg, double reg_PhaseI_arg, double weight_PhaseI_arg, const Matrix<Type, _n, _n> &A_arg, Matrix<Type, _n, _m> &B_arg,
 	   const Matrix<Type, _n, _n> &Q_tilde_arg, const Matrix<Type, _n, _n> &Q_tilde_f_arg,
 	   const Matrix<Type, _m, _m> &R_arg, const Matrix<Type, _nSt, _n> Fx_arg[], 
 	   const Matrix<Type, _nSt, 1> fx_arg[], const Matrix<Type, _nInp, _m> Fu_arg[],
@@ -391,8 +389,9 @@ LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP(double k
 	alpha_ls = alpha_ls_arg;
 	beta_ls = beta_ls_arg;
 	offset = _n + _n + _m;
-	
-	
+	offset2 = offset+2;
+	n_iter_PhaseI = n_iter_PhaseI_arg;
+	weight_PhaseI = weight_PhaseI_arg;
 	
 	A = A_arg;
 	A_transp = A_arg.transpose();
@@ -404,25 +403,18 @@ LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP(double k
 	K = K_arg;
 	K_transp = K.transpose();
 		
-	// count number of constraints and save array
 	// num_constr = 0;
 	for (int i=0; i < _N; i++)
 	{
 		Fx[i] = Fx_arg[i];
 		Fx_transp[i] = Fx_arg[i].transpose();
 		fx[i] = fx_arg[i];
-		// Fx_rows[i] = fx[i].rows();
-		
-		// num_constr = num_constr + Fx_rows[i];
 		
 		Fu[i] = Fu_arg[i];
 		Fu_transp[i] = Fu_arg[i].transpose();
 		fu[i] = fu_arg[i];
-		// Fu_rows[i] = fu[i].rows();
 		Fu_bar[i] = Fu[i]*K;		// the first one is NOT used
 		Fu_bar_transp[i] = Fu_bar[i].transpose();
-		
-		// num_constr = num_constr + Fu_rows[i];
 	}
 	
 	F_xTheta = F_xTheta_arg;
@@ -430,37 +422,65 @@ LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP(double k
 	F_theta = F_theta_arg;
 	F_theta_transp = F_theta_arg.transpose();
 	f_xTheta = f_xTheta_arg;
-	// num_constr = num_constr + _nF_xTheta;
-	
 	num_constr = _N*(_nInp + _nSt) + _nF_xTheta;
 	
 	s = s_arg;
-
-	// d.resize(_N*(_nInp + _nSt) + _nF_xTheta);
 	
-	//-------- do some computations	
+	// do some preliminary Matrix calculations	
 	S = K.transpose() * R;
 	S_transp = S.transpose();
 	Q_bar = S * K;
-	// q_bar = K.transpose() * r;
 	A_bar = A + B*K;
 	A_bar_transp = A_bar.transpose();	
+	
+	// vvv build the matrices Fx_hat(_transp), Fu_hat(_transp), F_xTheta_hat(_transp), F_theta_hat(_transp), Fu_bar(_transp) for PhaseI
+	Matrix<Type, _nInp, 1> ones_nInp;
+	ones_nInp.setConstant(-1);
+	Matrix<Type, _nSt, 1> ones_nSt;
+	ones_nSt.setConstant(-1);
+	
+	Fu_hat[0] << Fu[0], ones_nInp;
+	Fu_hat_transp[0] = Fu_hat[0].transpose();
+	for (int i=1; i<=_N-1; i++)
+	{
+		Fx_hat[i-1] << Fx[i-1], ones_nSt;
+		Fx_hat_transp[i-1] = Fx_hat[i-1].transpose();
+		
+		Fu_bar_hat[i-1].setZero();
+		Fu_bar_hat[i-1].block(0,0,_nInp,_n) = Fu_bar[i];
+		Fu_bar_hat_transp[i-1] = Fu_bar_hat[i-1].transpose();
+		
+		Fu_hat[i] << Fu[i], ones_nInp;
+		Fu_hat_transp[i] = Fu_hat[i].transpose();
+	}
+	Fx_hat[_N-1] << Fx[_N-1], ones_nSt;
+	Fx_hat_transp[_N-1] = Fx_hat[_N-1].transpose();
+	
+	F_xTheta_hat.setZero();
+	F_xTheta_hat.block(0,0,_nF_xTheta,_n) = F_xTheta;
+	F_xTheta_hat_transp = F_xTheta_hat.transpose();
+	
+	F_theta_hat << F_theta, Matrix<Type, _nF_xTheta, 1>::Constant(_nF_xTheta, 1, -1);
+	F_theta_hat_transp = F_theta_hat.transpose();
+	// ^^^ built the matrices
+	
+	z_warm.setConstant(100);
+	
 }
+
 
 // step function returns optimal input
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
-																									   const Matrix<Type, _n, 1> &x_hat_arg, Matrix<Type, _N*(_m + _n + _n) + _m, 1> &z_warm_arg,
+																									   const Matrix<Type, _n, 1> &x_hat_arg,
 																									  const Matrix<Type, _n, 1> x_star_arg[]
 												   													  )
-// const Matrix<Type, _n, 1> &q_tilde_arg, const Matrix<Type, _n, 1> &q_tilde_f_arg, const Matrix<Type, _m, 1> &r_arg
 {
 	// initialization
 	Lm = Lm_arg;
 	Mm = Mm_arg;
 	tm = tm_arg;
 	x_hat = x_hat_arg;
-	z_warm = z_warm_arg;
 	kappa = kappa_start;
 	x_star = x_star_arg;
 	tm_tilde = tm_arg + s;
@@ -471,24 +491,27 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 	Bm_bar = Bm * K;
 	Bm_bar_transp = Bm_bar.transpose();
 	
+	//update z_warm from previous z_warm
+	z_warm.template segment<(_N-1)*(_m+_n+_n)>(0) = z_warm.template segment<(_N-1)*(_m+_n+_n)>(offset);
+	
 	compRQ();	// compute u_star, x_star -> cost matrices 
-	// test, if given w_warm satisfies (P*z_warm<h), otherwise better z_warm is computed using phaseI()
-	// testPos(): returns 1 if inequality is satisfied
-	//					  0 if inequality not satisfied
 	z = z_warm;
-	// cout << "z_warm:" << endl << z_warm << endl << endl;
 	
 	nu.setConstant(1);	// any nu good to initialize
-	srand((unsigned)time(0));
-	nu.setRandom();
-	nu = 100*nu;
 	
+	// tests, if given w_warm satisfies (P*z_warm<h), otherwise a suitable z_warm is computed using phaseI()
+	// testPos(): returns 1 if inequality is satisfied
+	//					  0 if inequality not satisfied
 	if( !testPos() )	// testPos() operates on z
 	{
-			phaseI();		// sets new z_warm and an appropriate nu
-			// return K*x_hat + z.template segment<_m>(0);
+			if (!phaseI())	// if phaseI() == 0 => Phase I was not successful
+			{
+				cerr << "Phase I was unsuccessful" << endl;
+				cerr << "process aborted." << endl;
+				return K*x_hat + z.template segment<_m>(0);
+			}		
 	}
-	else
+	else	// sets new z_warm and an appropriate nu
 	{
 		cout << "chosen z_warm is in domain." << endl;
 	}
@@ -497,13 +520,12 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 	kappa = kappa_start;
 	z = z_warm;		// the (new) z_warm satisfies inequality
 	compD();	// compute d-vector
-	// some auxiliary variables
-	Matrix<Type, _N*(_m + _n + _n) + _m, 1> z_orig;	// stores the "old z", z stores z = z_tmp + t*dz
-	Matrix<Type, 2*_N*_n, 1> nu_orig;
-	double resNormSq_orig;
-	double resNormSq;	// squared
-	double resNormSqRp;
-	bool isFeasible;	// stores if P*(z+t*dz) < h
+	
+	Matrix<Type, _N*(_m + _n + _n) + _m, 1> z_orig;	// stores the "old z", z now stores z = z_orig + t*dz
+	Matrix<Type, 2*_N*_n, 1> nu_orig;	// ditto
+	double resNormSq_orig;	// squared norm of original resudia
+	double resNormSq;	// squared norm of residua
+	double resNormSqRp;	// squared norm of primal residuum
 	bool cond;
 	int i;		// counter for backtracking line search
 	int j;		// number of newton iterations for a fixed kappa
@@ -512,13 +534,12 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 	do 			// kappa changes
 	{
 		i_kappa++;	
-		cout << "============= kappa: " << kappa << ", i_kappa: " << i_kappa << " ================" << endl;
+		// cout << "============= kappa: " << kappa << ", i_kappa: " << i_kappa << " ================" << endl;
 		compRdRp();		// z is already in domain, using new kappa to compute primal and dual residua
 		j = 0;
 		do 		// kappa fixed
 		{
 			j++;	// number of Newton steps for fixed kappa
-			// cout << "----------- kappa fixed, round: " << j << "--------------" << endl << endl;			
 			compDzDnu();
 			
 			// --------- line search part --------------
@@ -526,14 +547,6 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 			// 1) ||r_d(z+t*dz,nu+t*dnu)||_2 + ||r_p(z+t*dz,nu+t*dnu)||_2 <= (1-alpha*t)*(||r_d||_2 + ||r_p||_2)
 			// 2) P*(z+t*dz) < h
 			t = compT();	// retrieve largest t s.t. P*(z+t*dz) < h			
-			if (t < 0)
-			{
-				cout << "! compT() returned negative t:" << t << endl << endl;
-				// cout << "z_hat:" << endl << z_hat << endl << endl;
-				// cout << "dz_hat:" << endl << dz_hat << endl << endl;
-				return  K*x_hat + z.template segment<_m>(0);
-			}
-			// t = 1;
 			z_orig = z;	// stores the "old z", z stores z = z_tmp + t*dz
 			nu_orig = nu;
 			
@@ -541,51 +554,33 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 			cond = 1;
 			i = 0;
 			loopCounter++;
-			isFeasible = 0;
 			
-			while (cond)
+			while (cond)	// backtracking line search
 			{
-				// loopCounter++;
 				i++;
-				// cout << "entering round: " << i << endl << endl;
 				z = z_orig + t*dz;
-				// cout << "updated z with t = " << t << ":" << endl << z << endl << endl;
-				isFeasible = isFeasible || testPos();		// test positivity using the new z
-				if(!isFeasible)
-				{
-					cout << "!!! not feasible despite compT()!" << endl;
-				}
-				// cout << "cond1: " << cond << endl << endl;
-				if (isFeasible)	// means that z is in domain, only then check if inequality holds
-				{
-					nu = nu_orig + t*dnu;
-					compD();
-					compRdRp();		// class variables r_d and r_p are updated
-					resNormSqRp = r_p.squaredNorm();
-					resNormSq = r_d.squaredNorm() + resNormSqRp;
-					cond = ( (resNormSq > (1-alpha_ls*t)*(1-alpha_ls*t)*resNormSq_orig) );
-				}		
+				nu = nu_orig + t*dnu;
+				compD();
+				compRdRp();		// class variables r_d and r_p are updated
+				resNormSqRp = r_p.squaredNorm();
+				resNormSq = r_d.squaredNorm() + resNormSqRp;
+				cond = ( (resNormSq > (1-alpha_ls*t)*(1-alpha_ls*t)*resNormSq_orig) );
+					
 				t = beta_ls*t;
 				if (t <= eps_ls)
-				{
-					break;	// stop, no improvement
-				}
+					break;	// stop, no improvement assumed
 			}	// z and nu have automatically been updated
-		
-			cout << "line search needed " << i << " steps with step size t: " << t/beta_ls << endl << endl;
+			// cout << "line search needed " << i << " steps with step size t: " << t/beta_ls << endl << endl;
 			
-			if (j >= n_iter && i_kappa > 0)		// i_kappa==1 might need more steps
+			if (j >= n_iter && i_kappa > 0)		// >0 includes first step i_kappa==1, even though it might need more steps
 			{
-				cout << "!!!!!! more than " << n_iter <<" steps required !!!!!!" << endl;
-				cout << "loopCounter: " << loopCounter << endl;
+				// cout << "more than " << n_iter <<" steps required" << endl;
+				// cout << "loopCounter: " << loopCounter << endl;
 				break;
 			}
 		} while( (resNormSq > eps_ntSq) || (resNormSqRp > eps_normRpSq) );
-		// while( (resNormSq > eps_ntSq) || (resNormSqRp > eps_normRpSq) );
-		cout << "needed " << j << " rounds" << endl << endl;
 		kappa = kappa*mu;
 	} while( kappa/mu*num_constr > eps_barrier );
-	//while( kappa/mu*num_constr > eps_barrier );
 	
 	cout << " =====> computed optimal z_vector:" << endl << setprecision (15) << z << endl << endl;
 	cout << setprecision (15) << "kappa: " << kappa << " after i_kappa: " << i_kappa << endl;
@@ -593,6 +588,7 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 	cout << setprecision (15) << "kappa/mu*num_constr: " << kappa/mu*num_constr << endl << endl;
 	cout << setprecision (15) << "loopCounter: " << loopCounter << endl << endl;
 	
+	z_warm = z;
 	return K*x_hat + z.template segment<_m>(0);
 }
 
@@ -601,10 +597,7 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 // ------- might consider computing entire matrix check and then iterate for neg. elements ----
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 bool LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: testPos()
-{
-	
-	// cout << endl << "======= starting testPos() =======" << endl;
-	
+{	
 	// special treatment at beginning
 	c_tmp = z.template segment<_m>(0);
 	checkU = (fu[0] - Fu_bar[0]*x_hat) - (Fu[0]*c_tmp);	// should be >0
@@ -612,15 +605,10 @@ bool LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: testPos()
 	for (int j=1; j <= _nInp; j++)
 	{
 		if (checkU[j-1] <= 0)
-		{
-			// cout << "fu Problem at beginning at" << j << endl << endl;
 			return 0;
-		}
 	}
-	// cout << "finished special treatment at start" << endl;
 	
-	// class variable: offset = _n + _n + _m;
-	// general treatment in the middle 
+	// general treatment in the middle, class variable: offset = _n + _n + _m;
 	for (int i=1; i <= _N-1; i++) 	// blocks in the middle
 	{	// compute (h - P*z)_i
 		// cout << "round " << i << "in general treatment" << endl;
@@ -631,113 +619,73 @@ bool LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: testPos()
 		for (int j=1; j<= _nSt; j++)
 		{
 			if (checkX[j-1] <= 0)
-			{
-				// cout << "fx Problem at" << i << "at " << j << endl << endl;
 				return 0;
-			}
 		}
 		
 		checkU = fu[i] - (Fu_bar[i]*x_bar_tmp + Fu[i]*c_tmp);
 		for (int j=1; j<=_nInp; j++)
 		{
 			if (checkU[j-1] <= 0)
-			{
 				return 0;
-			}
 		}
-		//cout << "for-loop completion of round" << i << endl;
 	}
-	
-	// cout << "finished general treatment" << endl;
 	
 	// special case for last blocks
 	x_bar_tmp = z.template segment<_n>((_N-1)*offset+_m+_n);	// depends on where it is
 	c_tmp = z.template segment<_m>((_N-1)*offset+_m+_n+_n);
 	checkX = fx[_N-1] - (Fx[_N-1]*x_bar_tmp);
-	// cout << check << endl << endl;
 	for (int j=1; j<= _nSt; j++)
 	{
 		if (checkX[j-1] <= 0)
-		{
 			return 0;
-		}
 	}
-	
-	// cout << "leihou" << endl;
 	
 	x_bar_tmp = z.template segment<_n>((_pos_omega-1)*offset+_m+_n);	// depends on position of invariant set
 	checkTheta = f_xTheta - (F_xTheta*x_bar_tmp + F_theta*c_tmp);
-	// cout << check << endl << endl;
 	for (int j=1; j<= _nF_xTheta; j++)
 	{
 		if (checkTheta[j-1] <= 0)
-		{
-			// cout << "f_xTheta Problem in last block at " << j << endl << endl;
 			return 0;
-		}
 	}
-	// cout << "======= leaving testPos() ========" << endl << endl;
 	
 	return 1;	// no problems detected
 }
 
 
 // ------------ function finds z_warm such that P*z_warm < h -----------
-// ------------ implementing basically the other algorithms ------------
-// solve the problem: min{1'*gamma + z'*H_hat*z}, s.t. {P*z-h < gamma, C*z = b}
-// reformulate as: min{z_hat*H_hat*z + g_hat'*z_hat}, s.t. {P_hat*z_hat < h, C_hat * z_hat = b}
+// ------------ similar to PhaseII, heuristic method ------------
+// solve the problem: min{gamma_0 + gamma_2N}, s.t. {P*z-h < gamma, C*z = b, gamma_0=gamma_1=...=gamma_2N-1}
+// reformulate as: min{z_hat*H_hat*z + g_hat'*z_hat}, s.t. {P_hat*z_hat < h, C_hat * z_hat = b_hat}
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
-void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: phaseI()
+bool LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: phaseI()
 {
-	cout << "---------- Pz < h not satisfied, starting phaseI() -----------" << endl;
-	/* definition of all the variables needed */
-	// z_hat.resize(num_constr + _N*(_m + _n + _n) + _m);
-	// dz_hat.resize(num_constr + _N*(_m + _n + _n) + _m);
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> z_hat_orig;	// vector storing the original data
-	// z_hat_orig.resize(num_constr + _N*(_m + _n + _n) + _m);
-	// r_d_hat.resize(num_constr + _N*(_m + _n + _n) + _m);
-	Matrix<Type, 2*_N*_n, 1> nu_orig;
-	// gamma.resize(num_constr);
+	// cout << "---------- Pz_warm < h not satisfied, starting phaseI() -----------" << endl;
+	nu_hat.setConstant(1);	// any nu good to initialize
 	
-	nu.setConstant(1);	// any nu good to initialize
-	// nu << 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0;
-	nu << 8, 1, 7, 8, 5, 0, 4, 10, 1, 8, 4, 3, 5, 4, 9, 4, 1, 3, 2, 8, 6, 7,
-	   		7, 5, 3, 1, 8, 3, 6, 5, 7, 3, 3, 7, 10, 3, 9, 9, 8, 8, 3, 9, 8, 8,
-			8, 5, 9, 9, 0, 7, 5, 6, 10, 8, 10, 3, 3, 3, 3, 5, 3, 9, 7, 8, 2, 1,
-			1, 6, 6, 4, 0, 2, 5, 8, 8, 9, 8, 5, 3, 1, 6, 2, 1, 8, 5, 7, 1, 4,
-			6, 9, 9, 4, 4, 1, 7, 2, 9, 4, 5, 2;
-	// srand((unsigned)time(0));
-	// nu.setRandom();
-	// nu = 10*nu;
+	// for test purposes, n=5, m=2, N = 10
+	 nu_hat << 7, 5, 7, 10, 5, 3, 8, 2, 2, 5, 6, 6, 1, 1, 3, 7, 4, 8, 9, 4, 1, 6, 7, 3, 5, 2, 9, 5, 5, 2, 1, 1, 8, 8, 2, 9, 7, 7, 10, 0, 4, 5, 6, 1,
+	 7, 1, 6, 7, 5, 6, 2, 6, 4, 1, 4, 3, 2, 6, 5, 4, 2, 9, 9, 3, 6, 8, 10, 9, 4, 2, 8, 1, 2, 4, 8, 6, 6, 9, 6, 0, 8, 6, 5, 3, 3, 5, 2, 0,
+	 2, 3, 2, 6, 8, 8, 8, 7, 9, 8, 2, 10, 1, 7, 2, 2, 3, 2, 5, 10, 4, 6, 6, 7, 4, 9, 9, 8, 3, 8, 1;
+	
 	
 	compMatrices_PhaseI();	// computes Fx_hat, Fu_hat, Fu_bar_hat, g_hat_c, g_hat_x, Bm_hat, Identity_hat...
-
-	difference = 100;	// h-P*z_warm = difference
-	compGamma_PhaseI();
-	// cout << setprecision(15) << "gamma:" << endl << gamma << endl << endl;
-	// return;
+	difference = 10;	// h-P*z_warm = difference
+	compGamma_PhaseI();	// computes gamma
 	
-	/* implementation of functions */
-	d.setConstant(1/difference);	// 1/difference doesn't work, returns 0....; difference set in compGamma_PhaseI
-	
-	// vvv build z_hat
-	int tmp = 0;	// counter for position 
+	// vvv build z_hat, offset2 = _n+_n+_m+2;
 	for (int i=1; i<= _N; i++)
 	{
-		z_hat.template segment<_m>( (i-1)*offset+tmp ) = z.template segment<_m>( (i-1)*offset );
-		z_hat.template segment<_nInp>((i-1)*offset+_m+tmp) = gamma.template segment<_nInp>(tmp);
-		tmp = tmp + _nInp;
-		z_hat.template segment<_n>( (i-1)*offset+tmp+_m ) = z.template segment<_n>( (i-1)*offset+_m );
-		z_hat.template segment<_n>( (i-1)*offset+tmp+_m+_n ) = z.template segment<_n>((i-1)*offset+_m+_n);
-		z_hat.template segment<_nSt>((i-1)*offset+tmp+_m+_n+_n) = gamma.template segment<_nSt>(tmp);
-		tmp = tmp + _nSt;
-	}
-	z_hat.template segment<_m>(_N*offset+tmp) = z.template segment<_m>(_N*offset);
-	z_hat.template segment<_nF_xTheta>(_N*offset+_m+tmp) = gamma.template segment<_nF_xTheta>(tmp);
-	// cout << setprecision(15) << "z_hat" << endl << z_hat << endl << endl;
-	// return;
+		z_hat.template segment<_m>( (i-1)*offset2 ) = z.template segment<_m>( (i-1)*offset );
+		z_hat.template segment<1>((i-1)*offset2+_m) = gamma.template segment<1>(0);	// same
+		z_hat.template segment<_n+_n>( (i-1)*offset2+_m+1) = z.template segment<_n+_n>( (i-1)*offset+_m );
+		z_hat.template segment<1>((i-1)*offset2+_m+1+_n+_n) = gamma.template segment<1>(0);
+	}	
+	z_hat.template segment<_m>(_N*offset2) = z.template segment<_m>(_N*offset);
+	z_hat.template segment<1>(_N*offset2+_m) = gamma.template segment<1>(2*_N);
+	// cout << setprecision(30) << "z_hat:" << endl << z_hat << endl << endl;
 	// ^^^ computed z_hat
 		
+	compD_hat_PhaseI();	// stored in d 
 	double resNormSq_orig;
 	double resNormSq;
 	double resNormSqRp;
@@ -746,119 +694,75 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: phaseI()
 	int i_kappa = 0;
 	kappa = kappa_start_PhaseI;
 	bool cond;
-	bool isFeasible;
 	int i;
+
 	do
 	{
 		i_kappa++;
-		cout << "============= kappa PhaseI: " << kappa << ", i_kappa: " << i_kappa << " ================" << endl;
+		// cout << "============= kappa PhaseI: " << kappa << ", i_kappa: " << i_kappa << " ================" << endl;
 		compRdRp_PhaseI();		// computes r_p and r_d_hat
-		// cout << setprecision(15) << "r_p in PhaseI()" << endl << r_p << endl << endl;
-		// cout << "r_d_hat in PhaseI()" << endl << r_d_hat << endl << endl;
-		// return;
-		
+		// cout << setprecision(30) << "r_p_hat" << endl << r_p_hat << endl << endl;
+		// cout << setprecision(30) << "r_d_hat" << endl << r_d_hat << endl << endl;
+		// return 0;
 		j = 0;
 		do  	// kappa fixed 
 		{
 			j++;
 			// cout << "----------- kappa fixed PhaseI(), round: " << j << "--------------" << endl << endl;			
 			compDz_hatDnu_hat_PhaseI();	// compute dz_hat and dnu
-			// cout << setprecision(15) << "dz_hat" << endl << dz_hat << endl << endl;
-			// cout << setprecision(15) << "dnu" << endl << dnu << endl << endl;
-			// return;
-			
+			// cout << setprecision(30) << "dz_hat" << endl << dz_hat << endl << endl;
+			// cout << "dnu_hat" << endl << dnu_hat << endl << endl;
+			// return 0;
 			// ---- line search part --------
 			// decrease t until both conditions are satisfied
 			// 1) ||res(z+t*dz,nu+t*dnu)||_2 <= (1-alpha*t)*(||r_d||_2 + ||r_p||_2)
 			// 2) P*(z+t*dz) < h
-			// t = 1;
-			// cout << "before compT_PhaseI" << endl << endl;
 			t = compT_PhaseI();		// computes largest t: P_hat*(z_hat+t*dz_hat) < h
-			// cout << setprecision(15) << "z_hat" << endl << z_hat << endl << endl;
-			// cout << "dz_hat" << endl << dz_hat << endl << endl;
-			// cout << setprecision(15) << "compT_PhaseI: " << t << endl << endl;
-			// return;
-			if (t < 0)
-			{
-				cout << "compT_PhaseI() returned negative t:" << t << endl << endl;
-				cout << "z_hat:" << endl << z_hat << endl << endl;
-				cout << "dz_hat:" << endl << dz_hat << endl << endl;
-				return;
-			}
+			// cout << "t: " << endl << t << endl << endl;
 			z_hat_orig = z_hat;
-			nu_orig = nu;
-			resNormSq_orig = r_d_hat.squaredNorm() + r_p.squaredNorm();
+			nu_hat_orig = nu_hat;
+			resNormSq_orig = r_d_hat.squaredNorm() + r_p_hat.squaredNorm();
 
 			cond = 1;
-			isFeasible = 0;
 			i = 0;
 			loopCounter++;
 			while (cond)
 			{
-				// loopCounter++;
 				i++;
 				z_hat = z_hat_orig + t*dz_hat;	// guaranteed to be feasible, b/c t is small enough
-				isFeasible = isFeasible || testPos_PhaseI();
-				if(!isFeasible)
+				// stop if gamma < 0, z_warm is computed automatically
+				if( testNeg_PhaseI() )
 				{
-					cout << "not feasible!" << endl;
-					cout << "z_hat_orig:" << endl << z_hat_orig << endl << endl;
-					cout << "t: " << t << endl;
-					cout << "dz_hat" << endl << dz_hat << endl << endl;
-					cout << "z_hat:" << endl << z_hat << endl << endl;
-					return;
+					// cout << setprecision(30) << "new z_warm is: " << endl << z_warm << endl << endl;
+					cout << "PhaseI needed " << loopCounter << " Newton steps to find z_warm." << endl << endl;
+					return 1;
 				}
-				// cout << "cond at round " << i << " is: " << cond << endl << endl;
-				if (isFeasible)
-				{
-					// stop if gamma < 0 and z_warm is computed automatically
-					if( testNeg_PhaseI() )
-					{
-						cout << setprecision(15) << "new z_warm is: " << endl << z_warm << endl << endl;
-						// cout << "d:" << endl << d << endl << endl;
-						cout << "loopCounter needed for finding z_warm: " << loopCounter << endl << endl;
-						return;
-					}
-					nu = nu_orig + t*dnu;
-					compD_hat_PhaseI();	// stored in d 
-					// cout << setprecision(15) << "d in phaseI" << endl << d << endl << endl;
-					compRdRp_PhaseI();
-					// cout << setprecision(15) << "r_p in PhaseI()" << endl << r_p << endl << endl;
-					// cout << "r_d_hat in PhaseI()" << endl << r_d_hat << endl << endl;
-					// return;
-					resNormSqRp = r_p.squaredNorm();
-					resNormSq = r_d_hat.squaredNorm() + resNormSqRp;
-					cond = ( (resNormSq > (1-alpha_ls*t)*(1-alpha_ls*t)*resNormSq_orig) );
-				}
+				nu_hat = nu_hat_orig + t*dnu_hat;
+				compD_hat_PhaseI();	// stored in d
+				compRdRp_PhaseI();
+				resNormSqRp = r_p_hat.squaredNorm();
+				resNormSq = r_d_hat.squaredNorm() + resNormSqRp;
+				cond = ( (resNormSq > (1-alpha_ls*t)*(1-alpha_ls*t)*resNormSq_orig) );
 				t = beta_ls*t;
-				// cout << "t: " << t << endl << endl;
 			}	
-			// cout << "line search in PhaseI needed " << i << " steps with step size t: " << t/beta_ls << endl << endl;
-			if (j == 200)
+			if (j >= n_iter_PhaseI)
 			{
-				cout << "!!!!!! PhaseI more than 200 steps required !!!!!!" << endl;
-				cout << "loopCounter: " << loopCounter << endl;
-				// cout << "z_hat:" << endl << z_hat << endl << endl;
-				return;
+				// cout << " PhaseI more than " << n_iter_PhaseI << " steps for kappa = " << kappa << endl;
+				// cout << "loopCounter: " << loopCounter << endl;
+				break;
 			}
 		} while( (resNormSq > eps_ntSq) || (resNormSqRp > eps_normRpSq) );
-		// while( (resNormSq > eps_ntSq) || (resNormSqRp > eps_normRpSq) );
-		cout << "needed " << j << " rounds" << endl << endl;
 		kappa = kappa*mu;
 	} while( kappa/mu*num_constr > eps_barrier );
-	cout << "***** phaseI() did NOT converge." << endl;
-	//while( kappa/mu*num_constr > eps_barrier );
-	return;
+	cerr << "***** phaseI() did NOT converge." << endl;
+	return 0;
 }
 
 
 // ------------ function computes primal and dual residua  -------------
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRdRp()
-{
-	//cout << "========= starting compRdRp() =========" << endl;
-	
-	// ---------- compute primal dual r_p = C*z - b, done two blocks
+{	// ---------- compute primal dual r_p = C*z - b, done two blocks
 	//special treatment at the beginning
 	r_p.template segment<_n>(0) = -Bm*z.template segment<_m>(0) + z.template segment<_n>(_m) - ( Am_tilde + Bm_bar)*x_hat - tm_tilde;
 	r_p.template segment<_n>(_n) = -B*z.template segment<_m>(0) + z.template segment<_n>(_m+_n) - (A_bar*x_hat + s);
@@ -870,21 +774,15 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRdRp(
 			Bm*z.template segment<_m>((i-1)*offset+_m+_n+_n) + z.template segment<_n>((i-1)*offset+_m+_n+_n+_m) - tm_tilde;
 		r_p.template segment<_n>(2*_n*i+_n) = -A_bar*z.template segment<_n>((i-1)*offset+_m+_n) - B*z.template segment<_m>((i-1)*offset+_m+_n+_n) + 
 						z.template segment<_n>((i-1)*offset+_m+_n+_n+_m+_n) - s;
-		
 	}
 	
-	// cout << "r_p" << endl << r_p << endl << endl;
-	// return;
-
 	// ------------- compute dual r_d = 2*H*z + g + kappa*P'*d + C'*nu;
 	// handle first case separately
 	r_d.template segment<_m>(0) = 2*R*z.template segment<_m>(0) + (r_vec[0]+2*S_transp*x_hat) + 
 				kappa*Fu_transp[0]*d.template segment<_nInp>(0) - Bm_transp*nu.template segment<_n>(0) - B_transp*nu.template segment<_n>(_n);
 						
-	// handle the cases in the middle, without the end
-	// three block to deal with in each round
+	// handle the cases in the middle, without the end, three block to deal with in each round
 	int offset1 = 2*_n;	// offset required in nu for C'*nu
-	// int tmp = Fu_rows[0];	// offset required in d for P'*d
 	for (int i=1; i<= _N-1; i++)
 	{
 		r_d.template segment<_n>(_m+(i-1)*offset) = 2*Q_tilde*z.template segment<_n>(_m+(i-1)*offset) + q_tilde_vec[i-1] +
@@ -893,45 +791,34 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRdRp(
 		if (i != _pos_omega)	
 		{	
 			r_d.template segment<_n>(_m+(i-1)*offset+_n) = 2*Q_bar*z.template segment<_n>(_m+(i-1)*offset+_n) + 2*S*z.template segment<_m>(_m+(i-1)*offset+_n+_n) + q_bar_vec[i] +
-					// kappa*Fx_transp[i-1]*d.segment(tmp,Fx_rows[i-1]) + kappa*Fu_bar_transp[i]*d.segment(tmp+Fx_rows[i-1],Fu_rows[i]) + 
 					kappa*Fx_transp[i-1]*d.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) + kappa*Fu_bar_transp[i]*d.template segment<_nInp>(i*(_nInp+_nSt)) + 
 					nu.template segment<_n>((i-1)*offset1+_n) - Bm_bar_transp*nu.template segment<_n>((i-1)*offset1+_n+_n) - A_bar_transp*nu.template segment<_n>((i-1)*offset1+_n+_n+_n);
 		}
 		else	// must add the additional term: F_xTheta'*d(.)
 		{
 			r_d.template segment<_n>(_m+(_pos_omega-1)*offset+_n) = 2*Q_bar*z.template segment<_n>(_m+(_pos_omega-1)*offset+_n) + 2*S*z.template segment<_m>(_m+(_pos_omega-1)*offset+_n+_n) + q_bar_vec[i] +
-					// kappa*Fx_transp[_pos_omega-1]*d.segment(tmp,Fx_rows[_pos_omega-1]) + kappa*Fu_bar_transp[_pos_omega]*d.segment(tmp+Fx_rows[_pos_omega-1],Fu_rows[_pos_omega]) + 
 					kappa*Fx_transp[_pos_omega-1]*d.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) + kappa*Fu_bar_transp[_pos_omega]*d.template segment<_nInp>(i*(_nInp+_nSt)) + 
 					nu.template segment<_n>((_pos_omega-1)*offset1+_n) - Bm_bar_transp*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n) - A_bar_transp*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n+_n)
 					+ F_xTheta_transp * d.template segment<_nF_xTheta>(num_constr-_nF_xTheta);
 		}
 		
-		// tmp = tmp + Fx_rows[i-1];
 		r_d.template segment<_m>(_m+(i-1)*offset+_n+_n) = 2*S_transp*z.template segment<_n>(_m+(i-1)*offset+_n) + 2*R*z.template segment<_m>(_m+(i-1)*offset+_n+_n) + r_vec[i] +
 				// kappa*Fu_transp[i]*d.segment(tmp,Fu_rows[i]) - 
 				kappa*Fu_transp[i]*d.template segment<_nInp>(i*(_nInp+_nSt)) - 
 				Bm_transp*nu.template segment<_n>((i-1)*offset1+_n+_n) - B_transp*nu.template segment<_n>((i-1)*offset1+_n+_n+_n);		
-		// tmp = tmp + Fu_rows[i];
 	}
 	r_d.template segment<_n>(_m+(_N-1)*offset) = 2*Q_tilde_f*z.template segment<_n>(_m+(_N-1)*offset) + q_tilde_vec[_N-1] + nu.template segment<_n>((_N-1)*offset1);
 	
 	if(_pos_omega == _N)
 	{
-		// r_d.template segment<_n>(_m+(_N-1)*offset+_n) = kappa*Fx_transp[_N-1]*d.segment(tmp,Fx_rows[_N-1]) + kappa*F_xTheta_transp*d.segment(tmp+Fx_rows[_N-1],_nF_xTheta) + 
 		r_d.template segment<_n>(_m+(_N-1)*offset+_n) = kappa*Fx_transp[_N-1]*d.template segment<_nSt>(_nInp+(_N-1)*(_nInp+_nSt)) + kappa*F_xTheta_transp*d.template segment<_nF_xTheta>(_N*(_nInp+_nSt)) + 
 				nu.template segment<_n>((_N-1)*offset1+_n);
 	}
 	else	//standard
 	{
-		// r_d.template segment<_n>(_m+(_N-1)*offset+_n) = kappa*Fx_transp[_N-1]*d.segment(tmp,Fx_rows[_N-1]) + nu.template segment<_n>((_N-1)*offset1+_n);
 		r_d.template segment<_n>(_m+(_N-1)*offset+_n) = kappa*Fx_transp[_N-1]*d.template segment<_nSt>(_nInp+(_N-1)*(_nInp+_nSt)) + nu.template segment<_n>((_N-1)*offset1+_n);
 	}
-	// tmp = tmp + Fx_rows[_N-1];
-	// r_d.template segment<_m>(_m+(_N-1)*offset+_n+_n) = kappa * F_theta_transp*d.template segment<_nF_xTheta>(tmp);
 	r_d.template segment<_m>(_m+(_N-1)*offset+_n+_n) = kappa * F_theta_transp*d.template segment<_nF_xTheta>(_N*(_nSt+_nInp));
-	
-	// cout << "r_p:" << endl << r_p << endl << endl;
-	// cout << "r_d" << endl << r_d << endl << endl;
 }
 
 
@@ -939,11 +826,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRdRp(
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compD()
 {
-	// Matrix<Type, _m, 1> c_tmp;		// use this to temporarily copy c-blocks out of z
-	// Matrix<Type, _n, 1> x_bar_tmp;	// use this to temporarily copy x_bar-blocks out of z
-	// Matrix<Type, Dynamic, 1> diff;		// length of vector not yet fixed
-	// int tmp = 0;		// variable used to count position
-
 	// special treatment at beginning
 	c_tmp = z.template segment<_m>(0);
 	checkU = (fu[0] - Fu[0]*K*x_hat) - (Fu[0]*c_tmp);	// should be >0
@@ -951,7 +833,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compD()
 	{
 		d[j-1] = 1/checkU[j-1];
 	}
-	// tmp = tmp + Fu_rows[0];
+
 	// general treatment in the middle, class variable: offset = _n + _n + _m
 	for (int i=1; i <= _N-1; i++) // blocks in the middle
 	{	// compute (h - P*z)_i
@@ -962,14 +844,12 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compD()
 		{
 			d[_nInp+(i-1)*(_nInp+_nSt)+j-1] = 1/checkX[j-1];
 		}
-		// tmp = tmp + Fx_rows[i-1];
 		
 		checkU = fu[i] - (Fu[i]*K*x_bar_tmp + Fu[i]*c_tmp);
 		for (int j=1; j<=_nInp; j++)
 		{
 			d[_nInp+(i-1)*(_nInp+_nSt)+_nSt+j-1] = 1/checkU[j-1];
 		}
-		// tmp = tmp + Fu_rows[i];
 	}
 	
 	// special case for last blocks
@@ -981,14 +861,12 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compD()
 	{
 		d[_nInp+(_N-1)*(_nSt+_nInp)+j-1] = 1/checkX[j-1];
 	}
-	// tmp = tmp + Fx_rows[_N-1];
 	x_bar_tmp = z.template segment<_n>((_pos_omega-1)*offset+_m+_n);
 	checkTheta = f_xTheta - (F_xTheta*x_bar_tmp + F_theta*c_tmp);
 	for (int j=1; j<= _nF_xTheta; j++)
 	{
 		d[_N*(_nSt+_nInp)+j-1] = 1/checkTheta[j-1];
 	}
-	// cout << "d: " << endl << d << endl << endl;
 }
 
 // ------- function computes primal and dual Newton steps -------------
@@ -1000,8 +878,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDzDnu
 	compPhi_tilde();	// Phi_tilde = Phi^{-1}; computes Chol-Dec
 	compY();			// Y = C*Phi_tilde*C'
 	compBeta();		// beta = -r_p + C*Phi_tilde*r_d;
-	//    ---------------- compute elements of L-matrix: Y = L*L' ---------------
-	// ********* assumed that horizon is <= 50
 	compL();		// L*L' = Y
 	compDnu();		// Y * dnu = -beta
 	compDz();		// Phi * dz = -r_d - C'*dnu;
@@ -1013,72 +889,71 @@ template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xThet
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi()
 {
 	// ------------ first, partition diag(d) into (2N+1) diagonal matrices called d_diag[2N+1]
-	// what if _nF_xTheta is not big enough?
-	// Matrix<Type, Dynamic, Dynamic> d_diag[2*_N+1];
-	DiagonalMatrix<Type,Dynamic> d_diag[2*_N+1];
-	// int tmp = 0;
+	/*
+	DiagonalMatrix<Type, Dynamic> d_diag[2*_N+1];
 	for (int i=0 ; i <= _N-1 ; i++)
 	{
 		d_diag[2*i].diagonal() = d.template segment<_nInp>(i*(_nInp + _nSt));
-		// tmp = tmp + Fu_rows[i];
 		d_diag[2*i+1].diagonal() = d.template segment<_nSt>(_nInp+i*(_nInp + _nSt));
-		// tmp = tmp + Fx_rows[i];
 	}
 	d_diag[2*_N].diagonal() = d.template segment<_nF_xTheta>(_N*(_nInp + _nSt));
+	*/
+	DiagonalMatrix<Type, _nInp> d_diagU[_N];
+	DiagonalMatrix<Type, _nSt> d_diagX[_N];
+	DiagonalMatrix<Type, _nF_xTheta> d_diagTheta;
+	for (int i=0 ; i <= _N-1 ; i++)
+	{
+		d_diagU[i].diagonal() = d.template segment<_nInp>(i*(_nInp + _nSt));
+		d_diagX[i].diagonal() = d.template segment<_nSt>(_nInp+i*(_nInp + _nSt));
+	}
+	d_diagTheta.diagonal() = d.template segment<_nF_xTheta>(_N*(_nInp + _nSt));
 	
-	// --------------- compute elements of Phi, i.e. elements of Omicron, Pi = 2*Q_tilde, Rho, Sigma	
-	
-	// DiagonalMatrix<Type, _m> eyeM;
+	// --------------- compute elements of Phi, i.e. elements of Omicron, Pi = 2*Q_tilde, Rho, Sigma		
 	Matrix<Type, _m, _m> eyeM;
 	eyeM.setIdentity();
-	// DiagonalMatrix<Type, _n> eyeN;
 	Matrix<Type, _n, _n> eyeN;
 	eyeN.setIdentity();
 	
 	// special treatment at the beginning
-	// ***** note: if d_diag * d_diag is expensive, then this can also be done by building d_diag2 (squared) by computing d_i and d_i*d_i in compD()
-	Omicron[0] = 2*R + kappa*Fu_transp[0]*d_diag[0]*d_diag[0]*Fu[0]	+ reg * eyeM;
-	
-	// cout << endl << "------- special ------" << endl;
-	// cout << "reg:" << reg << endl << endl;
-	// cout << "2*R + kappa*Fu_transp[0]*d_diag[0]*d_diag[0]*Fu[0]" << endl << 2*R + kappa*Fu_transp[0]*d_diag[0]*d_diag[0]*Fu[0] << endl << endl;
-	// cout << "2*R + kappa*Fu_transp[0]*d_diag[0]*d_diag[0]*Fu[0] + reg * eyeM" << endl << 2*R + kappa*Fu_transp[0]*d_diag[0]*d_diag[0]*Fu[0] + reg * eyeM << endl << endl;
-	// cout << "-----------" << endl << endl;
-	
+	// Omicron[0] = 2*R + kappa*Fu_transp[0]*d_diag[0]*d_diag[0]*Fu[0]	+ reg * eyeM;
+	Omicron[0] = 2*R + kappa*Fu_transp[0]*d_diagU[0]*d_diagU[0]*Fu[0]	+ reg * eyeM;
+		
 	// do the rest by computing three block and three block
-	// might also integrate the computation of d_diag directly into this loop
 	for (int i=1; i <= _N-1; i++)
 	{
 		if (i != _pos_omega)
 		{
-			Rho[i-1] = 2*Q_bar + kappa * ( Fx_transp[i-1]*d_diag[2*(i-1)+1]*d_diag[2*(i-1)+1]*Fx[i-1]  + Fu_bar_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu_bar[i] ) 
-				+ reg * eyeN;
+			// Rho[i-1] = 2*Q_bar + kappa * ( Fx_transp[i-1]*d_diag[2*(i-1)+1]*d_diag[2*(i-1)+1]*Fx[i-1]  + Fu_bar_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu_bar[i] ) + reg * eyeN;
+			Rho[i-1] = 2*Q_bar + kappa * ( Fx_transp[i-1]*d_diagX[i-1]*d_diagX[i-1]*Fx[i-1]  + Fu_bar_transp[i]*d_diagU[i]*d_diagU[i]*Fu_bar[i] ) + reg * eyeN;
 		}
 		else	// i == _pos_omega
 		{
-			Rho[_pos_omega-1] = 2*Q_bar + kappa * ( Fx_transp[_pos_omega-1]*d_diag[2*(_pos_omega-1)+1]*d_diag[2*(_pos_omega-1)+1]*Fx[i-1]  + Fu_bar_transp[_pos_omega]*d_diag[2*_pos_omega]*d_diag[2*_pos_omega]*Fu_bar[_pos_omega] 
-				+ F_xTheta_transp * d_diag[2*_N]*d_diag[2*_N]*F_xTheta)
-				+ reg * eyeN;
+			// Rho[_pos_omega-1] = 2*Q_bar + kappa * ( Fx_transp[_pos_omega-1]*d_diag[2*(_pos_omega-1)+1]*d_diag[2*(_pos_omega-1)+1]*Fx[i-1]  + Fu_bar_transp[_pos_omega]*d_diag[2*_pos_omega]*d_diag[2*_pos_omega]*Fu_bar[_pos_omega] 
+				// + F_xTheta_transp * d_diag[2*_N]*d_diag[2*_N]*F_xTheta)	+ reg * eyeN;
+			Rho[_pos_omega-1] = 2*Q_bar + kappa * ( Fx_transp[_pos_omega-1]*d_diagX[_pos_omega-1]*d_diagX[_pos_omega-1]*Fx[i-1]  + Fu_bar_transp[_pos_omega]*d_diagU[_pos_omega]*d_diagU[_pos_omega]*Fu_bar[_pos_omega] 
+				+ F_xTheta_transp * d_diagTheta*d_diagTheta*F_xTheta)	+ reg * eyeN;
 		}
-		Sigma[i-1] = 2*S + kappa * ( Fu_bar_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu[i] );
-		Omicron[i] = 2*R + kappa * ( Fu_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu[i] ) 
-				+ reg * eyeM;
+		// Sigma[i-1] = 2*S + kappa * ( Fu_bar_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu[i] );
+		Sigma[i-1] = 2*S + kappa * ( Fu_bar_transp[i]*d_diagU[i]*d_diagU[i]*Fu[i] );
+		// Omicron[i] = 2*R + kappa * ( Fu_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu[i] ) + reg * eyeM;
+		Omicron[i] = 2*R + kappa * ( Fu_transp[i]*d_diagU[i]*d_diagU[i]*Fu[i] ) + reg * eyeM;
 	}
 	
 	// special treatment for last block
 	if (_pos_omega == _N)
 	{
-		Rho[_N-1] = kappa * ( Fx_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx[_N-1] + F_xTheta_transp*d_diag[2*_N]*d_diag[2*_N]*F_xTheta )
-				 + reg * eyeN;
+		// Rho[_N-1] = kappa * ( Fx_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx[_N-1] + F_xTheta_transp*d_diag[2*_N]*d_diag[2*_N]*F_xTheta ) + reg * eyeN;
+		Rho[_N-1] = kappa * ( Fx_transp[_N-1]*d_diagX[_N-1]*d_diagX[_N-1]*Fx[_N-1] + F_xTheta_transp*d_diagTheta*d_diagTheta*F_xTheta ) + reg * eyeN;
 	}
 	else	// considered in loop above
 	{
-		Rho[_N-1] = kappa * ( Fx_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx[_N-1])
-			 + reg * eyeN;
+		// Rho[_N-1] = kappa * ( Fx_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx[_N-1]) + reg * eyeN;
+		Rho[_N-1] = kappa * ( Fx_transp[_N-1]*d_diagX[_N-1]*d_diagX[_N-1]*Fx[_N-1]) + reg * eyeN;
 	}
-	Sigma[_N-1] = kappa * ( F_xTheta_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta );	// independent of _pos_omega, represents the off-diag matrix
-	Omicron[_N] = kappa * ( F_theta_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta )
-		 + reg * eyeM;
+	// Sigma[_N-1] = kappa * ( F_xTheta_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta );	// independent of _pos_omega, represents the off-diag matrix
+	Sigma[_N-1] = kappa * ( F_xTheta_transp*d_diagTheta*d_diagTheta*F_theta );	// independent of _pos_omega, represents the off-diag matrix
+	// Omicron[_N] = kappa * ( F_theta_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta ) + reg * eyeM;
+	Omicron[_N] = kappa * ( F_theta_transp*d_diagTheta*d_diagTheta*F_theta ) + reg * eyeM;
 	
 	/*
 	for (int i = 0; i <= _N-1; i++)
@@ -1089,7 +964,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi()
 	}
 	cout << "Omicron[" << _N << "]" << endl << Omicron[_N] << endl << endl;
 	*/
-	
 }
 
 
@@ -1100,7 +974,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_t
 	Matrix<Type, _n, _n> eyeN;
 	eyeN.setIdentity();
 	
-	// decompose Phi = L*L'
+	// decompose Phi = L_Phi*L_Phi'
 	LOmicron_diag[0].compute(Omicron[0]);
 	LOmicron_diag_transp[0] = LOmicron_diag[0].matrixLLT().transpose();
 	for (int i=1 ; i<= _N-1; i++)
@@ -1179,9 +1053,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY()
 
 	Matrix<Type, _n, _n> eye;
 	eye.setIdentity();
-	// Matrix<Type, _m, _n> zero;
-	// zero.setZero();
-
+	
 	// 1. Compute elements of Matrix U
 	// treat the first 2 U_bar and first 3 U specially
 	U[0] = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(-Bm_transp);
@@ -1215,9 +1087,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY()
 	U_bar[6+(_N-2)*5] = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve( eye );
 	
 	if (_N == _pos_omega)
-	{
 		U[5+(_N-2)*3] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve( /*zero*/ - LSigma_offDiag[_N-1]*U_bar[6+(_N-2)*5] );
-	}
 	else
 	{
 		UO[0] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(/*zero*/ - LLambda0*U_bar[1+(_pos_omega-1)*5] - LLambda1*U[2+(_pos_omega-1)*3]);
@@ -1263,9 +1133,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY()
 		cout << "UO[2]" << endl << UO[2] << endl << endl;
 	}
 	*/
-	
-	
-	
 	
 	
 	// 2. Compute elements in Matrix X
@@ -1362,14 +1229,14 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY()
 	}
 	else // standard, no influence by off-diag element in P
 	{
-			X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
-			X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
-			X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
-			X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
+		X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
+		X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
+		X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
+		X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
 
-			X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3]);
-			X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
-			X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
+		X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3]);
+		X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
+		X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
 	}
 	
 	/*
@@ -1566,9 +1433,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compL()		
 	
 	L_offDiag_transp[1][0] = L_diag[0].matrixLLT().triangularView<Lower>().solve(Y[0][2]);
 	L_offDiag[1][0] = L_offDiag_transp[1][0].transpose();
-	//cout <<  "L_diag[0]:" << endl << L_diag[0].matrixLLT() << endl << endl;
-	//cout << "L_offDiag[0][0]:" << endl << L_offDiag[0][0] << endl << endl;
-	//cout << "L_offDiag[1][0]:" << endl << L_offDiag[1][0] << endl << endl;
 	
 	// special treatment for L22, L32, L42
 	L_diag[1].compute( Y[1][1]-L_offDiag[0][0]*L_offDiag_transp[0][0] );
@@ -1579,9 +1443,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compL()		
 	
 	L_offDiag_transp[1][1] = L_diag[1].matrixLLT().triangularView<Lower>().solve(Y[0][3]);
 	L_offDiag[1][1] = L_offDiag_transp[1][1].transpose();
-	// cout <<  "L_diag[1]:" << endl << L_diag[1].matrixLLT() << endl << endl;
-	// cout << "L_offDiag[0][1]:" << endl << L_offDiag[0][1] << endl << endl;
-	// cout << "L_offDiag[1][1]:" << endl << L_offDiag[1][1] << endl << endl;
 	
 	// cases in the middle
 	for (int i = 1; i <= 2*_N-4; i++)
@@ -1593,9 +1454,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compL()		
 		
 		L_offDiag_transp[1][i+1] = L_diag[i+1].matrixLLT().triangularView<Lower>().solve( Y[0][i+3] );
 		L_offDiag[1][i+1] = L_offDiag_transp[1][i+1].transpose();
-	//	 cout <<  "L_diag[i+1]:" << endl << L_diag[i+1].matrixLLT() << endl << endl;
-	//	 cout << "L_offDiag[0][i+1]:" << endl << L_offDiag[0][i+1] << endl << endl;
-	//	 cout << "L_offDiag[1][i+1]:" << endl << L_offDiag[1][i+1] << endl << endl;
 	}
 		
 	
@@ -1621,16 +1479,10 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDnu()
 	// special cases in the beginning
 	delta.template segment<_n>(0) = L_diag[0].matrixLLT().triangularView<Lower>().solve(-beta.template segment<_n>(0));
 	delta.template segment<_n>(_n) = L_diag[1].matrixLLT().triangularView<Lower>().solve(-beta.template segment<_n>(_n) - L_offDiag[0][0]*delta.template segment<_n>(0));
-	
 		
 	// remaining cases are regular
 	for (int i=1; i<= 2*_N-2; i++)
-	{
-		// delta.segment(_n+i*_n,_n) = L_diag[i+1].matrixLLT().triangularView<Lower>().solve( -beta.segment(_n+i*_n,_n) - L_offDiag[1][i-1]*delta.segment((i-1)*_n,_n) - L_offDiag[0][i]*delta.segment(i*_n,_n) );
 		delta.template segment<_n>(_n+i*_n) = L_diag[i+1].matrixLLT().triangularView<Lower>().solve( -beta.template segment<_n>(_n+i*_n) - L_offDiag[1][i-1]*delta.template segment<_n>((i-1)*_n) - L_offDiag[0][i]*delta.template segment<_n>(i*_n) );
-	}
-	//cout << "delta:" << endl << delta << endl << endl;
-	
 	
 	// 2) now, solve for L'*Dnu = delta
 	dnu.template segment<_n>(2*_n*_N - _n) = L_diag_transp[2*_N-1].template triangularView<Upper>().solve(delta.template segment<_n>(2*_n*_N - _n) );
@@ -1638,10 +1490,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDnu()
 	
 	//remaining cases are regular
 	for (int i=1; i<=2*_N-2; i++)
-	{
-		// dnu.segment(2*_n*_N-(i+2)*_n,_n) = L_diag[2*_N-(i+2)].matrixLLT().transpose().triangularView<Upper>().solve( delta.segment(2*_n*_N-(i+2)*_n,_n) - L_offDiag_transp[0][2*_N-(i+2)]*dnu.segment(2*_n*_N-(i+1)*_n,_n) - L_offDiag_transp[1][2*_N-(i+2)]*dnu.segment(2*_n*_N-i*_n,_n)  );
 		dnu.template segment<_n>(2*_n*_N-(i+2)*_n) = L_diag_transp[2*_N-(i+2)].template triangularView<Upper>().solve( delta.template segment<_n>(2*_n*_N-(i+2)*_n) - L_offDiag_transp[0][2*_N-(i+2)]*dnu.template segment<_n>(2*_n*_N-(i+1)*_n) - L_offDiag_transp[1][2*_N-(i+2)]*dnu.template segment<_n>(2*_n*_N-i*_n)  );
-	}
 	//cout << "dnu" << endl << dnu << endl << endl;
 }
 
@@ -1653,9 +1502,9 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDz()
 {	
 	// computed in two parts
 	// 1. tmp = -r_d - C' * dnu
-	// 2. L*L'*dz = tmp
-	// 3. L*tmp1 = tmp
-	// 4. L'*dz = tmp1
+	// 2. L_Phi*L_Phi'*dz = tmp
+	// 3. L_Phi*tmp1 = tmp
+	// 4. L_Phi'*dz = tmp1
 	
 	Matrix<Type, _N*(_m + _n + _n) + _m, 1> tmp;
 	tmp.template segment<_m>(0) = -r_d.template segment<_m>(0) + Bm_transp*dnu.template segment<_n>(0) + B_transp*dnu.template segment<_n>(_n);
@@ -1670,11 +1519,10 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDz()
 	tmp.template segment<_n>(_m+(_N-1)*offset) = -r_d.template segment<_n>(_m+(_N-1)*offset) - dnu.template segment<_n>(2*(_N-1)*_n);
 	tmp.template segment<_n>(_m+(_N-1)*offset+_n) = -r_d.template segment<_n>(_m+(_N-1)*offset+_n) - dnu.template segment<_n>(2*(_N-1)*_n+_n);
 	tmp.template segment<_m>(_m+(_N-1)*offset+_n+_n) = -r_d.template segment<_m>(_m+(_N-1)*offset+_n+_n);
-	
 	//cout << "tmp:" << endl << tmp << endl << endl;
 	
 	
-	// 3. L*tmp1 = tmp
+	// 3. L_Phi*tmp1 = tmp
 	Matrix<Type, _N*(_m + _n + _n) + _m, 1> tmp1;
 	tmp1.template segment<_m>(0) = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(tmp.template segment<_m>(0) );
 	for (int i = 1; i <= _N-1; i++)
@@ -1698,7 +1546,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDz()
 	// cout << "tmp1:" << endl << tmp1 << endl << endl;
 	
 	
-	// 4. L'*dz = tmp1
+	// 4. L_Phi'*dz = tmp1
 	dz.template segment<_m>(0) = LOmicron_diag_transp[0].template triangularView<Upper>().solve(tmp1.template segment<_m>(0));
 	for (int i = 1; i <= _pos_omega-1; i++)
 	{
@@ -1740,141 +1588,94 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDz()
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 double LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compT()
 {
-	Matrix<Type, _m, 1> c_tmp;		// use this to temporarily copy c-blocks out of z
-	Matrix<Type, _m, 1> dc_tmp;		// use this to temporarily copy c-blocks out of dz
-	Matrix<Type, _n, 1> x_bar_tmp;	// use this to temporarily copy x_bar-blocks out of z
-	Matrix<Type, _n, 1> dx_bar_tmp;	// use this to temporarily copy x_bar-blocks out of dz
-	Matrix<Type, Dynamic, 1> check;		// length of vector not yet fixed
-	Matrix<Type, Dynamic, 1> dcheck;	// dcheck = P*dz
-	Matrix<Type, _nSt, 1> t_vec_nSt;		// t_vec = check ./ dcheck
-	Matrix<Type, _nInp, 1> t_vec_nInp;
-	Matrix<Type, _nF_xTheta, 1> t_vec_nF_xTheta;
 	
 	double t = 1;	// stores smallest variable
 	double t_tmp;	// t_tmp = min(t_vec)
 	
-	// cout << endl << "======= starting testPos() =======" << endl;
-	// special treatment at beginning
 	c_tmp = z.template segment<_m>(0);
 	dc_tmp = dz.template segment<_m>(0);
-	check = (fu[0] - Fu_bar[0]*x_hat) - (Fu[0]*c_tmp);	// should be >0
-	dcheck = Fu[0] * dc_tmp;
-	// t_vec.resize(_nInp);
-	t_vec_nInp.setConstant(1);
+	checkU = (fu[0] - Fu_bar[0]*x_hat) - (Fu[0]*c_tmp);	// should be >0
+	dcheckU = Fu[0] * dc_tmp;
+	t_vecU.setConstant(1);
 	for (int j=1; j <= _nInp; j++)
 	{
-		if (dcheck[j-1] > 0)	// neg. cases not interesting
-		{
-			t_vec_nInp[j-1] = check[j-1]/dcheck[j-1];
-		}
+		if (dcheckU[j-1] > 0)	// neg. cases not interesting
+			t_vecU[j-1] = checkU[j-1]/dcheckU[j-1];
 	}
-	t_tmp = t_vec_nInp.minCoeff();
+	t_tmp = t_vecU.minCoeff();
 	if (t_tmp < t)
-	{
 		t = t_tmp;
-	}
-
-	// cout << "finished special treatment at start" << endl;
+	
 	
 	// class variable: offset = _n + _n + _m;
 	// general treatment in the middle 
 	for (int i=1; i <= _N-1; i++) // blocks in the middle
 	{	// compute (h - P*z)_i
-		// cout << "round " << i << "in general treatment" << endl;
 		x_bar_tmp = z.template segment<_n>((i-1)*offset+_m+_n);
 		dx_bar_tmp = dz.template segment<_n>((i-1)*offset+_m+_n);
 		c_tmp = z.template segment<_m>((i-1)*offset+_m+_n+_n);
 		dc_tmp = dz.template segment<_m>((i-1)*offset+_m+_n+_n);
-		check = fx[i-1] - Fx[i-1]*x_bar_tmp;
-		dcheck = Fx[i-1]*dx_bar_tmp;
-		// t_vec.resize(_nSt);
-		t_vec_nSt.setConstant(1);
-		// cout << "computed check" << endl << check << endl << endl;
+		checkX = fx[i-1] - Fx[i-1]*x_bar_tmp;
+		dcheckX = Fx[i-1]*dx_bar_tmp;
+		t_vecX.setConstant(1);
 		for (int j=1; j<= _nSt; j++)
 		{
-			if(dcheck[j-1]>0)
-			{
-				t_vec_nSt[j-1] = check[j-1]/dcheck[j-1];
-			}
+			if(dcheckX[j-1]>0)
+				t_vecX[j-1] = checkX[j-1]/dcheckX[j-1];
 		}
-		t_tmp = t_vec_nSt.minCoeff();
+		t_tmp = t_vecX.minCoeff();
 		if (t_tmp < t)
-		{
 			t = t_tmp;
-		}
 		
-		check = fu[i] - (Fu_bar[i]*x_bar_tmp + Fu[i]*c_tmp);
-		dcheck = Fu_bar[i]*dx_bar_tmp + Fu[i]*dc_tmp;
-		// t_vec.resize(_nInp);
-		t_vec_nInp.setConstant(1);
+		checkU = fu[i] - (Fu_bar[i]*x_bar_tmp + Fu[i]*c_tmp);
+		dcheckU = Fu_bar[i]*dx_bar_tmp + Fu[i]*dc_tmp;
+		t_vecU.setConstant(1);
 		for (int j=1; j<=_nInp; j++)
 		{
-			if(dcheck[j-1]>0)
-			{
-				t_vec_nInp[j-1] = check[j-1]/dcheck[j-1];
-			}
+			if(dcheckU[j-1]>0)
+				t_vecU[j-1] = checkU[j-1]/dcheckU[j-1];
 		}
-		t_tmp = t_vec_nInp.minCoeff();
+		t_tmp = t_vecU.minCoeff();
 		if (t_tmp < t)
-		{
 			t = t_tmp;
-		}
-		//cout << "for-loop completion of round" << i << endl;
 	}
-	
-	// cout << "finished general treatment" << endl;
 	
 	// special case for last blocks
 	x_bar_tmp = z.template segment<_n>((_N-1)*offset+_m+_n);
 	dx_bar_tmp = dz.template segment<_n>((_N-1)*offset+_m+_n);
 	c_tmp = z.template segment<_m>((_N-1)*offset+_m+_n+_n);
 	dc_tmp = dz.template segment<_m>((_N-1)*offset+_m+_n+_n);
-	check = fx[_N-1] - (Fx[_N-1]*x_bar_tmp);
-	dcheck = Fx[_N-1]*dx_bar_tmp;
-	// t_vec.resize(_nSt);
-	t_vec_nSt.setConstant(1);
-	// cout << "check:" << endl << check << endl << endl;
+	checkX = fx[_N-1] - (Fx[_N-1]*x_bar_tmp);
+	dcheckX = Fx[_N-1]*dx_bar_tmp;
+	t_vecX.setConstant(1);
 	for (int j=1; j<= _nSt; j++)
 	{
-		if (dcheck[j-1]>0)
-		{
-			t_vec_nSt[j-1] = check[j-1]/dcheck[j-1];
-		}
+		if (dcheckX[j-1]>0)
+			t_vecX[j-1] = checkX[j-1]/dcheckX[j-1];
 	}
-	t_tmp = t_vec_nSt.minCoeff();
+	t_tmp = t_vecX.minCoeff();
 	if (t_tmp < t)
-	{
 		t = t_tmp;
-	}
 	
 	x_bar_tmp = z.template segment<_n>((_pos_omega-1)*offset+_m+_n);
 	dx_bar_tmp = dz.template segment<_n>((_pos_omega-1)*offset+_m+_n);
-	check = f_xTheta - (F_xTheta*x_bar_tmp + F_theta*c_tmp);
-	dcheck = F_xTheta*dx_bar_tmp + F_theta*dc_tmp;
-	// t_vec_nF_xTheta.resize(_nF_xTheta);
-	t_vec_nF_xTheta.setConstant(1);
+	checkTheta = f_xTheta - (F_xTheta*x_bar_tmp + F_theta*c_tmp);
+	dcheckTheta = F_xTheta*dx_bar_tmp + F_theta*dc_tmp;
+	t_vecTheta.setConstant(1);
 	for (int j=1; j<= _nF_xTheta; j++)
 	{
-		if(dcheck[j-1]>0)
-		{
-			t_vec_nF_xTheta[j-1] = check[j-1]/dcheck[j-1];
-		}
+		if(dcheckTheta[j-1]>0)
+			t_vecTheta[j-1] = checkTheta[j-1]/dcheckTheta[j-1];
 	}
-	t_tmp = t_vec_nF_xTheta.minCoeff();
+	t_tmp = t_vecTheta.minCoeff();
 	if (t_tmp < t)
-	{
 		t = t_tmp;
-	}
 	
 	// return the result
 	if (t == 1)
-	{
 		return 1;
-	} 
 	else
-	{
 		return 0.99*t;	// guarantees strict feasibility
-	}
 }
 
 
@@ -1886,25 +1687,20 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRQ()
 	// "ColPivHouseholderQRPreconditioner" is more accurate, "HouseholderQRPreconditioner" is faster
 	JacobiSVD<MatrixXd, HouseholderQRPreconditioner> svd(Bm, ComputeThinU | ComputeThinV);	// computes SVD of Bm
 	u_star[0] = svd.solve(x_star[0] - Am_tilde*x_hat - tm_tilde);	
+	
 	for (int i=1; i <= _N-1; i++)
-	{
 		u_star[i] = svd.solve(x_star[i] - Am_tilde*x_star[i-1] - tm_tilde);
-	}
 	
 	/*
 	for (int i = 0; i <= _N-1; i++)
-	{
 		cout << "u_star[" << i << "]" << endl << u_star[i] << endl << endl;
-	}
 	*/
 	
 	// compute the vectors q_tilde[]; q_tilde_f; r[]
 	for (int i = 0; i <= _N-1; i++)
 	{
 		q_tilde_vec[i] = -2*x_star[i];
-		// q_tilde_vec[i] << 1 , 1 , 2 , -4 , 5;
 		r_vec[i] = -2*u_star[i];
-		// r_vec[i] << 1, 1;
 		q_bar_vec[i] = K_transp*r_vec[i];
 	}
 	
@@ -1916,7 +1712,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRQ()
 		cout << "q_bar_vec[" << i << "]" << endl << q_bar_vec[i] << endl << endl;
 	}
 	*/
-	
 }
 
 
@@ -1925,119 +1720,61 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRQ()
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compMatrices_PhaseI()
 {
-	// vvv build the matrices Fx_hat(_transp), Fu_hat(_transp), F_xTheta_hat(_transp), F_theta_hat(_transp), Fu_bar(_transp)
-	Matrix<Type, _nInp, _nInp> eye_nInp;
-	eye_nInp.setIdentity();
-	Matrix<Type, _nSt, _nSt> eye_nSt;
-	eye_nSt.setIdentity();
-	double weight = 100;
-	
-	// Fu_hat[0].resize(_nInp,_m+_nInp);
-	// Fu_hat[0] << -Fu[0], Matrix<Type, Dynamic, Dynamic, 0, _nInp, _nInp>::Identity(_nInp,_nInp);
-	Fu_hat[0] << -Fu[0], eye_nInp;
-	Fu_hat[0] = -Fu_hat[0];
-	Fu_hat_transp[0] = Fu_hat[0].transpose();
-	for (int i=1; i<=_N-1; i++)
-	{
-		// Fx_hat[i-1].resize(_nSt,_n+_nSt);
-		// Fx_hat[i-1] << -Fx[i-1], Matrix<Type, Dynamic, Dynamic, 0, _nSt, _nSt>::Identity(_nSt,_nSt);
-		Fx_hat[i-1] << -Fx[i-1], eye_nSt;
-		Fx_hat[i-1] = -Fx_hat[i-1];
-		Fx_hat_transp[i-1] = Fx_hat[i-1].transpose();
-		
-		// Fu_bar_hat[i-1] = Matrix<Type, Dynamic, Dynamic, 0, _nInp, _n+_nSt>::Zero(_nInp,_n+_nSt);
-		Fu_bar_hat[i-1].setZero();
-		Fu_bar_hat[i-1].block(0,0,_nInp,_n) = Fu_bar[i];
-		Fu_bar_hat_transp[i-1] = Fu_bar_hat[i-1].transpose();
-		
-		// Fu_hat[i].resize(_nInp,_m+_nInp);
-		Fu_hat[i] << -Fu[i], eye_nInp;
-		Fu_hat[i] = -Fu_hat[i];
-		Fu_hat_transp[i] = Fu_hat[i].transpose();
-	}
-	// Fx_hat[_N-1].resize(_nSt,_n+_nSt);
-	Fx_hat[_N-1] << -Fx[_N-1], eye_nSt;
-	Fx_hat[_N-1] = -Fx_hat[_N-1];
-	Fx_hat_transp[_N-1] = Fx_hat[_N-1].transpose();
-	
-	F_xTheta_hat.setZero();
-	F_xTheta_hat.block(0,0,_nF_xTheta,_n) = F_xTheta;
-	F_xTheta_hat_transp = F_xTheta_hat.transpose();
-	
-	F_theta_hat << -F_theta, Matrix<Type, _nF_xTheta, _nF_xTheta>::Identity(_nF_xTheta,_nF_xTheta);
-	F_theta_hat = -F_theta_hat;
-	F_theta_hat_transp = F_theta_hat.transpose();
-	// ^^^ built the matrices
 	
 	// vvv definitions of Bm_hat, B_hat, B_bar_hat, A_bar_hat, Identity_hat
-	for(int i=1; i<= _N-1; i++)
-	{
-		// Bm_hat[i-1] = Matrix<Type, _n, Dynamic, 0, _n, _m+_nInp>::Zero(_n, _m+_nInp);
-		Bm_hat[i-1].setZero();
-		Bm_hat[i-1].template block<_n,_m>(0,0) = Bm;
-		Bm_hat_transp[i-1] = Bm_hat[i-1].transpose();
-		// B_hat[i-1] = Matrix<Type, _n, Dynamic, 0, _n, _m+_nInp>::Zero(_n, _m+_nInp);
-		B_hat[i-1].setZero();
-		B_hat[i-1].template block<_n,_m>(0,0) = B;
-		B_hat_transp[i-1] = B_hat[i-1].transpose();
-		// Identity_hat[i-1] = Matrix<Type, _n, Dynamic, 0, _n, _n+_nSt>::Zero(_n, _n+_nSt);
-		Identity_hat[i-1].setZero();
-		Identity_hat[i-1].topLeftCorner(_n,_n).setIdentity();	// or: Identity_hat[i-1].topLeftCorner(_n,_n).setIdentity();
-		Identity_hat_transp[i-1] = Identity_hat[i-1].transpose();
-		// Bm_bar_hat[i-1] = Matrix<Type, _n, Dynamic, 0, _n, _n+_nSt>::Zero(_n, _n+_nSt);
-		Bm_bar_hat[i-1].setZero();
-		Bm_bar_hat[i-1].template block<_n,_n>(0,0) = Bm_bar;
-		Bm_bar_hat_transp[i-1] = Bm_bar_hat[i-1].transpose();
-		A_bar_hat[i-1].setZero();
-		A_bar_hat[i-1].template block<_n,_n>(0,0) = A_bar;
-		A_bar_hat_transp[i-1] = A_bar_hat[i-1].transpose();
-	}
-	// Bm_hat[_N-1] = Matrix<Type, _n, Dynamic, 0, _n, _m+_nInp>::Zero(_n, _m+_nInp);
-	Bm_hat[_N-1].setZero();
-	Bm_hat[_N-1].template block<_n,_m>(0,0) = Bm;
-	Bm_hat_transp[_N-1] = Bm_hat[_N-1].transpose();
-	// B_hat[_N-1] = Matrix<Type, _n, Dynamic, 0, _n, _m+_nInp>::Zero(_n, _m+_nInp);
-	B_hat[_N-1].setZero();
-	B_hat[_N-1].template block<_n,_m>(0,0) = B;
-	B_hat_transp[_N-1] = B_hat[_N-1].transpose();
-	// Identity_hat[_N-1] = Matrix<Type, _n, Dynamic, 0, _n, _n+_nSt>::Zero(_n, _n+_nSt);
-	Identity_hat[_N-1].setZero();
-	Identity_hat[_N-1].topLeftCorner(_n,_n).setIdentity();	// or: Identity_hat[i-1].topLeftCorner(_n,_n).setIdentity();
-	Identity_hat_transp[_N-1] = Identity_hat[_N-1].transpose();
-	// ^^^ ended definition of Bm_hat, B_hat, B_bar_hat, A_bar_hat, Identity_hat
+	Bm_hat.setZero();
+	Bm_hat.template block<_n,_m>(0,0) = Bm;
+	Bm_hat.bottomRightCorner(1,1).setConstant(1);
+	Bm_hat_transp = Bm_hat.transpose();
 	
+	Bm_hat0.setZero();
+	Bm_hat0.template block<_n,_m>(0,0) = Bm;
+	Bm_hat0_transp = Bm_hat0.transpose();
 	
-	Matrix<Type, _m+_nInp,1> const_c;
-	const_c.setConstant(weight);
-	const_c.template segment<_m>(0).setZero();
-	Matrix<Type, _n+_nSt,1> const_x;
-	const_x.setConstant(weight);
-	const_x.template segment<_n>(0).setZero();
+	B_hat.setZero();
+	B_hat.template block<_n,_m>(0,0) = B;
+	B_hat.bottomRightCorner(1,1).setConstant(-1);
+	B_hat_transp = B_hat.transpose();
+
+	Identity1_hat.setZero();
+	Identity1_hat.topLeftCorner(_n,_n).setIdentity();	// or: Identity_hat[i-1].topLeftCorner(_n,_n).setIdentity();
+	Identity1_hat_transp = Identity1_hat.transpose();
 	
-	// vvv build elements in cost vector g_hat
-	for (int i=1; i<=_N ; i++)
-	{
-		// g_hat_c[i-1] = Matrix<Type, Dynamic, 1, 0, _m+_nInp, 1>::Constant(_m+_nInp,100); // set to 100
-		// g_hat_c[i-1].template segment<_m>(0).setZero();
-		g_hat_c[i-1] = const_c;
-		// g_hat_x[i-1] = Matrix<Type, Dynamic, 1, 0, _n+_nSt ,1>::Constant(_n+_nSt,100);	// set to 100
-		// g_hat_x[i-1].template segment<_n>(0).setZero(); // set first couples to 0
-		g_hat_x[i-1] = const_x;
-	}
-	// g_hat_theta = Matrix<Type, _m+_nF_xTheta, 1>::Constant(_m+_nF_xTheta,100);
-	g_hat_theta.setConstant(weight);
-	g_hat_theta.template segment<_m>(0).setZero();
+	Identity2_hat.setZero();
+	Identity2_hat.topLeftCorner(_n,_n).setIdentity();
+	Identity2_hat.bottomRightCorner(1,1).setConstant(-1);
+	Identity2_hat_transp = Identity2_hat.transpose();
+	
+	Bm_bar_hat.setZero();
+	Bm_bar_hat.template block<_n,_n>(0,0) = Bm_bar;
+	Bm_bar_hat.bottomRightCorner(1,1).setConstant(-1);
+	Bm_bar_hat_transp = Bm_bar_hat.transpose();
+	
+	A_bar_hat.setZero();
+	A_bar_hat.template block<_n,_n>(0,0) = A_bar;
+	A_bar_hat_transp = A_bar_hat.transpose();
+	
+	Am_tilde_hat.setZero();
+	Am_tilde_hat.template block<_n,_n>(0,0) = Am_tilde;
+	Am_tilde_hat_transp = Am_tilde_hat.transpose();
+	
 	
 	/*
-	for (int i = 1; i<=_N; i++)
-	{
-		cout << "g_hat_c[" << i-1 << "]" << endl << g_hat_c[i-1] << endl << endl;
-		cout << "g_hat_x[" << i-1 << "]" << endl << g_hat_x[i-1] << endl << endl;
-	}
-	cout << "g_hat_theta" << endl << g_hat_theta << endl << endl;
+	cout << "Bm_hat" << endl << Bm_hat << endl << endl;
+	cout << "Bm_hat_transp" << endl << Bm_hat_transp << endl << endl;
+	cout << "B_hat" << endl << B_hat << endl << endl;
+	cout << "B_hat_transp" << endl << B_hat_transp << endl << endl;
+	cout << "Identity1_hat" << endl << Identity1_hat << endl << endl;
+	cout << "Identity1_hat_transp" << endl << Identity1_hat_transp << endl << endl;
+	cout << "Identity2_hat" << endl << Identity2_hat << endl << endl;
+	cout << "Identity2_hat" << endl << Identity2_hat << endl << endl;
+	cout << "Bm_bar_hat" << endl << Bm_bar_hat << endl << endl;
+	cout << "Bm_bar_hat_transp" << endl << Bm_bar_hat_transp << endl << endl;
+	cout << "A_bar_hat" << endl << A_bar_hat << endl << endl;
+	cout << "A_bar_hat_transp" << endl << A_bar_hat_transp << endl << endl;
+	cout << "Am_tilde_hat" << endl << Am_tilde_hat << endl << endl;
+	cout << "Am_tilde_hat_transp" << endl << Am_tilde_hat_transp << endl << endl;
 	*/
-	
-	// ^^^ elements of g_hat built
 }
 
 
@@ -2045,149 +1782,152 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compMatri
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compGamma_PhaseI()
 {
-	// vvvv  build a feasible gamma, s.t. P*z_warm - h <= gamma holds, choose gamma = (P*z_warm-h)+difference
-	Matrix<Type, _m, 1> c_tmp;		// use this to temporarily copy c-blocks out of z
-	Matrix<Type, _n, 1> x_bar_tmp;	// use this to temporarily copy x_bar-blocks out of z
-	Matrix<Type, Dynamic, 1> diff;		// length of vector not yet fixed
+	double gamma0;	// stores the largest gamma necessary for the state and input constraints, i.e. s_0, ... , s_2N-1
+	double gamma_tmp;		// variable used to comporarily compute variable gamma0
 	
-	int tmp = 0;		// variable used to count position
 	// special treatment at beginning	// c_tmp = z.segment(0,_m);
 	c_tmp = z.template segment<_m>(0);
-	diff = (fu[0] - Fu[0]*K*x_hat) - (Fu[0]*c_tmp);	// should be >0
-	// cout << "diff:" << endl << diff << endl << endl;
-	for (int j=1; j <= _nInp; j++)
-	{
-		gamma[j-1] = -diff[j-1] + difference;
-	}
-	tmp = tmp + _nInp;
+	checkU = -(fu[0] - Fu[0]*K*x_hat) + (Fu[0]*c_tmp);	// should be >0
+	gamma0 = checkU.maxCoeff();
+	
 	// general treatment in the middle; offset = _n + _n + _m;
 	for (int i=1; i <= _N-1; i++) // blocks in the middle
 	{	
 		x_bar_tmp = z.template segment<_n>((i-1)*offset+_m+_n);
 		c_tmp = z.template segment<_m>((i-1)*offset+_m+_n+_n);		
-		diff = fx[i-1] - Fx[i-1]*x_bar_tmp;
-		for (int j=1; j<= _nSt; j++)
-		{
-			gamma[tmp+j-1] = -diff[j-1] + difference;
-		}
-		tmp = tmp + _nSt;		
-		diff = fu[i] - (Fu[i]*K*x_bar_tmp + Fu[i]*c_tmp);
-		for (int j=1; j <= _nInp; j++)
-		{
-			gamma[tmp+j-1] = -diff[j-1] + difference;
-		}
-		tmp = tmp + _nInp;
+		checkX = -fx[i-1] + Fx[i-1]*x_bar_tmp;
+		gamma_tmp = checkX.maxCoeff();
+		if (gamma0 < gamma_tmp)
+			gamma0 = gamma_tmp;
+			
+		checkU = -fu[i] + (Fu[i]*K*x_bar_tmp + Fu[i]*c_tmp);
+		gamma_tmp = checkU.maxCoeff();
+		if (gamma0 < gamma_tmp)
+			gamma0 = gamma_tmp;
 	}
 	x_bar_tmp = z.template segment<_n>((_N-1)*offset+_m+_n);
 	c_tmp = z.template segment<_m>((_N-1)*offset+_m+_n+_n);
-	diff = fx[_N-1] - (Fx[_N-1]*x_bar_tmp);
-	for (int j=1; j<= _nSt; j++)
-	{
-		gamma[tmp+j-1] = -diff[j-1] + difference;
-	}
-	tmp = tmp + _nSt;
+	checkX = -fx[_N-1] + (Fx[_N-1]*x_bar_tmp);
+	gamma_tmp = checkX.maxCoeff();
+	if (gamma0 < gamma_tmp)
+		gamma0 = gamma_tmp;
+	
+	gamma.setConstant(gamma0+difference);
+	
 	x_bar_tmp = z.template segment<_n>((_pos_omega-1)*offset+_m+_n);	// depends on position of invariant set
-	diff = f_xTheta - (F_xTheta*x_bar_tmp + F_theta*c_tmp);
-	for (int j=1; j<= _nF_xTheta; j++)
-	{
-		gamma[tmp+j-1] = -diff[j-1] + difference;
-	}
-	// cout << setprecision(15) << "gamma:" << endl << gamma << endl << endl;
-	// ^^^ built a gamma
+	checkTheta = -f_xTheta + (F_xTheta*x_bar_tmp + F_theta*c_tmp);
+	gamma0 = checkTheta.maxCoeff();
+	gamma.template tail<1>().setConstant(gamma0+difference);
 }
+
 
 // ------------ function computes primal and dual residua needed by phaseI ---------------------
 // stores in r_p (same as in PhaseII) and r_d_hat
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRdRp_PhaseI()
 {
-		// r_p = C*z - b
-		r_p.template segment<_n>(0) = -Bm*z_hat.template segment<_m>(0) + z_hat.template segment<_n>(_m+_nInp) - ( Am_tilde + Bm_bar)*x_hat - tm_tilde;
-		r_p.template segment<_n>(_n) = -B*z_hat.template segment<_m>(0) + z_hat.template segment<_n>(_m+_nInp+_n) - (A_bar*x_hat + s);
-		int tmp = _nInp + _nSt;
-		for (int i=1; i <= _N-1; i++)
-		{
-			r_p.template segment<_n>(2*_n*i) = -Am_tilde*z_hat.template segment<_n>((i-1)*offset+_m+tmp-_nSt) - Bm_bar*z_hat.template segment<_n>((i-1)*offset+_m+_n+tmp-_nSt) -
-				Bm*z_hat.template segment<_m>((i-1)*offset+_m+_n+_n+tmp) + z_hat.template segment<_n>((i-1)*offset+_m+_n+_n+_m+tmp+_nInp) - tm_tilde;
+	
+	int offset1 = 2*(_n+1);	// offset required in nu for C'*nu
+	
+	// r_p = C*z - b_hat
+	r_p_hat.template segment<_n>(0) = -Bm*z_hat.template segment<_m>(0) + z_hat.template segment<_n>(_m+1) - ( Am_tilde + Bm_bar)*x_hat - tm_tilde;
+	r_p_hat.template segment<_n>(_n) = -B*z_hat.template segment<_m>(0) + z_hat.template segment<_n>(_m+1+_n) - (A_bar*x_hat + s);
+	r_p_hat.template segment<1>(_n+_n) = z_hat.template segment<1>(_m) - z_hat.template segment<1>(_m+1+_n+_n);
+	
+	for (int i=1; i <= _N-1; i++)
+	{
+		r_p_hat.template segment<_n>((i-1)*offset1+_n+_n+1) = -Am_tilde*z_hat.template segment<_n>((i-1)*offset2+_m+1) - Bm_bar*z_hat.template segment<_n>((i-1)*offset2+_m+1+_n) -
+			Bm*z_hat.template segment<_m>(i*offset2) + z_hat.template segment<_n>(i*offset2+_m+1) - tm_tilde;
+		r_p_hat.template segment<1>((i-1)*2*(_n+1)+_n+_n+1+_n) = z_hat.template segment<1>((i-1)*offset2+_m+1+_n+_n) - 
+			z_hat.template segment<1>(i*offset2+_m);
 
-			r_p.template segment<_n>(2*_n*i+_n) = -A_bar*z_hat.template segment<_n>((i-1)*offset+_m+_n+tmp-_nSt) - B*z_hat.template segment<_m>((i-1)*offset+_m+_n+_n+tmp) + 
-							z_hat.template segment<_n>((i-1)*offset+_m+_n+_n+_m+_n+tmp+_nInp) - s;
-			tmp = tmp + _nInp + _nSt;
+		r_p_hat.template segment<_n>(i*2*(_n+1)+_n) = -A_bar*z_hat.template segment<_n>((i-1)*offset2+_m+1+_n) - B*z_hat.template segment<_m>(i*offset2) + 
+			z_hat.template segment<_n>(i*offset2+_m+1+_n) - s;
+		r_p_hat.template segment<1>(i*2*(_n+1)+_n+_n) = z_hat.template segment<1>(i*offset2+_m) - z_hat.template segment<1>(i*offset2+_m+1+_n+_n);
+	}
+	// cout << setprecision(15) << "z_hat" << endl << z_hat << endl << endl;
+	// cout << setprecision(15) << "r_p_hat in PhaseI:" << endl << r_p_hat << endl << endl;	
+		
+		
+		
+	// r_d_hat = 2*H_hat*z_hat + g_hat + kappa*P_hat'*d + C_hat'*nu_hat
+	// note: H_hat = reg_hat * Identity(), g_hat has only two non-zero component
+	Matrix<Type, _m+1, 1> g_hat_tmp;	// only for first and last block
+	g_hat_tmp.setZero();
+	g_hat_tmp.template tail<1>().setConstant(weight_PhaseI);
+		
+	r_d_hat.template segment<_m+1>(0) = 2*reg_hat*z_hat.template segment<_m+1>(0) + g_hat_tmp + 
+			kappa * Fu_hat_transp[0] * d.template segment<_nInp>(0) - Bm_hat0_transp* nu_hat.template segment<_n>(0) - B_hat_transp * nu_hat.template segment<_n+1>(_n);		
+		
+	{	// do first step manually
+		r_d_hat.template segment<_n>(_m+1) = 2*reg_hat*z_hat.template segment<_n>(_m+1) +
+			nu_hat.template segment<_n>(0) - Am_tilde_transp*nu_hat.template segment<_n>(_n+_n+1);
+		
+		if (1 != _pos_omega)
+		{
+			r_d_hat.template segment<_n+1>(_m+1+_n) = 2*reg_hat*z_hat.template segment<_n+1>(_m+1+_n) +
+				kappa*Fx_hat_transp[0] * d.template segment<_nSt>(_nInp) + kappa*Fu_bar_hat_transp[0]*d.template segment<_nInp>(_nInp+_nSt) + 
+				Identity2_hat_transp*nu_hat.template segment<_n+1>(_n) - Bm_bar_hat_transp*nu_hat.template segment<_n+1>(_n+_n+1) - A_bar_hat_transp*nu_hat.template segment<_n+1>(_n+_n+1+_n+1);		
+			// cout << setprecision(15) << "d in PhaseI" << endl << d << endl << endl;
+			// cout << "nu_hat" << endl << nu_hat << endl << endl;
 		}
-		// cout << setprecision(15) << "z_hat" << endl << z_hat << endl << endl;
-		// cout << setprecision(15) << "r_p in PhaseI:" << endl << r_p << endl << endl;	
+		else	// 1 == _pos_omega
+		{
+			r_d_hat.template segment<_n+1>(_m+1+_n) = 2*reg_hat*z_hat.template segment<_n+1>(_m+1+_n) +
+				kappa*Fx_hat_transp[0] * d.template segment<_nSt>(_nInp) + kappa*Fu_bar_hat_transp[0]*d.template segment<_nInp>(_nInp+_nSt) + 
+				Identity2_hat_transp*nu_hat.template segment<_n+1>(_n) - Bm_bar_hat_transp*nu_hat.template segment<_n+1>(_n+_n+1) - A_bar_hat_transp*nu_hat.template segment<_n+1>(_n+_n+1+_n+1)
+				+ kappa*F_xTheta_hat_transp*d.template segment<_nF_xTheta>(_N*(_nSt + _nInp));
+		}
+		r_d_hat.template segment<_m+1>(offset2) = 2*reg_hat*z_hat.template segment<_m+1>(offset2) +
+			kappa*Fu_hat_transp[1]*d.template segment<_nInp>(_nInp + _nSt) - 
+			Bm_hat_transp*nu_hat.template segment<_n+1>(_n+_n+1) - B_hat_transp*nu_hat.template segment<_n+1>(_n+_n+1+_n+1);		
+	}
 		
-		
-		// r_d_hat = 2*H_hat*z_hat + g_hat + kappa*P_hat'*d + C_hat'*nu
-		
+	for (int i=2; i<= _N-1; i++)
+	{
 		// note: H_hat = reg_hat * Identity();
-		// r_d_hat.template segment<_m+_nInp>(0) = 2*reg_hat* Matrix<Type, Dynamic, Dynamic, 0, _m+_nInp, _m+_nInp>::Identity(_m+_nInp, _m+_nInp)*z_hat.template segment<_m+_nInp>(0) + g_hat_c[0] + 
-		// cout << "reg_hat: " << reg_hat << endl;
-		// cout << "kappa: " << kappa << endl;
-		// cout << "z_hat: " << endl << z_hat << endl << endl;
-		// cout << "nu: " << endl << nu << endl << endl;
-		
-		r_d_hat.template segment<_m+_nInp>(0) = 2*reg_hat*z_hat.template segment<_m+_nInp>(0) + g_hat_c[0] + 
-				kappa * Fu_hat_transp[0] * d.template segment<_nInp>(0) - Bm_hat_transp[0] * nu.template segment<_n>(0) - B_hat_transp[0] * nu.template segment<_n>(_n);
-		int offset1 = 2*_n;	// offset required in nu for C'*nu
-		tmp = _nInp;	// offset required in d for P'*d	
-		// cout << "bye 1" << endl;
-		for (int i=1; i<= _N-1; i++)
-		{
-			// cout << "round " << i << endl << endl;
-			// r_d_hat.template segment<_n>(_m+(i-1)*offset+tmp) = 2*reg_hat* Matrix<Type, _n, _n>::Identity(_n, _n) *z_hat.template segment<_n>(_m+(i-1)*offset+tmp) +
-			r_d_hat.template segment<_n>(_m+(i-1)*offset+tmp) = 2*reg_hat*z_hat.template segment<_n>(_m+(i-1)*offset+tmp) +
-					nu.template segment<_n>((i-1)*offset1) - Am_tilde_transp*nu.template segment<_n>((i-1)*offset1+_n+_n);
+		r_d_hat.template segment<_n>(_m+1+(i-1)*offset2) = 2*reg_hat*z_hat.template segment<_n>(_m+1+(i-1)*offset2) +
+				nu_hat.template segment<_n>((i-2)*offset1+_n+_n+1) - Am_tilde_transp*nu_hat.template segment<_n>((i-1)*offset1+_n+_n+1);
 			
-			if (i != _pos_omega)
-			{
-				// r_d_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = 2*reg_hat*Matrix<Type, _n+_nSt, _n+_nSt>::Identity(_n+_nSt, _n+_nSt)*z_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) + g_hat_x[i-1] +
-				r_d_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = 2*reg_hat*z_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) + g_hat_x[i-1] +
-						kappa*Fx_hat_transp[i-1] * d.template segment<_nSt>(tmp) + kappa*Fu_bar_hat_transp[i-1]*d.template segment<_nInp>(tmp+_nSt) + 
-						Identity_hat_transp[i-1]*nu.template segment<_n>((i-1)*offset1+_n) - Bm_bar_hat_transp[i-1]*nu.template segment<_n>((i-1)*offset1+_n+_n) - A_bar_hat_transp[i-1]*nu.template segment<_n>((i-1)*offset1+_n+_n+_n);		
-			}
-			else	// i == _pos_omega
-			{
-				// r_d_hat.template segment<_n+_nSt>(_m+(_pos_omega-1)*offset+_n+tmp) = 2*reg_hat*Matrix<Type, _n+_nSt, _n+_nSt>::Identity(_n+_nSt, _n+_nSt)*z_hat.template segment<_n+_nSt>(_m+(_pos_omega-1)*offset+_n+tmp) + g_hat_x[_pos_omega-1] +
-				r_d_hat.template segment<_n+_nSt>(_m+(_pos_omega-1)*offset+_n+tmp) = 2*reg_hat*z_hat.template segment<_n+_nSt>(_m+(_pos_omega-1)*offset+_n+tmp) + g_hat_x[_pos_omega-1] +
-						kappa*Fx_hat_transp[_pos_omega-1] * d.template segment<_nSt>(tmp) + kappa*Fu_bar_hat_transp[_pos_omega-1]*d.template segment<_nInp>(tmp+_nSt) + 
-						Identity_hat_transp[_pos_omega-1]*nu.template segment<_n>((_pos_omega-1)*offset1+_n) - Bm_bar_hat_transp[_pos_omega-1]*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n) - A_bar_hat_transp[_pos_omega-1]*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n+_n) 
-						+ F_xTheta_hat_transp*d.template segment<_nF_xTheta>(_N*(_nSt + _nInp));
-			}
-			// cout << "r_d_hat in PhaseI:" << endl << r_d_hat << endl << endl;	
-			tmp = tmp + _nSt;
-			// r_d_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) = 2*reg_hat*Matrix<Type, Dynamic, Dynamic, 0, _m+_nInp, _m+_nInp>::Identity(_m+_nInp, _m+_nInp)*z_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) + g_hat_c[i] +
-			r_d_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) = 2*reg_hat*z_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) + g_hat_c[i] +
-					kappa*Fu_hat_transp[i]*d.template segment<_nInp>(tmp) - 
-					Bm_hat_transp[i]*nu.template segment<_n>((i-1)*offset1+_n+_n) - B_hat_transp[i]*nu.template segment<_n>((i-1)*offset1+_n+_n+_n);		
-			tmp = tmp + _nInp;
-			// 				cout << "r_d_hat in PhaseI:" << endl << r_d_hat << endl << endl;	
-			
-		}
-		// r_d_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = 2*reg_hat* Matrix<Type, _n, _n>::Identity(_n, _n)*z_hat.template segment<_n>(_m+(_N-1)*offset+tmp) + 
-		r_d_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = 2*reg_hat*z_hat.template segment<_n>(_m+(_N-1)*offset+tmp) + 
-					 			nu.template segment<_n>((_N-1)*offset1);
-		if (_pos_omega == _N)
+		if (i != _pos_omega)
 		{
-			// r_d_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = 2*reg_hat*Matrix<Type, _n+_nSt, _n+_nSt>::Identity(_n+_nSt, _n+_nSt)*z_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) + g_hat_x[_N-1] + 
-			r_d_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = 2*reg_hat*z_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) + g_hat_x[_N-1] + 
-								kappa*Fx_hat_transp[_N-1]*d.template segment<_nSt>(tmp) + kappa*F_xTheta_hat_transp*d.template segment<_nF_xTheta>(tmp+_nSt) + 
-								Identity_hat_transp[_N-1]*nu.template segment<_n>((_N-1)*offset1+_n);
+			r_d_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = 2*reg_hat*z_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) +
+					kappa*Fx_hat_transp[i-1] * d.template segment<_nSt>((i-1)*(_nInp+_nSt)+_nInp) + kappa*Fu_bar_hat_transp[i-1]*d.template segment<_nInp>(i*(_nSt+_nInp)) + 
+					Identity2_hat_transp*nu_hat.template segment<_n+1>((i-1)*offset1+_n) - Bm_bar_hat_transp*nu_hat.template segment<_n+1>((i-1)*offset1+_n+_n+1) - A_bar_hat_transp*nu_hat.template segment<_n+1>(i*offset1+_n);		
 		}
-		else
+		else	// i == _pos_omega
 		{
-			// r_d_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = 2*reg_hat*Matrix<Type, _n+_nSt, _n+_nSt>::Identity(_n+_nSt, _n+_nSt)*z_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) + g_hat_x[_N-1] + 
-			r_d_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = 2*reg_hat*z_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) + g_hat_x[_N-1] + 
-								kappa*Fx_hat_transp[_N-1]*d.template segment<_nSt>(tmp) + 
-								Identity_hat_transp[_N-1]*nu.template segment<_n>((_N-1)*offset1+_n);
+			r_d_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = 2*reg_hat*z_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) +
+					kappa*Fx_hat_transp[i-1] * d.template segment<_nSt>((i-1)*(_nInp+_nSt)+_nInp) + kappa*Fu_bar_hat_transp[i-1]*d.template segment<_nInp>(i*(_nSt+_nInp)) + 
+					Identity2_hat_transp*nu_hat.template segment<_n+1>((i-1)*offset1+_n) - Bm_bar_hat_transp*nu_hat.template segment<_n+1>((i-1)*offset1+_n+_n+1) - A_bar_hat_transp*nu_hat.template segment<_n+1>(i*offset1+_n) 
+			 		+ kappa*F_xTheta_hat_transp*d.template segment<_nF_xTheta>(_N*(_nSt + _nInp));
 		}
+		r_d_hat.template segment<_m+1>(i*offset2) = 2*reg_hat*z_hat.template segment<_m+1>(i*offset2)  +
+				kappa*Fu_hat_transp[i]*d.template segment<_nInp>(i*(_nInp+_nSt)) - 
+				Bm_hat_transp*nu_hat.template segment<_n+1>((i-1)*offset1+_n+_n+1) - B_hat_transp*nu_hat.template segment<_n+1>(i*offset1+_n);		
+	}
 		
-		tmp = tmp + _nSt;
-		// r_d_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) = 2*reg_hat*Matrix<Type, _m+_nF_xTheta, _m+_nF_xTheta>::Identity(_m+_nF_xTheta, _m+_nF_xTheta)*z_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp)  + g_hat_theta + 
-		r_d_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) = 2*reg_hat*z_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp)  + g_hat_theta + 
-								kappa * F_theta_hat_transp*d.template segment<_nF_xTheta>(tmp);
-		// cout << setprecision(15) << "r_d_hat:" << endl << r_d_hat << endl << endl;
+	r_d_hat.template segment<_n>(_m+1+(_N-1)*offset2) = 2*reg_hat*z_hat.template segment<_n>(_m+1+(_N-1)*offset2) + 
+			 	nu_hat.template segment<_n>((_N-2)*offset1+_n+_n+1);
+	if (_pos_omega == _N)
+	{
+		r_d_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = 2*reg_hat*z_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) + 
+				kappa*Fx_hat_transp[_N-1]*d.template segment<_nSt>((_N-1)*(_nSt+_nInp)+_nInp) + kappa*F_xTheta_hat_transp*d.template segment<_nF_xTheta>(_N*(_nSt+_nInp)) +
+				Identity2_hat_transp*nu_hat.template segment<_n+1>((_N-1)*offset1+_n);
+	}
+	else
+	{
+		r_d_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = 2*reg_hat*z_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) + 
+				kappa*Fx_hat_transp[_N-1]*d.template segment<_nSt>((_N-1)*(_nSt+_nInp)+_nInp) + 
+				Identity2_hat_transp*nu_hat.template segment<_n+1>((_N-1)*offset1+_n);
+	}
+	r_d_hat.template segment<_m+1>(_N*offset2) = 2*reg_hat*z_hat.template segment<_m+1>(_N*offset2) + g_hat_tmp + 
+				kappa * F_theta_hat_transp*d.template segment<_nF_xTheta>(_N*(_nSt+_nInp));
+	
+	// cout << setprecision(30) << "r_d_hat:" << endl << r_d_hat << endl << endl;
 }
+
+
 
 // ---------------- computes the updated for z_hat and nu
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
@@ -2195,16 +1935,14 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDz_ha
 {
 	compPhi_hat_PhaseI();
 	compPhi_hat_tilde_PhaseI();	// Phi_hat_tilde = Phi_hat^{-1}
-	compY_hat_PhaseI();	// Y is stored in Y[][] from PhaseII
-	compBeta_hat_PhaseI();	// beta_hat stored in beta from PhaseII
-	// cout << setprecision(15) << "beta: " << endl << beta << endl << endl;
-	compL();	// elements stores in L from PhaseII
-	// ******* error *********
-	compDnu();	// elements stored in dnu from PhaseII, Y*dnu = -beta_hat;
-	// cout << setprecision(15) << "dnu in PhaseI" << endl << dnu << endl << endl;
+	compY_hat_PhaseI();	// stored in Y_hat
+	compBeta_hat_PhaseI();	// stored in beta_hat
+	compL_hat();	// elements stored in L from PhaseII
+	compDnu_hat();	// elements stored in dnu from PhaseII, Y*dnu = -beta_hat;
 	compDz_hat_PhaseI();
-	// cout << setprecision(15) << "dz_hat in PhaseI" << endl << dz_hat << endl << endl;
 }
+
+
 
 // ------- computes Phi_hat = 2*H_hat + kappa*P'*diag(d)^2*P ------------------
 // ------------ works ------------------------------------------
@@ -2212,15 +1950,8 @@ template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xThet
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_hat_PhaseI()
 {
 	// ------------ first, partition diag(d) into (2N+1) diagonal matrices called d_diag[2N+1]
-	// !!!!!!!!!!!!!!! what if _nF_xTheta is not big enough?
 	
-	Matrix<Type, _m+_nInp, _m+_nInp> eye_mnInp;
-	eye_mnInp.setIdentity();
-	Matrix<Type, _n+_nSt, _n+_nSt> eye_nnSt;
-	eye_nnSt.setIdentity();
-	Matrix<Type, _m+_nF_xTheta, _m+_nF_xTheta> eye_mTheta;
-	eye_mTheta.setIdentity();
-	
+	/*
 	DiagonalMatrix<Type, Dynamic> d_diag[2*_N+1];
 	int tmp = 0;
 	for (int i=0 ; i <= _N-1 ; i++)
@@ -2231,37 +1962,68 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_h
 		tmp = tmp + _nSt;
 	}
 	d_diag[2*_N].diagonal() = d.template segment<_nF_xTheta>(tmp);
+	*/
 	
+	DiagonalMatrix<Type, _nSt> d_diagX[_N];
+	DiagonalMatrix<Type, _nInp> d_diagU[_N];
+	DiagonalMatrix<Type, _nF_xTheta> d_diagTheta;
+	int tmp = 0;
+	for (int i=0 ; i <= _N-1 ; i++)
+	{
+		d_diagU[i].diagonal() = d.template segment<_nInp>(tmp);
+		tmp = tmp + _nInp;
+		d_diagX[i].diagonal() = d.template segment<_nSt>(tmp);
+		tmp = tmp + _nSt;
+	}
+	d_diagTheta.diagonal() = d.template segment<_nF_xTheta>(tmp);
+	
+	
+	Matrix<Type, _m+1, _m+1> eye_m1;
+	eye_m1.setIdentity();
+	Matrix<Type, _n+1, _n+1> eye_n1;
+	eye_n1.setIdentity();
+
 	// ------- compute elements of Phi_hat, where Pi_tilde from PhaseII can be used
-	// Omicron_hat[0] = 2*reg_hat*Matrix<Type, Dynamic, Dynamic, 0, _m+_nInp, _m+_nInp>::Identity(_m+_nInp, _m+_nInp) + kappa*Fu_hat_transp[0]*d_diag[0]*d_diag[0]*Fu_hat[0];
-	Omicron_hat[0] = 2*reg_hat*eye_mnInp + kappa*Fu_hat_transp[0]*d_diag[0]*d_diag[0]*Fu_hat[0];
-	// consider integrating d_diag directly into this loop
+	// Omicron_hat[0] = 2*reg_hat*eye_m1 + kappa*Fu_hat_transp[0]*d_diag[0]*d_diag[0]*Fu_hat[0];
+	Omicron_hat[0] = 2*reg_hat*eye_m1 + kappa*Fu_hat_transp[0]*d_diagU[0]*d_diagU[0]*Fu_hat[0];
+	
 	for (int i=1; i <= _N-1; i++)
 	{
 		if (i != _pos_omega)
 		{
-			Rho_hat[i-1] = 2*reg_hat*eye_nnSt  + kappa * ( Fx_hat_transp[i-1]*d_diag[2*(i-1)+1]*d_diag[2*(i-1)+1]*Fx_hat[i-1]  + Fu_bar_hat_transp[i-1]*d_diag[2*i]*d_diag[2*i]*Fu_bar_hat[i-1] );
+			// Rho_hat[i-1] = 2*reg_hat*eye_n1  + kappa * ( Fx_hat_transp[i-1]*d_diag[2*(i-1)+1]*d_diag[2*(i-1)+1]*Fx_hat[i-1]  + Fu_bar_hat_transp[i-1]*d_diag[2*i]*d_diag[2*i]*Fu_bar_hat[i-1] );
+			Rho_hat[i-1] = 2*reg_hat*eye_n1  + kappa * ( Fx_hat_transp[i-1]*d_diagX[i-1]*d_diagX[i-1]*Fx_hat[i-1]  + Fu_bar_hat_transp[i-1]*d_diagU[i]*d_diagU[i]*Fu_bar_hat[i-1] );
 		}
 		else	// i == _pos_omega
 		{
-			Rho_hat[_pos_omega-1] = 2*reg_hat*eye_nnSt  + kappa * ( Fx_hat_transp[_pos_omega-1]*d_diag[2*(_pos_omega-1)+1]*d_diag[2*(_pos_omega-1)+1]*Fx_hat[_pos_omega-1]  + Fu_bar_hat_transp[_pos_omega-1]*d_diag[2*_pos_omega]*d_diag[2*_pos_omega]*Fu_bar_hat[_pos_omega-1] 
-				+ F_xTheta_hat_transp * d_diag[2*_N]*d_diag[2*_N]*F_xTheta_hat );
+			// Rho_hat[_pos_omega-1] = 2*reg_hat*eye_n1  + kappa * ( Fx_hat_transp[_pos_omega-1]*d_diag[2*(_pos_omega-1)+1]*d_diag[2*(_pos_omega-1)+1]*Fx_hat[_pos_omega-1]  + Fu_bar_hat_transp[_pos_omega-1]*d_diag[2*_pos_omega]*d_diag[2*_pos_omega]*Fu_bar_hat[_pos_omega-1] 
+				// + F_xTheta_hat_transp * d_diag[2*_N]*d_diag[2*_N]*F_xTheta_hat );
+			Rho_hat[_pos_omega-1] = 2*reg_hat*eye_n1  + kappa * ( Fx_hat_transp[_pos_omega-1]*d_diagX[_pos_omega-1]*d_diagX[_pos_omega-1]*Fx_hat[_pos_omega-1]  + Fu_bar_hat_transp[_pos_omega-1]*d_diagU[_pos_omega]*d_diagU[_pos_omega]*Fu_bar_hat[_pos_omega-1] 
+				+ F_xTheta_hat_transp * d_diagTheta*d_diagTheta*F_xTheta_hat );
 		}
-		Sigma_hat[i-1] = kappa * ( Fu_bar_hat_transp[i-1]*d_diag[2*i]*d_diag[2*i]*Fu_hat[i] );
-		Omicron_hat[i] = 2*reg_hat*eye_mnInp + kappa * ( Fu_hat_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu_hat[i] );
+		// Sigma_hat[i-1] = kappa * ( Fu_bar_hat_transp[i-1]*d_diag[2*i]*d_diag[2*i]*Fu_hat[i] );
+		Sigma_hat[i-1] = kappa * ( Fu_bar_hat_transp[i-1]*d_diagU[i]*d_diagU[i]*Fu_hat[i] );
+		// Omicron_hat[i] = 2*reg_hat*eye_m1 + kappa * ( Fu_hat_transp[i]*d_diag[2*i]*d_diag[2*i]*Fu_hat[i] );
+		Omicron_hat[i] = 2*reg_hat*eye_m1 + kappa * ( Fu_hat_transp[i]*d_diagU[i]*d_diagU[i]*Fu_hat[i] );
 	}
+	
 	// special treatment for last block
 	if (_pos_omega == _N)
 	{
-		Rho_hat[_N-1] = 2*reg_hat*eye_nnSt + kappa * ( Fx_hat_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx_hat[_N-1] + F_xTheta_hat_transp*d_diag[2*_N]*d_diag[2*_N]*F_xTheta_hat );
+		// Rho_hat[_N-1] = 2*reg_hat*eye_n1 + kappa * ( Fx_hat_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx_hat[_N-1] + F_xTheta_hat_transp*d_diag[2*_N]*d_diag[2*_N]*F_xTheta_hat );
+		Rho_hat[_N-1] = 2*reg_hat*eye_n1 + kappa * ( Fx_hat_transp[_N-1]*d_diagX[_N-1]*d_diagX[_N-1]*Fx_hat[_N-1] + F_xTheta_hat_transp*d_diagTheta*d_diagTheta*F_xTheta_hat );
 	}
 	else
-	{
-		Rho_hat[_N-1] = 2*reg_hat*eye_nnSt + kappa * ( Fx_hat_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx_hat[_N-1] );
+	{	
+		// Rho_hat[_N-1] = 2*reg_hat*eye_n1 + kappa * ( Fx_hat_transp[_N-1]*d_diag[2*_N-1]*d_diag[2*_N-1]*Fx_hat[_N-1] );
+		Rho_hat[_N-1] = 2*reg_hat*eye_n1 + kappa * ( Fx_hat_transp[_N-1]*d_diagX[_N-1]*d_diagX[_N-1]*Fx_hat[_N-1] );
 	}
-	Sigma_hat[_N-1] = kappa * ( F_xTheta_hat_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta_hat );
-	Omicron_hat[_N] = 2*reg_hat*eye_mTheta + kappa * ( F_theta_hat_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta_hat );
-
+	
+	// Sigma_hat[_N-1] = kappa * ( F_xTheta_hat_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta_hat );
+	Sigma_hat[_N-1] = kappa * ( F_xTheta_hat_transp*d_diagTheta*d_diagTheta*F_theta_hat );
+	// Omicron_hat[_N] = 2*reg_hat*eye_m1 + kappa * ( F_theta_hat_transp*d_diag[2*_N]*d_diag[2*_N]*F_theta_hat );
+	Omicron_hat[_N] = 2*reg_hat*eye_m1 + kappa * ( F_theta_hat_transp*d_diagTheta*d_diagTheta*F_theta_hat );
+	
 	/*
 	for (int i = 0; i <= _N-1; i++)
 	{
@@ -2273,10 +2035,11 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_h
 	*/
 }
 
+
+
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_hat_tilde_PhaseI()
 {
-	// cout << "hallo 1" << endl << endl;
 	LOmicron_diag[0].compute(Omicron_hat[0]);
 	LOmicron_hat_diag_transp[0] = LOmicron_diag[0].matrixLLT().transpose();
 	Matrix<Type, _n, _n> eye;
@@ -2284,7 +2047,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_h
 	
 	for (int i=1 ; i<= _N-1; i++)
 	{
-		// cout << "hello 2" << endl << endl;
 		LPi_diag[i-1].compute(2*reg_hat*eye);
 		LPi_hat_diag_transp[i-1] = LPi_diag[i-1].matrixLLT().transpose();
 		LRho_diag[i-1].compute(Rho_hat[i-1]);
@@ -2296,35 +2058,18 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_h
 		
 		if (i == _pos_omega)
 		{
-			// cout << "entering if in for loop" << endl << endl;
 			LLambda0_hat_transp = LRho_diag[_pos_omega-1].matrixLLT().triangularView<Lower>().solve(Sigma_hat[_N-1]);
-			// cout << "Sigma_hat[_N-1].rows(): " << Sigma_hat[_N-1].rows() << endl << endl;
-			// cout << "Sigma_hat[_N-1].cols(): " << Sigma_hat[_N-1].cols() << endl << endl;
-			// cout << "LRho_diag[_pos_omega-1].rows(): " << LRho_diag[_pos_omega-1].rows() << endl << endl;
-			// cout << "LRho_diag[_pos_omega-1].cols(): " << LRho_diag[_pos_omega-1].cols() << endl << endl;
-			// cout << "hi 1" << endl << endl;
 			LLambda0_hat = LLambda0_hat_transp.transpose();
-			// cout << "LLamba0_hat.rows(): " << LLambda0_hat.rows() << endl << endl;
-			// cout << "LLamba0_hat.cols(): " << LLambda0_hat.cols() << endl << endl;
-			// cout << "hi 2" << endl << endl;
-			// cout << "LSigma_hat_offDiag[_pos_omega-1].rows()" << LSigma_hat_offDiag[_pos_omega-1].rows() << endl << endl;
-			// cout << "LSigma_hat_offDiag[_pos_omega-1].cols()" << LSigma_hat_offDiag[_pos_omega-1].cols() << endl << endl;
-			// cout << "LLambda0_hat_transp.rows()" << LLambda0_hat_transp.rows() << endl << endl;
-			// cout << "LLambda0_hat_transp.cols()" << LLambda0_hat_transp.cols() << endl << endl;
-			LLambda1_hat_transp = LOmicron_diag[_pos_omega].matrixLLT().triangularView<Lower>().solve(Matrix<Type,_m+_nInp,_m+_nF_xTheta>::Zero() - LSigma_hat_offDiag[_pos_omega-1]*LLambda0_hat_transp);
-			// cout << "hi 3" << endl << endl;
+			LLambda1_hat_transp = LOmicron_diag[_pos_omega].matrixLLT().triangularView<Lower>().solve(Matrix<Type,_m+1,_m+1>::Zero() - LSigma_hat_offDiag[_pos_omega-1]*LLambda0_hat_transp);
 			LLambda1_hat = LLambda1_hat_transp.transpose();
-			// cout << "exiting if in for loop" << endl << endl;
 		}
 	}
 	
-	// cout << "hello 3" << endl << endl;
 	LPi_diag[_N-1].compute(2*reg_hat*eye);
 	LPi_hat_diag_transp[_N-1] = LPi_diag[_N-1].matrixLLT().transpose();
 	LRho_diag[_N-1].compute(Rho_hat[_N-1]);
 	LRho_hat_diag_transp[_N-1] = LRho_diag[_N-1].matrixLLT().transpose();		
 	
-	// cout << "hello 4" << endl << endl;
 	if(_N == _pos_omega)
 	{
 		LSigma_hat_offDiag_transp[_N-1] = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(Sigma_hat[_N-1]);		
@@ -2337,7 +2082,6 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_h
 		LOmicron_diag[_N].compute(Omicron_hat[_N] - LLambda0_hat*LLambda0_hat_transp - LLambda1_hat*LLambda1_hat_transp  );
 		LOmicron_hat_diag_transp[_N] = LOmicron_diag[_N].matrixLLT().transpose();
 	}
-	
 	
 	/*
 	for (int i=0; i<= _N-2; i++)
@@ -2364,8 +2108,9 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compPhi_h
 		cout << "LLambda1_hat" << endl << LLambda1_hat << endl << endl;
 	}
 	*/
-	
 }
+
+
 
 // ------- computes Y_hat = C_hat * Phi_hat_tilde * C_hat' ------------------------
 // Y_hat uses Y[][] since the dimensions are the same as in PhaseII
@@ -2379,56 +2124,49 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 	
 	Matrix<Type, _n, _n> eye;
 	eye.setIdentity();
-	Matrix<Type, _m+_nInp, _n> zero_hat_mnInp_n;	// size must be adjusted
-	zero_hat_mnInp_n.setZero();
-	Matrix<Type, _m+_nF_xTheta,_n> zero_hat_mTheta_n;
-	zero_hat_mTheta_n.setZero();
 	
 	// 1. Compute elements of Matrix U_hat
 	// treat the first 2 U_bar and first 3 U specially
-	U_hat[0] = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(-Bm_hat_transp[0]);
+	U_hat[0] = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(-Bm_hat0_transp);
 	U_bar_hat[0] = LPi_diag[0].matrixLLT().triangularView<Lower>().solve(eye);
 	
-	U_hat[1] = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(-B_hat_transp[0]);
-	U_bar_hat[1] = LRho_diag[0].matrixLLT().triangularView<Lower>().solve(Identity_hat_transp[0]);
-	// zero_hat = Matrix<Type, Dynamic, _n>::Zero(_m+_nInp,_n);
-	U_hat[2] = LOmicron_diag[1].matrixLLT().triangularView<Lower>().solve( zero_hat_mnInp_n - LSigma_hat_offDiag[0]*U_bar_hat[1] );
+	U_hat[1] = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(-B_hat_transp);
+	U_bar_hat[1] = LRho_diag[0].matrixLLT().triangularView<Lower>().solve(Identity2_hat_transp);
+	U_hat[2] = LOmicron_diag[1].matrixLLT().triangularView<Lower>().solve( - LSigma_hat_offDiag[0]*U_bar_hat[1] );
 	
 	// remaining U_bar and U have structures
 	for (int i=1; i<= _N-2; i++)
 	{
-		U_bar_hat[2+(i-1)*5] = LPi_diag[i-1].matrixLLT().triangularView<Lower>().solve(-Am_tilde_transp);
-		U_bar_hat[3+(i-1)*5] = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(-Bm_bar_hat_transp[i-1]);
-		U_hat[3+(i-1)*3] = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(-Bm_hat_transp[i] - LSigma_hat_offDiag[i-1]*U_bar_hat[3+(i-1)*5] );
-		U_bar_hat[4+(i-1)*5] = LPi_diag[i].matrixLLT().triangularView<Lower>().solve( eye );
+		U_bar_hat[2+(i-1)*5] = LPi_diag[i-1].matrixLLT().triangularView<Lower>().solve(-Am_tilde_hat_transp);
+		U_bar_hat[3+(i-1)*5] = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(-Bm_bar_hat_transp);
+		U_hat[3+(i-1)*3] = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(-Bm_hat_transp - LSigma_hat_offDiag[i-1]*U_bar_hat[3+(i-1)*5] );
+		U_bar_hat[4+(i-1)*5] = LPi_diag[i].matrixLLT().triangularView<Lower>().solve( Identity1_hat_transp );
 		
-		U_bar_hat[5+(i-1)*5] = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(-A_bar_hat_transp[i-1]);
-		U_hat[4+(i-1)*3] = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(-B_hat_transp[i] - LSigma_hat_offDiag[i-1]*U_bar_hat[5+(i-1)*5]);
-		U_bar_hat[6+(i-1)*5] = LRho_diag[i].matrixLLT().triangularView<Lower>().solve( Identity_hat_transp[i] );
-		// zero_hat = Matrix<Type, Dynamic, _n>::Zero(_m+_nInp,_n);
-		U_hat[5+(i-1)*3] = LOmicron_diag[i+1].matrixLLT().triangularView<Lower>().solve( zero_hat_mnInp_n - LSigma_hat_offDiag[i]*U_bar_hat[6+(i-1)*5] );
+		U_bar_hat[5+(i-1)*5] = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(-A_bar_hat_transp);
+		U_hat[4+(i-1)*3] = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(-B_hat_transp - LSigma_hat_offDiag[i-1]*U_bar_hat[5+(i-1)*5]);
+		U_bar_hat[6+(i-1)*5] = LRho_diag[i].matrixLLT().triangularView<Lower>().solve( Identity2_hat_transp );
+		U_hat[5+(i-1)*3] = LOmicron_diag[i+1].matrixLLT().triangularView<Lower>().solve( -LSigma_hat_offDiag[i]*U_bar_hat[6+(i-1)*5] );
 	}
 	
-	U_bar_hat[2+(_N-2)*5] = LPi_diag[_N-1-1].matrixLLT().triangularView<Lower>().solve(-Am_tilde_transp);
-	U_bar_hat[3+(_N-2)*5] = LRho_diag[_N-1-1].matrixLLT().triangularView<Lower>().solve(-Bm_bar_hat_transp[_N-2]);
-	U_hat[3+(_N-2)*3] = LOmicron_diag[_N-1].matrixLLT().triangularView<Lower>().solve(-Bm_hat_transp[_N-1] - LSigma_hat_offDiag[_N-1-1]*U_bar_hat[3+(_N-1-1)*5] );
-	U_bar_hat[4+(_N-2)*5] = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve( eye );
 	
-	U_bar_hat[5+(_N-2)*5] = LRho_diag[_N-1-1].matrixLLT().triangularView<Lower>().solve(-A_bar_hat_transp[_N-1-1]);
-	U_hat[4+(_N-2)*3] = LOmicron_diag[_N-1].matrixLLT().triangularView<Lower>().solve(-B_hat_transp[_N-1] - LSigma_hat_offDiag[_N-1-1]*U_bar_hat[5+(_N-1-1)*5]);
-	U_bar_hat[6+(_N-2)*5] = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve( Identity_hat_transp[_N-1] );
+	U_bar_hat[2+(_N-2)*5] = LPi_diag[_N-2].matrixLLT().triangularView<Lower>().solve(-Am_tilde_hat_transp);
+	U_bar_hat[3+(_N-2)*5] = LRho_diag[_N-2].matrixLLT().triangularView<Lower>().solve(-Bm_bar_hat_transp);
+	U_hat[3+(_N-2)*3] = LOmicron_diag[_N-1].matrixLLT().triangularView<Lower>().solve(-Bm_hat_transp - LSigma_hat_offDiag[_N-2]*U_bar_hat[3+(_N-2)*5] );
+	U_bar_hat[4+(_N-2)*5] = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve( Identity1_hat_transp );
+	
+	U_bar_hat[5+(_N-2)*5] = LRho_diag[_N-1-1].matrixLLT().triangularView<Lower>().solve(-A_bar_hat_transp);
+	U_hat[4+(_N-2)*3] = LOmicron_diag[_N-1].matrixLLT().triangularView<Lower>().solve(-B_hat_transp - LSigma_hat_offDiag[_N-1-1]*U_bar_hat[5+(_N-1-1)*5]);
+	U_bar_hat[6+(_N-2)*5] = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve( Identity2_hat_transp );
 	
 	if (_N == _pos_omega)
 	{
-		// zero_hat = Matrix<Type, Dynamic, _n>::Zero(_m+_nF_xTheta,_n);
-		U_hat[5+(_N-2)*3] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve( zero_hat_mTheta_n - LSigma_hat_offDiag[_N-1]*U_bar_hat[6+(_N-1-1)*5] );
+		U_hat[5+(_N-2)*3] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve( -LSigma_hat_offDiag[_N-1]*U_bar_hat[6+(_N-1-1)*5] );
 	}
 	else
 	{
-		// zero_hat = Matrix<Type, Dynamic, _n>::Zero(_m+_nF_xTheta,_n);
-		UO_hat[0] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(zero_hat_mTheta_n - LLambda0_hat*U_bar_hat[1+(_pos_omega-1)*5] - LLambda1_hat*U_hat[2+(_pos_omega-1)*3]);
-		UO_hat[1] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(zero_hat_mTheta_n - LLambda0_hat*U_bar_hat[3+(_pos_omega-1)*5] - LLambda1_hat*U_hat[3+(_pos_omega-1)*3]);
-		UO_hat[2] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(zero_hat_mTheta_n - LLambda0_hat*U_bar_hat[5+(_pos_omega-1)*5] - LLambda1_hat*U_hat[4+(_pos_omega-1)*3]);
+		UO_hat[0] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve( -LLambda0_hat*U_bar_hat[1+(_pos_omega-1)*5] - LLambda1_hat*U_hat[2+(_pos_omega-1)*3]);
+		UO_hat[1] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve( -LLambda0_hat*U_bar_hat[3+(_pos_omega-1)*5] - LLambda1_hat*U_hat[3+(_pos_omega-1)*3]);
+		UO_hat[2] = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve( -LLambda0_hat*U_bar_hat[5+(_pos_omega-1)*5] - LLambda1_hat*U_hat[4+(_pos_omega-1)*3]);
 	}
 	
 	/*
@@ -2443,7 +2181,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 		cout << "U_bar_hat[3+(i-1)*5]" << endl << U_bar_hat[3+(i-1)*5] << endl << endl ;
 		cout << "U_hat[3+(i-1)*3]" << endl << U_hat[3+(i-1)*3] << endl << endl;
 		cout << "U_bar_hat[4+(i-1)*5]" << endl << U_bar_hat[4+(i-1)*5] << endl << endl;
-		
+			
 		cout << "U_bar_hat[5+(i-1)*5]" << endl << U_bar_hat[5+(i-1)*5] << endl << endl ;
 		cout << "U_hat[4+(i-1)*3]" << endl << U_hat[4+(i-1)*3] << endl << endl ;
 		cout << "U_bar_hat[6+(i-1)*5]" << endl << U_bar_hat[6+(i-1)*5] << endl << endl ;
@@ -2453,7 +2191,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 	cout << "U_bar_hat[3+(_N-2)*5]" << endl << U_bar_hat[3+(_N-2)*5] << endl << endl ;
 	cout << "U_hat[3+(_N-2)*3]" << endl << U_hat[3+(_N-2)*3] << endl << endl;
 	cout << "U_bar_hat[4+(_N-2)*5]" << endl << U_bar_hat[4+(_N-2)*5] << endl << endl;
-	
+		
 	cout << "U_bar_hat[5+(_N-2)*5]" << endl << U_bar_hat[5+(_N-2)*5] << endl << endl ;
 	cout << "U_hat[4+(_N-2)*3]" << endl << U_hat[4+(_N-2)*3] << endl << endl ;
 	cout << "U_bar_hat[6+(_N-2)*5]" << endl << U_bar_hat[6+(_N-2)*5] << endl << endl ;
@@ -2470,10 +2208,9 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 	}
 	*/
 
-
+	
 	// 2. Compute elements in Matrix X
 	// treat the first 2 X_bar and first 3 X specially
-	
 	if(_pos_omega != _N)
 	{
 		XO_hat[0] = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(UO_hat[0]);
@@ -2497,12 +2234,10 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 		X_bar_hat[1] = LRho_hat_diag_transp[0].template triangularView<Upper>().solve(U_bar_hat[1] - LSigma_hat_offDiag_transp[0]*X_hat[2]);
 	}
 	
+	
 	// remaining X_bar and X have structures
-	// if(_N != _pos_omega), then the off-diagonal element incluences three columns, called col1, col2, col3
 	for (int i = 1; i <= _N-2; i++)
 	{
-		// cout << "round: " << i << endl;
-		
 		if (i == _pos_omega)	// col2
 		{
 			X_bar_hat[2+(_pos_omega-1)*5] = LPi_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar_hat[2+(_pos_omega-1)*5]);
@@ -2589,7 +2324,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 		cout << "X_bar_hat[3+(i-1)*5]" << endl << X_bar_hat[3+(i-1)*5] << endl << endl ;
 		cout << "X_hat[3+(i-1)*3]" << endl << X_hat[3+(i-1)*3] << endl << endl;
 		cout << "X_bar_hat[4+(i-1)*5]" << endl << X_bar_hat[4+(i-1)*5] << endl << endl;
-		
+			
 		cout << "X_bar_hat[5+(i-1)*5]" << endl << X_bar_hat[5+(i-1)*5] << endl << endl ;
 		cout << "X_hat[4+(i-1)*3]" << endl << X_hat[4+(i-1)*3] << endl << endl ;
 		cout << "X_bar_hat[6+(i-1)*5]" << endl << X_bar_hat[6+(i-1)*5] << endl << endl ;
@@ -2599,7 +2334,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 	cout << "X_bar_hat[3+(_N-2)*5]" << endl << X_bar_hat[3+(_N-2)*5] << endl << endl ;
 	cout << "X_hat[3+(_N-2)*3]" << endl << X_hat[3+(_N-2)*3] << endl << endl;
 	cout << "X_bar_hat[4+(_N-2)*5]" << endl << X_bar_hat[4+(_N-2)*5] << endl << endl;
-	
+		
 	cout << "X_bar_hat[5+(_N-2)*5]" << endl << X_bar_hat[5+(_N-2)*5] << endl << endl ;
 	cout << "X_hat[4+(_N-2)*3]" << endl << X_hat[4+(_N-2)*3] << endl << endl ;
 	cout << "X_bar_hat[6+(_N-2)*5]" << endl << X_bar_hat[6+(_N-2)*5] << endl << endl ;
@@ -2613,45 +2348,57 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY_hat
 		cout << "XO_hat[1]" << endl << XO_hat[1] << endl << endl;
 		cout << "XO_hat[2]" << endl << XO_hat[2] << endl << endl;
 	}
-	*/	
+	*/
 	
 	// 3. Compute Y = C*X
 	// compute first three Y separately
-	Y[0][0] = -Bm_hat[0]*X_hat[0] + X_bar_hat[0];
+	Y_hat[0][0] = -Bm_hat0*X_hat[0] + X_bar_hat[0];
 	
-	Y[0][1] = -Bm_hat[0]*X_hat[1];
-	Y[1][1] = -B_hat[0]*X_hat[1] + Identity_hat[0]*X_bar_hat[1];
+	Y_hat[0][1] = -Bm_hat0*X_hat[1];
+	Y_hat[1][1] = -B_hat*X_hat[1] + Identity2_hat*X_bar_hat[1];
+	
+	{	// do another one manually b/c first block-row of Y has a row less
+		Y_hat[0][2] = X_bar_hat[2];
+		Y_hat[1][2] = Identity2_hat*X_bar_hat[3];
+		Y_hat[2][2] = -Am_tilde_hat*X_bar_hat[2] - Bm_bar_hat*X_bar_hat[3] - Bm_hat*X_hat[3] + Identity1_hat*X_bar_hat[4];
+		
+		Y_hat[0][3] = Identity2_hat*X_bar_hat[5];
+		Y_hat[1][3] = -Bm_bar_hat*X_bar_hat[5] - Bm_hat*X_hat[4];
+		Y_hat[2][3] = -A_bar_hat*X_bar_hat[5] - B_hat*X_hat[4] + Identity2_hat*X_bar_hat[6];
+	}
+	
+	
 	// compute rest by filling Y column by column; done for 2 neighboring rows
 	// we fill Y column by column, treating the first two columns specially
-	for (int i=1; i <= _N-1; i++)
+	for (int i=2; i <= _N-1; i++)
 	{
-		Y[0][2*(i-1)+2] = X_bar_hat[2+(i-1)*5];
-		Y[1][2*(i-1)+2] = Identity_hat[i-1]*X_bar_hat[3+(i-1)*5];
-		Y[2][2*(i-1)+2] = -Am_tilde*X_bar_hat[2+(i-1)*5] - Bm_bar_hat[i-1]*X_bar_hat[3+(i-1)*5] - Bm_hat[i]*X_hat[3+(i-1)*3] + X_bar_hat[4+(i-1)*5];
+		Y_hat[0][2*(i-1)+2] = Identity1_hat*X_bar_hat[2+(i-1)*5];
+		Y_hat[1][2*(i-1)+2] = Identity2_hat*X_bar_hat[3+(i-1)*5];
+		Y_hat[2][2*(i-1)+2] = -Am_tilde_hat*X_bar_hat[2+(i-1)*5] - Bm_bar_hat*X_bar_hat[3+(i-1)*5] - Bm_hat*X_hat[3+(i-1)*3] + Identity1_hat*X_bar_hat[4+(i-1)*5];
 			
-		Y[0][2*(i-1)+3] = Identity_hat[i-1]*X_bar_hat[5+(i-1)*5];
-		Y[1][2*(i-1)+3] = -Bm_bar_hat[i-1]*X_bar_hat[5+(i-1)*5] - Bm_hat[i]*X_hat[4+(i-1)*3];
-		Y[2][2*(i-1)+3] = -A_bar_hat[i-1]*X_bar_hat[5+(i-1)*5] - B_hat[i]*X_hat[4+(i-1)*3] + Identity_hat[i]*X_bar_hat[6+(i-1)*5];
+		Y_hat[0][2*(i-1)+3] = Identity2_hat*X_bar_hat[5+(i-1)*5];
+		Y_hat[1][2*(i-1)+3] = -Bm_bar_hat*X_bar_hat[5+(i-1)*5] - Bm_hat*X_hat[4+(i-1)*3];
+		Y_hat[2][2*(i-1)+3] = -A_bar_hat*X_bar_hat[5+(i-1)*5] - B_hat*X_hat[4+(i-1)*3] + Identity2_hat*X_bar_hat[6+(i-1)*5];
 	}
 	
 	/*
-	cout << "Y[0][0]" << endl << Y[0][0] << endl << endl; 
-	cout << "Y[0][1]" << endl << Y[0][1] << endl << endl;
-	cout << "Y[1][1]" << endl << Y[1][1] << endl << endl;;
-	
-	
+	cout << "Y_hat[0][0]" << endl << Y_hat[0][0] << endl << endl; 
+	cout << "Y_hat[0][1]" << endl << Y_hat[0][1] << endl << endl;
+	cout << "Y_hat[1][1]" << endl << Y_hat[1][1] << endl << endl;;
+			
 	for (int i=1; i <= _N-1; i++)
 	{
-		cout << "Y[0][2*(i-1)+2]" << endl << Y[0][2*(i-1)+2] << endl << endl; 
-		cout << " Y[1][2*(i-1)+2]" << endl << Y[1][2*(i-1)+2] << endl << endl;
-		cout << "Y[2][2*(i-1)+2]" << endl << Y[2][2*(i-1)+2] << endl << endl;
-			
-		cout << "Y[0][2*(i-1)+3]" << endl << Y[0][2*(i-1)+3] << endl << endl; 
-		cout << "Y[1][2*(i-1)+3]" << endl << Y[1][2*(i-1)+3] << endl << endl; 
-		cout << "Y[2][2*(i-1)+3]" << endl << Y[2][2*(i-1)+3] << endl << endl; 
+		cout << "Y_hat[0][" << 2*(i-1)+3 << "]" << endl << Y_hat[0][2*(i-1)+2] << endl << endl; 
+		cout << " Y_hat[1][" << 2*(i-1)+3 << "]" << endl << Y_hat[1][2*(i-1)+2] << endl << endl;
+		cout << "Y_hat[2][" << 2*(i-1)+3 << "]" << endl << Y_hat[2][2*(i-1)+2] << endl << endl;
+				
+		cout << "Y_hat[0][" << 2*(i-1)+3 << "]" << endl << Y_hat[0][2*(i-1)+3] << endl << endl; 
+		cout << "Y_hat[1][" << 2*(i-1)+3 << "]" << endl << Y_hat[1][2*(i-1)+3] << endl << endl; 
+		cout << "Y_hat[2][" << 2*(i-1)+3 << "]" << endl << Y_hat[2][2*(i-1)+3] << endl << endl; 
 	}
 	*/
 }
+
 
 
 // ------------ function computes beta_hat = -r_p_hat + C_hat*Phi_hat_tilde*r_d_hat --------
@@ -2661,387 +2408,424 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compBeta_
 {
 	// solve in steps
 	// beta_hat = -r_p_hat + C_hat*tmp1_hat, where tmp1_hat: Phi_hat*tmp1_hat = r_d_hat
+	
 	// 1. L_hat * tmp2_hat = r_d_hat   --> compute tmp2_hat
 	// 2. L_hat' * tmp1_hat = tmp2_hat  ---> compute tmp1_hat
 	// 3. beta = -r_p + C_hat * tmp1_hat
 	
 	// 1. compute tmp2_hat: L_hat * tmp2_hat = r_d_hat
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> tmp2_hat;	// long vector
-	// tmp2_hat.resize((_N*(_m + _n + _n) + _m) + num_constr);	
-	tmp2_hat.template segment<_m+_nInp>(0) = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+_nInp>(0) );
-	int tmp = _nInp;
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> tmp2_hat;	// long vector
+	tmp2_hat.template segment<_m+1>(0) = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+1>(0) );
+	
 	for (int i = 1; i <= _N-1; i++)
 	{
-		tmp2_hat.template segment<_n>(_m+(i-1)*offset+tmp) = LPi_diag[i-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n>(_m+(i-1)*offset+tmp));
-		tmp2_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp));
-		tmp = tmp + _nSt;
-		tmp2_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) - LSigma_hat_offDiag[i-1]*tmp2_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp-_nSt));
-		tmp = tmp + _nInp;
+		tmp2_hat.template segment<_n>(_m+1+(i-1)*offset2) = LPi_diag[i-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n>(_m+1+(i-1)*offset2));
+		tmp2_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n));
+		tmp2_hat.template segment<_m+1>(i*offset2) = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+1>(i*offset2) - LSigma_hat_offDiag[i-1]*tmp2_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n));
 	}
+	
+	
 	if(_pos_omega == _N)
 	{	
-		tmp2_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		tmp2_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp));
-		tmp = tmp + _nSt;
-		tmp2_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) - LSigma_hat_offDiag[_N-1]*tmp2_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp-_nSt));
+		tmp2_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n>(_m+1+(_N-1)*offset2));
+		tmp2_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
+		tmp2_hat.template segment<_m+1>(_N*offset2) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+1>(_N*offset2) - LSigma_hat_offDiag[_N-1]*tmp2_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
 	}
 	else	// use LLambda0_hat and LLambda1_hat
 	{
-		// cout << "hello1" << endl << endl;
-		tmp2_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		// cout << "hello2" << endl << endl;
-		tmp2_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp));
-		// cout << "hello3" << endl << endl;
-		tmp = tmp + _nSt;
-		// cout << "hello 4" << endl << endl;
-		tmp2_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) - LLambda0_hat*tmp2_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n)    - LLambda1_hat*tmp2_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt)   );
-		// cout << "hello 5" << endl << endl;
+		tmp2_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n>(_m+1+(_N-1)*offset2));
+		tmp2_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
+		tmp2_hat.template segment<_m+1>(_N*offset2) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(r_d_hat.template segment<_m+1>(_N*offset2) - LLambda0_hat*tmp2_hat.template segment<_n+1>(_m+1+(_pos_omega-1)*offset2+_n) - LLambda1_hat*tmp2_hat.template segment<_m+1>(_m+1+(_pos_omega-1)*offset2+_n+_n+1)   );
 	}
-	// cout << "tmp2_hat:" << endl << tmp2_hat << endl << endl;
+	// cout << setprecision(20) << "tmp2_hat:" << endl << tmp2_hat << endl << endl;
 	
 	// 2. compute tmp1: L'*tmp1 = tmp2
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> tmp1_hat;	// long vector
-	// tmp1_hat.resize((_N*(_m + _n + _n) + _m) + num_constr);
-	tmp1_hat.template segment<_m+_nInp>(0) = LOmicron_hat_diag_transp[0].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+_nInp>(0));
-	tmp = _nInp;
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> tmp1_hat;	// long vector
+	tmp1_hat.template segment<_m+1>(0) = LOmicron_hat_diag_transp[0].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+1>(0));
+	
 	for (int i = 1; i <= _pos_omega-1; i++)
 	{
-		tmp1_hat.template segment<_n>(_m+(i-1)*offset+tmp) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+(i-1)*offset+tmp));
-		tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		tmp1_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) - LSigma_hat_offDiag_transp[i-1]*tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		tmp = tmp + _nSt + _nInp;
+		tmp1_hat.template segment<_n>(_m+1+(i-1)*offset2) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+1+(i-1)*offset2));
+		tmp1_hat.template segment<_m+1>(i*offset2) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+1>(i*offset2));
+		tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) - LSigma_hat_offDiag_transp[i-1]*tmp1_hat.template segment<_m+1>(i*offset2));
 	}
-	if (_pos_omega != _N)	// means that we skipped a part
-	{
-		tmp = tmp + _nSt + _nInp;
-	}
+	
 	// the missing block is computed after the last block is computed
 	for (int i = _pos_omega+1; i <= _N-1; i++)
 	{
-		tmp1_hat.template segment<_n>(_m+(i-1)*offset+tmp) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+(i-1)*offset+tmp));
-		tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		tmp1_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) - LSigma_hat_offDiag_transp[i-1]*tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		tmp = tmp + _nSt + _nInp;
+		tmp1_hat.template segment<_n>(_m+1+(i-1)*offset2) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+1+(i-1)*offset2));
+		tmp1_hat.template segment<_m+1>(i*offset2) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+1>(i*offset2));
+		tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) - LSigma_hat_offDiag_transp[i-1]*tmp1_hat.template segment<_m+1>(i*offset2));
 	}
+	
 	if (_pos_omega == _N)
 	{
-		tmp1_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		tmp1_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt));
-		tmp1_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) - LSigma_hat_offDiag_transp[_N-1]*tmp1_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt));
+		tmp1_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+1+(_pos_omega-1)*offset2));
+		tmp1_hat.template segment<_m+1>(_N*offset2) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+1>(_N*offset2));
+		tmp1_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) - LSigma_hat_offDiag_transp[_N-1]*tmp1_hat.template segment<_m+1>(_N*offset2));
 	}
 	else	// standard ending, compute the missing blocks
 	{
-		tmp1_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		tmp1_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt));
-		tmp1_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp));
+		tmp1_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+1+(_N-1)*offset2));
+		tmp1_hat.template segment<_m+1>(_N*offset2) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+1>(_N*offset2));
+		tmp1_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
 		
-		tmp1_hat.template segment<_n>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)) = LPi_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)) );
-		tmp1_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt) = LOmicron_hat_diag_transp[_pos_omega].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt) - LLambda1_hat_transp*tmp1_hat.template segment<_m+_nF_xTheta>(_m+_nInp+(_N-1)*(offset+_nSt+_nInp)+_n+_n+_nSt)  );
-		tmp1_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n) = LRho_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n) - LSigma_hat_offDiag_transp[_pos_omega-1]*tmp1_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt) - LLambda0_hat_transp*tmp1_hat.template segment<_m+_nF_xTheta>(_m+_nInp+(_N-1)*(offset+_nSt+_nInp)+_n+_n+_nSt)  );
+		tmp1_hat.template segment<_n>(_m+1+(_pos_omega-1)*offset2) = LPi_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n>(_m+1+(_pos_omega-1)*offset2) );
+		tmp1_hat.template segment<_m+1>(_pos_omega*offset2) = LOmicron_hat_diag_transp[_pos_omega].template triangularView<Upper>().solve(tmp2_hat.template segment<_m+1>(_pos_omega*offset2) - LLambda1_hat_transp*tmp1_hat.template segment<_m+1>(_N*offset2)  );
+		tmp1_hat.template segment<_n+1>(_m+1+(_pos_omega-1)*offset2+_n) = LRho_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp2_hat.template segment<_n+1>(_m+1+(_pos_omega-1)*offset2+_n) - LSigma_hat_offDiag_transp[_pos_omega-1]*tmp1_hat.template segment<_m+1>(_pos_omega*offset2) - LLambda0_hat_transp*tmp1_hat.template segment<_m+1>(_N*offset2)  );
 	}
-	// cout << "tmp1_hat:" << endl << tmp1_hat << endl << endl;
+	// cout << setprecision(30) << "tmp1_hat:" << endl << tmp1_hat << endl << endl;
 	
+	// 3. beta_hat = -r_p_hat + C_hat * tmp1_hat
+	beta_hat.template segment<_n>(0) = -r_p_hat.template segment<_n>(0) + ( -Bm*tmp1_hat.template segment<_m>(0) + tmp1_hat.template segment<_n>(_m+1) );
+	beta_hat.template segment<_n+1>(_n) = -r_p_hat.template segment<_n+1>(_n) + (- B_hat*tmp1_hat.template segment<_m+1>(0) + Identity2_hat*tmp1_hat.template segment<_n+1>(_m+1+_n) );
 	
-	// 3. beta = -r_p + C_hat * tmp1_hat
-	beta.template segment<_n>(0) = -r_p.template segment<_n>(0) + ( -Bm_hat[0]*tmp1_hat.template segment<_m+_nInp>(0) + tmp1_hat.template segment<_n>(_m+_nInp) );
-	beta.template segment<_n>(_n) = -r_p.template segment<_n>(_n) + (- B_hat[0]*tmp1_hat.template segment<_m+_nInp>(0) + Identity_hat[0]*tmp1_hat.template segment<_n+_nSt>(_m+_n+_nInp) );
-	tmp = _nInp;
+	int offset1 = 2*(_n+1);
 	for(int i=1; i<= _N-1; i++)
 	{
-		beta.template segment<_n>(2*i*_n) = -r_p.template segment<_n>(2*i*_n) + (    
-			- Am_tilde*tmp1_hat.template segment<_n>(_m+(i-1)*offset+tmp) 
-			- Bm_bar_hat[i-1] * tmp1_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp)
-			- Bm_hat[i]* tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt) 
-			+ tmp1_hat.template segment<_n>(i*offset+_m+tmp+_nInp+_nSt)    );
+		beta_hat.template segment<_n+1>((i-1)*offset1+_n+_n+1) = -r_p_hat.template segment<_n+1>((i-1)*offset1+_n+_n+1) + (    
+			- Am_tilde_hat * tmp1_hat.template segment<_n>(_m+1+(i-1)*offset2) 
+			- Bm_bar_hat * tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n)
+			- Bm_hat * tmp1_hat.template segment<_m+1>(i*offset2) 
+			+ Identity1_hat * tmp1_hat.template segment<_n>(i*offset2+_m+1)    );
 					
-		beta.template segment<_n>(2*i*_n+_n) = -r_p.template segment<_n>( 2*i*_n+_n) + (  
-		    - A_bar_hat[i-1] * tmp1_hat.template segment<_n+_nSt>(_m+_n+(i-1)*offset+tmp)
-		    - B_hat[i] * tmp1_hat.template segment<_m+_nInp>(_m+_n+(i-1)*offset+_n+tmp+_nSt)
-			+ Identity_hat[i]*tmp1_hat.template segment<_n+_nSt>(_m+(i)*offset+_n+tmp+_nInp+_nSt)        );
-		tmp = tmp + _nSt + _nInp;
+		beta_hat.template segment<_n+1>(i*offset1+_n) = -r_p_hat.template segment<_n+1>( i*offset1+_n ) + (  
+		    - A_bar_hat * tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n)
+		    - B_hat * tmp1_hat.template segment<_m+1>(i*offset2)
+			+ Identity2_hat * tmp1_hat.template segment<_n+1>(i*offset2+_m+1+_n )        );
 	}
-	// cout << setprecision(15) << "beta PhaseI:" << endl << beta << endl << endl;
+	// cout << setprecision(15) << "beta_hat PhaseI:" << endl << beta_hat << endl << endl;	
+}
+
+// ------------ function computes L_hat: L_hat*L_hat' = Y_hat --------------------------
+// -------------- compute components of L[3][2*_N] ---------------------
+// ---- remark: L[i][i]=L_diag are lower triangular matrices and can be accessed by L[i][i].matrixLLT().triangularView<Lower>()
+template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
+void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compL_hat()		// L*L' = Y
+{
+	// special treatment for L11, L21, L31
+	L_diag[0].compute(Y_hat[0][0]);		// Y11 = L11*L11'
+	L_hat_diag_transp[0] = L_diag[0].matrixLLT().transpose();
+	
+	L_hat_offDiag_transp[0][0] = L_diag[0].matrixLLT().triangularView<Lower>().solve(Y_hat[0][1]);
+	L_hat_offDiag[0][0] = L_hat_offDiag_transp[0][0].transpose();
+	
+	L_hat_offDiag_transp[1][0] = L_diag[0].matrixLLT().triangularView<Lower>().solve(Y_hat[0][2]);
+	L_hat_offDiag[1][0] = L_hat_offDiag_transp[1][0].transpose();	
+	
+	
+	// special treatment for L22, L32, L42
+	L_diag[1].compute( Y_hat[1][1]-L_hat_offDiag[0][0]*L_hat_offDiag_transp[0][0] );
+	L_hat_diag_transp[1] = L_diag[1].matrixLLT().transpose();
+	
+	L_hat_offDiag_transp[0][1] = L_diag[1].matrixLLT().triangularView<Lower>().solve(Y_hat[1][2]-L_hat_offDiag[0][0]*L_hat_offDiag_transp[1][0]);
+	L_hat_offDiag[0][1] = L_hat_offDiag_transp[0][1].transpose();
+	
+	L_hat_offDiag_transp[1][1] = L_diag[1].matrixLLT().triangularView<Lower>().solve(Y_hat[0][3]);
+	L_hat_offDiag[1][1] = L_hat_offDiag_transp[1][1].transpose();
+	
+	
+	// cases in the middle
+	for (int i = 1; i <= 2*_N-4; i++)
+	{
+		L_diag[i+1].compute( Y_hat[2][i+1] - L_hat_offDiag[1][i-1]*L_hat_offDiag_transp[1][i-1] - L_hat_offDiag[0][i]*L_hat_offDiag_transp[0][i] );
+		L_hat_diag_transp[i+1] = L_diag[i+1].matrixLLT().transpose();
+		L_hat_offDiag_transp[0][i+1] = L_diag[i+1].matrixLLT().triangularView<Lower>().solve( Y_hat[1][i+2] - L_hat_offDiag[0][i]*L_hat_offDiag_transp[1][i] );
+		L_hat_offDiag[0][i+1] = L_hat_offDiag_transp[0][i+1].transpose();
+		
+		L_hat_offDiag_transp[1][i+1] = L_diag[i+1].matrixLLT().triangularView<Lower>().solve( Y_hat[0][i+3] );
+		L_hat_offDiag[1][i+1] = L_hat_offDiag_transp[1][i+1].transpose();
+	}
+			
+	// special treatment in the end, i.e. i = 2*_N-3
+	L_diag[2*_N-2].compute( Y_hat[2][2*_N-2] - L_hat_offDiag[1][2*_N-4]*L_hat_offDiag_transp[1][2*_N-4] - L_hat_offDiag[0][2*_N-3]*L_hat_offDiag_transp[0][2*_N-3] );
+	L_hat_diag_transp[2*_N-2] = L_diag[2*_N-2].matrixLLT().transpose();
+	L_hat_offDiag_transp[0][2*_N-2] = L_diag[2*_N-2].matrixLLT().triangularView<Lower>().solve( Y_hat[1][2*_N-1] - L_hat_offDiag[0][2*_N-3]*L_hat_offDiag_transp[1][2*_N-3] );
+	L_hat_offDiag[0][2*_N-2] = L_hat_offDiag_transp[0][2*_N-2].transpose();
+	
+	// i = 2*_N-2
+	L_diag[2*_N-1].compute( Y_hat[2][2*_N-1] - L_hat_offDiag[1][2*_N-3]*L_hat_offDiag_transp[1][2*_N-3] - L_hat_offDiag[0][2*_N-2]*L_hat_offDiag_transp[0][2*_N-2] );
+	L_hat_diag_transp[2*_N-1] = L_diag[2*_N-1].matrixLLT().transpose();	
 }
 
 
-// ---- function computes Phi_hat * dz_hat = -r_d_hat - C_hat' * dnu ----------
+// ------------ function computes L_hat*L_hat'*dnu_hat = -beta_hat ---------------------
+template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
+void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDnu_hat()
+{
+	
+	// 1) first, solve for delta: L_hat*delta_hat = -beta_hat
+	Matrix<Type, 2*_N*(_n+1)-1, 1> delta_hat;
+	
+	// special cases in the beginning
+	delta_hat.template segment<_n>(0) = L_diag[0].matrixLLT().triangularView<Lower>().solve(-beta_hat.template segment<_n>(0));
+	delta_hat.template segment<_n+1>(_n) = L_diag[1].matrixLLT().triangularView<Lower>().solve(-beta_hat.template segment<_n+1>(_n) - L_hat_offDiag[0][0]*delta_hat.template segment<_n>(0));
+	delta_hat.template segment<_n+1>(_n+_n+1) = L_diag[2].matrixLLT().triangularView<Lower>().solve( -beta_hat.template segment<_n+1>(_n+_n+1) - L_hat_offDiag[1][0]*delta_hat.template segment<_n>(0) - L_hat_offDiag[0][1]*delta_hat.template segment<_n+1>(_n) );
+	
+	// remaining cases are regular
+	for (int i=2; i<= 2*_N-2; i++)
+	{
+		delta_hat.template segment<_n+1>(_n+i*(_n+1)) = L_diag[i+1].matrixLLT().triangularView<Lower>().solve( -beta_hat.template segment<_n+1>(_n+i*(_n+1)) - L_hat_offDiag[1][i-1]*delta_hat.template segment<_n+1>((i-2)*(_n+1)+_n) - L_hat_offDiag[0][i]*delta_hat.template segment<_n+1>((i-1)*(_n+1)+_n) );
+	}
+	// cout << setprecision(30) << "delta_hat:" << endl << delta_hat << endl << endl;
+	
+	
+	// 2) now, solve for L'*Dnu_hat = delta_hat
+	// from behind...
+	int length = 2*_N*(_n+1)-1;
+	int tmp_offset = _n+1;
+	dnu_hat.template segment<_n+1>(length - tmp_offset) = L_hat_diag_transp[2*_N-1].template triangularView<Upper>().solve( delta_hat.template segment<_n+1>(length - tmp_offset) );
+	dnu_hat.template segment<_n+1>(length - 2*tmp_offset) = L_hat_diag_transp[2*_N-2].template triangularView<Upper>().solve( delta_hat.template segment<_n+1>(length - 2*tmp_offset) - L_hat_offDiag_transp[0][2*_N-2]*dnu_hat.template segment<_n+1>(length - tmp_offset) );
+	
+	//remaining cases are regular
+	for (int i=1; i<=2*_N-3; i++)
+	{
+		dnu_hat.template segment<_n+1>(length-(i+2)*tmp_offset) = L_hat_diag_transp[2*_N-(i+2)].template triangularView<Upper>().solve( delta_hat.template segment<_n+1>(length-(i+2)*tmp_offset) - L_hat_offDiag_transp[0][2*_N-(i+2)]*dnu_hat.template segment<_n+1>(length-(i+1)*tmp_offset) - L_hat_offDiag_transp[1][2*_N-(i+2)]*dnu_hat.template segment<_n+1>(length-i*tmp_offset)  );
+	}
+	dnu_hat.template segment<_n>(0) = L_hat_diag_transp[0].template triangularView<Upper>().solve( delta_hat.template segment<_n>(0) - L_hat_offDiag_transp[0][0]*dnu_hat.template segment<_n+1>(_n) - L_hat_offDiag_transp[1][0]*dnu_hat.template segment<_n+1>(_n+_n+1)  );
+	// cout << setprecision(30) << "dnu_hat" << endl << dnu_hat << endl << endl;
+}
+
+
+
+// ---- function computes Phi_hat * dz_hat = -r_d_hat - C_hat' * dnu_hat ----------
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDz_hat_PhaseI()
 {
+	
 	// computed in parts
 	// 1. tmp_hat = -r_d_hat - C_hat' * dnu
-	// 2. L*L'*dz_hat = tmp_hat
-	// 3. L*tmp1_hat = tmp_hat
-	// 4. L'*dz_hat = tmp1_hat
+	// 2. L_hat*L_hat'*dz_hat = tmp_hat
+	// 3. L_hat*tmp1_hat = tmp_hat
+	// 4. L_hat'*dz_hat = tmp1_hat
 	
 	// 1. compute tmp_hat
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> tmp_hat;	// long vector
-	// tmp_hat.resize(_N*(_m + _n + _n) + _m + num_constr);
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> tmp_hat;	// long vector
 	
-	tmp_hat.template segment<_m+_nInp>(0) = -r_d_hat.template segment<_m+_nInp>(0) + Bm_hat_transp[0]*dnu.template segment<_n>(0) + B_hat_transp[0]*dnu.template segment<_n>(_n);
-	int tmp = _nInp;
-	for (int i=1; i<= _N-1; i++)
-	{
-		tmp_hat.template segment<_n>(_m+(i-1)*offset+tmp) = -r_d_hat.template segment<_n>(_m+(i-1)*offset+tmp) - dnu.template segment<_n>(2*(i-1)*_n) + Am_tilde_transp*dnu.template segment<_n>(2*(i-1)*_n+_n+_n) ;
-		tmp_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = -r_d_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) - Identity_hat_transp[i-1]*dnu.template segment<_n>(2*(i-1)*_n+_n) + Bm_bar_hat_transp[i-1]*dnu.template segment<_n>(2*(i-1)*_n+_n+_n) + A_bar_hat_transp[i-1] * dnu.template segment<_n>(2*(i-1)*_n+_n+_n+_n);
-		tmp = tmp + _nSt;
-		tmp_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) = -r_d_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) + Bm_hat_transp[i]*dnu.template segment<_n>(2*(i-1)*_n+_n+_n) + B_hat_transp[i]*dnu.template segment<_n>(2*(i-1)*_n+_n+_n+_n);
-		tmp = tmp + _nInp;
+	tmp_hat.template segment<_m+1>(0) = -r_d_hat.template segment<_m+1>(0) + Bm_hat0_transp*dnu_hat.template segment<_n>(0) + B_hat_transp*dnu_hat.template segment<_n+1>(_n);
+	int offset1 = 2*(_n+1);
+	{	// do second block manually
+		tmp_hat.template segment<_n>(_m+1) = -r_d_hat.template segment<_n>(_m+1) - dnu_hat.template segment<_n>(0) + Am_tilde_transp*dnu_hat.template segment<_n>(_n+_n+1) ;
+		tmp_hat.template segment<_n+1>(_m+1+_n) = -r_d_hat.template segment<_n+1>(_m+1+_n) - Identity2_hat_transp*dnu_hat.template segment<_n+1>(_n) + Bm_bar_hat_transp*dnu_hat.template segment<_n+1>(_n+_n+1) + A_bar_hat_transp * dnu_hat.template segment<_n+1>(offset1+_n);
+		tmp_hat.template segment<_m+1>(offset2) = -r_d_hat.template segment<_m+1>(offset2) + Bm_hat_transp*dnu_hat.template segment<_n+1>(_n+1+_n) + B_hat_transp*dnu_hat.template segment<_n+1>(offset1+_n);
 	}
-	tmp_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = -r_d_hat.template segment<_n>(_m+(_N-1)*offset+tmp) - dnu.template segment<_n>(2*(_N-1)*_n);
-	tmp_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = -r_d_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) - Identity_hat_transp[_N-1]*dnu.template segment<_n>(2*(_N-1)*_n+_n);
-	tmp = tmp + _nSt;
-	tmp_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) = -r_d_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp);
-	// cout << "tmp_hat:" << endl << tmp_hat << endl << endl;
-
+	// cout << setprecision(30) << "tmp_hat:" << endl << tmp_hat << endl << endl;
 	
-	// 3. L*tmp1_hat = tmp_hat
-	Matrix<Type, (_N*(_nInp+_nSt)+_nF_xTheta) + (_N*(_m + _n + _n) + _m) , 1> tmp1_hat;	// long vector
-	// tmp1_hat.resize(_N*(_m + _n + _n) + _m + num_constr);
-	tmp1_hat.template segment<_m+_nInp>(0) = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+_nInp>(0) );
-	tmp = _nInp;
+	for (int i=2; i<= _N-1; i++)
+	{
+		tmp_hat.template segment<_n>(_m+1+(i-1)*offset2) = -r_d_hat.template segment<_n>(_m+1+(i-1)*offset2) - dnu_hat.template segment<_n>((i-2)*offset1+_n+_n+1) + Am_tilde_transp*dnu_hat.template segment<_n>((i-1)*offset1+_n+_n+1) ;
+		tmp_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = -r_d_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) - Identity2_hat_transp*dnu_hat.template segment<_n+1>((i-1)*offset1+_n) + Bm_bar_hat_transp*dnu_hat.template segment<_n+1>((i-1)*offset1+_n+_n+1) + A_bar_hat_transp * dnu_hat.template segment<_n+1>(i*offset1+_n);
+		tmp_hat.template segment<_m+1>(i*offset2) = -r_d_hat.template segment<_m+1>(i*offset2) + Bm_hat_transp*dnu_hat.template segment<_n+1>((i-1)*offset1+_n+_n+1) + B_hat_transp*dnu_hat.template segment<_n+1>(i*offset1+_n);
+	}
+	
+	
+	tmp_hat.template segment<_n>(_m+1+(_N-1)*offset2) = -r_d_hat.template segment<_n>(_m+1+(_N-1)*offset2) - dnu_hat.template segment<_n>((_N-2)*offset1+_n+_n+1);
+	tmp_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = -r_d_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) - Identity2_hat_transp*dnu_hat.template segment<_n+1>((_N-1)*offset1+_n);
+	tmp_hat.template segment<_m+1>(_N*offset2) = -r_d_hat.template segment<_m+1>(_N*offset2);
+	// cout << setprecision(30) << "tmp_hat:" << endl << tmp_hat << endl << endl;
+
+
+	// 3. L_Phi*tmp1_hat = tmp_hat
+	Matrix<Type, _N*(_m + _n + _n + 1 + 1) + _m + 1 , 1> tmp1_hat;	// long vector
+	tmp1_hat.template segment<_m+1>(0) = LOmicron_diag[0].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+1>(0) );
 	for (int i = 1; i <= _N-1; i++)
 	{
-		tmp1_hat.template segment<_n>(_m+(i-1)*offset+tmp) = LPi_diag[i-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n>(_m+(i-1)*offset+tmp));
-		tmp1_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp));
-		tmp = tmp + _nSt;
-		tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp) - LSigma_hat_offDiag[i-1]*tmp1_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp-_nSt));
-		tmp = tmp + _nInp;
+		tmp1_hat.template segment<_n>(_m+1+(i-1)*offset2) = LPi_diag[i-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n>(_m+1+(i-1)*offset2));
+		tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = LRho_diag[i-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n));
+		tmp1_hat.template segment<_m+1>(i*offset2) = LOmicron_diag[i].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+1>(i*offset2) - LSigma_hat_offDiag[i-1]*tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n));
 	}
+	
 	if(_pos_omega == _N)
 	{
-		tmp1_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		tmp1_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp));
-		tmp = tmp + _nSt;
-		tmp1_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) - LSigma_hat_offDiag[_N-1]*tmp1_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp-_nSt));
+		tmp1_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n>(_m+1+(_N-1)*offset2));
+		tmp1_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
+		tmp1_hat.template segment<_m+1>(_N*offset2) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+1>(_N*offset2) - LSigma_hat_offDiag[_N-1]*tmp1_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
 	}
 	else
 	{
-		tmp1_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		tmp1_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp));
-		tmp = tmp + _nSt;
-		tmp1_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp) - LLambda0_hat*tmp1_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n)  - LLambda1_hat*tmp1_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt) );
+		tmp1_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n>(_m+1+(_N-1)*offset2));
+		tmp1_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
+		tmp1_hat.template segment<_m+1>(_N*offset2) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(tmp_hat.template segment<_m+1>(_N*offset2) - LLambda0_hat*tmp1_hat.template segment<_n+1>(_m+1+(_pos_omega-1)*offset2+_n)  - LLambda1_hat*tmp1_hat.template segment<_m+1>(_m+1+(_pos_omega-1)*offset2+_n+_n+1) );
 	}
 	
-	// cout << "tmp1_hat:" << endl << tmp1_hat << endl << endl;
+	// cout << setprecision(30) << "tmp1_hat:" << endl << tmp1_hat << endl << endl;
 	
 	
-	// 4. L'*dz_hat = tmp1_hat
-	dz_hat.template segment<_m+_nInp>(0) = LOmicron_hat_diag_transp[0].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+_nInp>(0));
-	tmp = _nInp;
+	// 4. L_Phi'*dz_hat = tmp1_hat
+	dz_hat.template segment<_m+1>(0) = LOmicron_hat_diag_transp[0].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+1>(0));
 	for (int i = 1; i <= _pos_omega-1; i++)
 	{
-		dz_hat.template segment<_n>(_m+(i-1)*offset+tmp) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+(i-1)*offset+tmp));
-		dz_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		dz_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) - LSigma_hat_offDiag_transp[i-1]*dz_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		tmp = tmp + _nSt + _nInp;
+		dz_hat.template segment<_n>(_m+1+(i-1)*offset2) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+1+(i-1)*offset2));
+		dz_hat.template segment<_m+1>(i*offset2) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+1>(i*offset2));
+		dz_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) - LSigma_hat_offDiag_transp[i-1]*dz_hat.template segment<_m+1>(i*offset2) );
 	}
-	if (_pos_omega != _N)	// means that we skipped a part
-	{
-		tmp = tmp + _nSt + _nInp;
-	}
+	
+	
 	for (int i = _pos_omega+1; i <= _N-1; i++)
 	{
-		dz_hat.template segment<_n>(_m+(i-1)*offset+tmp) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+(i-1)*offset+tmp));
-		dz_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		dz_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+_nSt>(_m+(i-1)*offset+_n+tmp) - LSigma_hat_offDiag_transp[i-1]*dz_hat.template segment<_m+_nInp>(_m+(i-1)*offset+_n+_n+tmp+_nSt));
-		tmp = tmp + _nSt + _nInp;
+		dz_hat.template segment<_n>(_m+1+(i-1)*offset2) = LPi_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+1+(i-1)*offset2));
+		dz_hat.template segment<_m+1>(i*offset2) = LOmicron_hat_diag_transp[i].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+1>(i*offset2));
+		dz_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) = LRho_hat_diag_transp[i-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+1>(_m+1+(i-1)*offset2+_n) - LSigma_hat_offDiag_transp[i-1]*dz_hat.template segment<_m+1>(i*offset2) );
 	}
+	
 	
 	if (_pos_omega == _N)
 	{
-		dz_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		dz_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt));
-		dz_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) - LSigma_hat_offDiag_transp[_N-1]*dz_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt));
+		dz_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+1+(_pos_omega-1)*offset2));
+		dz_hat.template segment<_m+1>(_N*offset2) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+1>(_N*offset2));
+		dz_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) - LSigma_hat_offDiag_transp[_N-1]*dz_hat.template segment<_m+1>(_N*offset2) );
 	}
 	else 	// standard ending, compute missing block in middle
 	{
-		dz_hat.template segment<_n>(_m+(_N-1)*offset+tmp) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+(_N-1)*offset+tmp));
-		dz_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+_nF_xTheta>(_m+(_N-1)*offset+_n+_n+tmp+_nSt));
-		dz_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+_nSt>(_m+(_N-1)*offset+_n+tmp));
+		dz_hat.template segment<_n>(_m+1+(_N-1)*offset2) = LPi_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+1+(_N-1)*offset2));
+		dz_hat.template segment<_m+1>(_N*offset2) = LOmicron_hat_diag_transp[_N].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+1>(_N*offset2));
+		dz_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n) = LRho_hat_diag_transp[_N-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+1>(_m+1+(_N-1)*offset2+_n));
 
-		dz_hat.template segment<_n>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)) = LPi_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)) );
-		dz_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt) = LOmicron_hat_diag_transp[_pos_omega].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt) - LLambda1_hat_transp*dz_hat.template segment<_m+_nF_xTheta>(_m+_nInp+(_N-1)*(offset+_nSt+_nInp)+_n+_n+_nSt)  );
-		dz_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n) = LRho_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n) - LSigma_hat_offDiag_transp[_pos_omega-1]*dz_hat.template segment<_m+_nInp>(_m+_nInp+(_pos_omega-1)*(offset+_nSt+_nInp)+_n+_n+_nSt) - LLambda0_hat_transp*dz_hat.template segment<_m+_nF_xTheta>(_m+_nInp+(_N-1)*(offset+_nSt+_nInp)+_n+_n+_nSt)  );
+		dz_hat.template segment<_n>(_m+1+(_pos_omega-1)*offset2) = LPi_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n>(_m+1+(_pos_omega-1)*offset2) );
+		dz_hat.template segment<_m+1>(_pos_omega*offset2) = LOmicron_hat_diag_transp[_pos_omega].template triangularView<Upper>().solve(tmp1_hat.template segment<_m+1>(_pos_omega*offset2) - LLambda1_hat_transp*dz_hat.template segment<_m+1>(_N*offset2)  );
+		dz_hat.template segment<_n+1>(_m+1+(_pos_omega-1)*offset2+_n) = LRho_hat_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(tmp1_hat.template segment<_n+1>(_m+1+(_pos_omega-1)*offset2+_n) - LSigma_hat_offDiag_transp[_pos_omega-1]*dz_hat.template segment<_m+1>(_pos_omega*offset2) - LLambda0_hat_transp*dz_hat.template segment<_m+1>(_N*offset2)  );
 	}
-	
-	// cout << "dz_hat:" << endl << dz_hat << endl << endl;
+	// cout << setprecision(30) << "dz_hat:" << endl << dz_hat << endl << endl;
 }
 
+/*
 // ------------ function computes a feasibe gamma needed by phaseI ---------------------
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 bool LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: testPos_PhaseI()
 {
-	Matrix<Type, Dynamic, 1> c_hat_tmp;		// use this to temporarily copy c-blocks out of z
-	Matrix<Type, Dynamic, 1, 0, _n+_nSt, 1> x_bar_hat_tmp;	// use this to temporarily copy x_bar-blocks out of z
-	Matrix<Type, Dynamic, 1> check;		// length of vector not yet fixed
-	int tmp = 0;		// variable used to count position and offset
-	
 	// special treatment at beginning
-	c_hat_tmp = z_hat.template segment<_m+_nInp>(0);
-	check = (fu[0] - Fu[0]*K*x_hat) - (Fu_hat[0]*c_hat_tmp);	// should be >0
-	// cout << "check:" << endl << check << endl << endl;
+	c_hat_tmp = z_hat.template segment<_m+1>(0);
+	checkU = (fu[0] - Fu[0]*K*x_hat) - (Fu_hat[0]*c_hat_tmp);	// should be >0
 	for (int j=1; j <= _nInp; j++)
 	{
-		if (check[j-1] <= 0)
-		{
+		if (checkU[j-1] <= 0)
 			return 0;
-		}
 	}
-	tmp = tmp + _nInp;
-	
+		
 	// general treatment in the middle; offset = _n + _n + _m;
 	for (int i=1; i <= _N-1; i++) // blocks in the middle
 	{	
-		// cout << "entering round: " << i << " in testPos_PhaseI()" << endl << endl;
-		x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((i-1)*offset+_m+_n+tmp);
-		c_hat_tmp = z_hat.template segment<_m+_nInp>((i-1)*offset+_m+_n+_n+tmp+_nSt);		
-		check = fx[i-1] - Fx_hat[i-1]*x_bar_hat_tmp;
-		// cout << "check:" << endl << check << endl << endl;
+		x_bar_hat_tmp = z_hat.template segment<_n+1>((i-1)*offset2+_m+_n+1);
+		c_hat_tmp = z_hat.template segment<_m+1>(i*offset2);		
+		checkX = fx[i-1] - Fx_hat[i-1]*x_bar_hat_tmp;
 		for (int j=1; j<= _nSt; j++)
 		{
-			if (check[j-1] <= 0)
-			{
+			if (checkX[j-1] <= 0)
 				return 0;
-			}
 		}
-		check = fu[i] - (Fu_bar_hat[i-1]*x_bar_hat_tmp + Fu_hat[i]*c_hat_tmp);
-		// cout << "check:" << endl << check << endl << endl;
+		checkU = fu[i] - (Fu_bar_hat[i-1]*x_bar_hat_tmp + Fu_hat[i]*c_hat_tmp);
 		for (int j=1; j<=_nInp; j++)
 		{
-			if (check[j-1] <= 0)
-			{
+			if (checkU[j-1] <= 0)
 				return 0;
-			}
 		}
-		tmp = tmp + _nSt + _nInp;	
 	}
 	// cout << "finished general treatment at the beginning" << endl << endl;
-	
-	x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((_N-1)*offset+_m+_n+tmp);
-	c_hat_tmp = z_hat.template segment<_m+_nF_xTheta>((_N-1)*offset+_m+_n+_n+tmp+_nSt);
-	check = fx[_N-1] - (Fx_hat[_N-1]*x_bar_hat_tmp);
-	// cout << "check:" << endl << check << endl << endl;
+		
+	x_bar_hat_tmp = z_hat.template segment<_n+1>((_N-1)*offset2+_m+_n+1);
+	c_hat_tmp = z_hat.template segment<_m+1>(_N*offset2);
+	checkX = fx[_N-1] - (Fx_hat[_N-1]*x_bar_hat_tmp);
 	for (int j=1; j<= _nSt; j++)
 	{
-		if (check[j-1] <= 0)
-		{
+		if (checkX[j-1] <= 0)
 			return 0;
-		}
 	}
-	x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((_pos_omega-1)*(offset+_nInp+_nSt)+_m+_nInp+_n);
-	check = f_xTheta - (F_xTheta_hat*x_bar_hat_tmp + F_theta_hat*c_hat_tmp);
+	x_bar_hat_tmp = z_hat.template segment<_n+1>((_pos_omega-1)*offset2+_m+_n+1);
+	checkTheta = f_xTheta - (F_xTheta_hat*x_bar_hat_tmp + F_theta_hat*c_hat_tmp);
 	// cout << "check:" << endl << check << endl << endl;
 	for (int j=1; j<= _nF_xTheta; j++)
 	{
-		if (check[j-1] <= 0)
-		{
+		if (checkTheta[j-1] <= 0)
 			return 0;
-		}
 	}
 	return 1;
 }
+*/
+
 
 // ------------ function computes (d_hat)_i = (h - P_hat*z_hat)_i  --------
 // elements are stored in d
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compD_hat_PhaseI()
 {
-	Matrix<Type, _m+_nInp, 1> c_hat_tmp_mnInp;		// use this to temporarily copy c-blocks out of z
-	Matrix<Type, _m+_nF_xTheta, 1> c_hat_tmp_mTheta;
-	Matrix<Type, _n+_nSt, 1> x_bar_hat_tmp;	// use this to temporarily copy x_bar-blocks out of z
-	Matrix<Type, Dynamic, 1> diff;		// length of vector not yet fixed
 	int tmp = 0;		// variable used to count position and offset
 	
 	// special treatment at beginning
-	c_hat_tmp_mnInp = z_hat.template segment<_m+_nInp>(0);
-	diff = (fu[0] - Fu[0]*K*x_hat) - (Fu_hat[0]*c_hat_tmp_mnInp);
-	// cout << "diff:" << endl << diff << endl << endl;
+	c_hat_tmp = z_hat.template segment<_m+1>(0);
+	checkU = (fu[0] - Fu[0]*K*x_hat) - (Fu_hat[0]*c_hat_tmp);
+	
 	for (int j=1; j <= _nInp; j++)
-	{
-		d[j-1] = 1/diff[j-1];
-	}
+		d[j-1] = 1/checkU[j-1];
+	
 	tmp = tmp + _nInp;
 	// general treatment in the middle; offset = _n + _n + _m;
 	for (int i=1; i <= _N-1; i++) // blocks in the middle
 	{	
-		x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((i-1)*offset+_m+_n+tmp);
-		c_hat_tmp_mnInp = z_hat.template segment<_m+_nInp>((i-1)*offset+_m+_n+_n+tmp+_nSt);		
-		diff = fx[i-1] - Fx_hat[i-1]*x_bar_hat_tmp;
+		x_bar_hat_tmp = z_hat.template segment<_n+1>((i-1)*offset2+_m+_n+1);
+		c_hat_tmp = z_hat.template segment<_m+1>(i*offset2);		
+		checkX = fx[i-1] - Fx_hat[i-1]*x_bar_hat_tmp;
 		for (int j=1; j<= _nSt; j++)
-		{
-			d[tmp+j-1] = 1/diff[j-1];
-		}
-		tmp = tmp  + _nSt;
+			d[tmp+j-1] = 1/checkX[j-1];
 		
-		diff = fu[i] - (Fu_bar_hat[i-1]*x_bar_hat_tmp + Fu_hat[i]*c_hat_tmp_mnInp);
+		tmp = tmp + _nSt;
+		
+		checkU = fu[i] - (Fu_bar_hat[i-1]*x_bar_hat_tmp + Fu_hat[i]*c_hat_tmp);
 		for (int j=1; j<=_nInp; j++)
-		{
-			d[tmp+j-1] = 1/diff[j-1];
-		}
-		tmp = tmp + _nInp;	
+			d[tmp+j-1] = 1/checkU[j-1];
+		
+		tmp = tmp + _nInp;
 	}
 	
-	x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((_N-1)*offset+_m+_n+tmp);
-	c_hat_tmp_mTheta = z_hat.template segment<_m+_nF_xTheta>((_N-1)*offset+_m+_n+_n+tmp+_nSt);
-	diff = fx[_N-1] - (Fx_hat[_N-1]*x_bar_hat_tmp);
+	x_bar_hat_tmp = z_hat.template segment<_n+1>((_N-1)*offset2+_m+_n+1);
+	c_hat_tmp = z_hat.template segment<_m+1>(_N*offset2);
+	checkX = fx[_N-1] - (Fx_hat[_N-1]*x_bar_hat_tmp);
 	for (int j=1; j<= _nSt; j++)
-	{
-		d[tmp+j-1] = 1/diff[j-1];
-	}
+		d[tmp+j-1] = 1/checkX[j-1];
+	
 	tmp = tmp + _nSt;
-	x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((_pos_omega-1)*(offset+_nInp+_nSt)+_m+_nInp+_n);
-	diff = f_xTheta - (F_xTheta_hat*x_bar_hat_tmp + F_theta_hat*c_hat_tmp_mTheta);
+	x_bar_hat_tmp = z_hat.template segment<_n+1>((_pos_omega-1)*offset2+_m+_n+1);
+	checkTheta = f_xTheta - (F_xTheta_hat*x_bar_hat_tmp + F_theta_hat*c_hat_tmp);
 	for (int j=1; j<= _nF_xTheta; j++)
-	{
-		d[tmp+j-1] = 1/diff[j-1];
-	}
+		d[tmp+j-1] = 1/checkTheta[j-1];
+	
+	// cout << setprecision(15) << "d in PhaseI" << endl << d << endl << endl;
+	return;
 }
+
+
+
 
 // ------------ function checks if gamma < 0 and extracts z_warm  --------
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 bool LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: testNeg_PhaseI()
 {
-	Matrix<Type, Dynamic, 1, 0, _nSt + _nInp, 1> check;		// stores gamma segments
-	int tmp = 0;		// variable used to count position and offset
-	// general treatment in the middle; offset = _n + _n + _m;
 	
-	cout << "starting new testNeg_PhaseI()" << endl;
+	Matrix<Type, 2, 1> check;		// stores gamma segments
 	
 	for (int i=1; i <= _N; i++) // blocks in the middle
 	{	
-		check.resize(_nInp + _nSt);
-		check << z_hat.template segment<_nInp>((i-1)*offset+_m+tmp) ,
-		         z_hat.template segment<_nSt>((i-1)*offset+_m+tmp+_n+_n+_nInp);
-		cout << "check in testNeg_PhaseI()" << endl << check << endl << endl;
-		for (int j=1; j<= _nInp+_nSt; j++)
+		check.template segment<1>(0) = z_hat.template segment<1>(_m+(i-1)*offset2);
+		check.template segment<1>(1) = z_hat.template segment<1>(_m+1+_n+_n+(i-1)*offset2);
+		// cout << "check" << endl << check << endl << endl;
+		if( check[0] >= 0 || check[1] >= 0  )
+			return 0;
+		else
 		{
-			if (check[j-1] >= 0)
-			{
-				// cout << "z_warm: " << endl << z_warm << endl << endl;
-				return 0;
-			}
+			z_warm.template segment<_m>((i-1)*offset) = z_hat.template segment<_m>((i-1)*offset2);
+			z_warm.template segment<_n+_n>((i-1)*offset + _m) = z_hat.template segment<_n+_n>((i-1)*offset2+_m+1);
 		}
-		z_warm.template segment<_m>((i-1)*offset) = z_hat.template segment<_m>((i-1)*offset+tmp);
-		z_warm.template segment<_n+_n>((i-1)*offset + _m) = z_hat.template segment<_n+_n>((i-1)*offset+_m+tmp+_nInp);
-		tmp = tmp + _nSt + _nInp;	
 	}
 	
-	check.resize(_nF_xTheta);
-	check = z_hat.template segment<_nF_xTheta>(_N*offset + _m + tmp);
-	cout << "check in the end testNeg_PhaseI()" << endl << check << endl << endl;
-	// cout << "check in testNeg_PhaseI" << endl << check << endl << endl;
-	for (int j=1; j<= _nF_xTheta; j++)
-	{
-		if (check[j-1] >= 0)
-		{
-			// cout << "z_warm: " << endl << z_warm << endl << endl;
-			return 0;
-		}
-	}
-	z_warm.template segment<_m>(_N*offset ) = z_hat.template segment<_m>(_N*offset + tmp);
+	
+	check.template segment<1>(0) = z_hat.template segment<1>(_N*offset2 + _m);
+	if (check[0] >= 0)
+		return 0;
+	else
+		z_warm.template segment<_m>(_N*offset ) = z_hat.template segment<_m>(_N*offset2);
 	return 1;
 }
+
+
 
 
 // ------------ function returns largest t: P_hat*(z_hat+t*dz_hat) < h ---------------------
@@ -3049,143 +2833,95 @@ template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xThet
 double LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compT_PhaseI()
 {
 	
-	Matrix<Type, Dynamic, 1> c_hat_tmp;		// use this to temporarily copy c-blocks out of z_hat
-	Matrix<Type, Dynamic, 1> dc_hat_tmp;	// copy blocks from dz_hat
-	Matrix<Type, Dynamic, 1, 0, _n+_nSt, 1> x_bar_hat_tmp;	// use this to temporarily copy x_bar-blocks out of z_hat
-	Matrix<Type, Dynamic, 1, 0, _n+_nSt, 1> dx_bar_hat_tmp;	// use this to temporarily copy x_bar-blocks out of dz_hat
-	
-	Matrix<Type, Dynamic, 1> check;		// check = h - P_hat*z_hat
-	Matrix<Type, Dynamic, 1> dcheck;	// dcheck = P_hat*dz_hat
-	Matrix<Type, Dynamic, 1> t_vec;		// t_vec = check ./ dcheck
 	double t=1;		// stores the smallest variable
 	double t_tmp;	// t_tmp = min(t_vec)
 	
-	int tmp = 0;		// variable used to count position and offset
-	c_hat_tmp = z_hat.template segment<_m+_nInp>(0);
-	dc_hat_tmp = dz_hat.template segment<_m+_nInp>(0);
-	check = (fu[0] - Fu[0]*K*x_hat) - (Fu_hat[0]*c_hat_tmp);	// should be >0
-	dcheck = Fu_hat[0]*dc_hat_tmp;
-	t_vec.resize(_nInp);
-	t_vec.setConstant(1);
+	c_hat_tmp = z_hat.template segment<_m+1>(0);
+	dc_hat_tmp = dz_hat.template segment<_m+1>(0);
+	checkU = (fu[0] - Fu[0]*K*x_hat) - (Fu_hat[0]*c_hat_tmp);	// should be >0
+	dcheckU = Fu_hat[0]*dc_hat_tmp;
+	t_vecU.setConstant(1);
 	for (int j=1; j <= _nInp; j++)
 	{
-		if (dcheck[j-1] > 0)	// neg. cases not interesting
-		{
-			t_vec[j-1] = check[j-1]/dcheck[j-1];
-		}
+		if (dcheckU[j-1] > 0)	// neg. cases not interesting
+			t_vecU[j-1] = checkU[j-1]/dcheckU[j-1];
 	}
-	t_tmp = t_vec.minCoeff();
+	t_tmp = t_vecU.minCoeff();
 	if (t_tmp < t)
-	{
 		t = t_tmp;
-	}
-	tmp = tmp + _nInp;
-	
 	
 	// general treatment in the middle; offset = _n + _n + _m;
 	for (int i=1; i <= _N-1; i++) // blocks in the middle
 	{	
-		// cout << "entering round: " << i << " in testPos_PhaseI()" << endl << endl;
-		x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((i-1)*offset+_m+_n+tmp);
-		dx_bar_hat_tmp = dz_hat.template segment<_n+_nSt>((i-1)*offset+_m+_n+tmp);
-		c_hat_tmp = z_hat.template segment<_m+_nInp>((i-1)*offset+_m+_n+_n+tmp+_nSt);
-		dc_hat_tmp = dz_hat.template segment<_m+_nInp>((i-1)*offset+_m+_n+_n+tmp+_nSt);		
-		check = fx[i-1] - Fx_hat[i-1]*x_bar_hat_tmp;
-		dcheck = Fx_hat[i-1]*dx_bar_hat_tmp;
-		t_vec.resize(_nSt);
-		t_vec.setConstant(1);
+		x_bar_hat_tmp = z_hat.template segment<_n+1>((i-1)*offset2+_m+_n+1);
+		dx_bar_hat_tmp = dz_hat.template segment<_n+1>((i-1)*offset2+_m+_n+1);
+		c_hat_tmp = z_hat.template segment<_m+1>(i*offset2);
+		dc_hat_tmp = dz_hat.template segment<_m+1>(i*offset2);		
+		checkX = fx[i-1] - Fx_hat[i-1]*x_bar_hat_tmp;
+		dcheckX = Fx_hat[i-1]*dx_bar_hat_tmp;
+		t_vecX.setConstant(1);
 		// cout << "check:" << endl << check << endl << endl;
 		for (int j=1; j<= _nSt; j++)
 		{
-			if(dcheck[j-1]>0)
-			{
-				t_vec[j-1] = check[j-1]/dcheck[j-1];
-			}
+			if(dcheckX[j-1]>0)
+				t_vecX[j-1] = checkX[j-1]/dcheckX[j-1];
 		}
-		t_tmp = t_vec.minCoeff();
+		t_tmp = t_vecX.minCoeff();
 		if (t_tmp < t)
-		{
 			t = t_tmp;
-		}
 		
-		check = fu[i] - (Fu_bar_hat[i-1]*x_bar_hat_tmp + Fu_hat[i]*c_hat_tmp);
-		dcheck = Fu_bar_hat[i-1]*dx_bar_hat_tmp + Fu_hat[i]*dc_hat_tmp;
-		t_vec.resize(_nInp);
-		t_vec.setConstant(1);
+		checkU = fu[i] - (Fu_bar_hat[i-1]*x_bar_hat_tmp + Fu_hat[i]*c_hat_tmp);
+		dcheckU = Fu_bar_hat[i-1]*dx_bar_hat_tmp + Fu_hat[i]*dc_hat_tmp;
+		t_vecU.setConstant(1);
 		for (int j=1; j<=_nInp; j++)
 		{
-			if(dcheck[j-1]>0)
-			{
-				t_vec[j-1] = check[j-1]/dcheck[j-1];
-			}
+			if(dcheckU[j-1]>0)
+				t_vecU[j-1] = checkU[j-1]/dcheckU[j-1];
 		}
-		t_tmp = t_vec.minCoeff();
+		t_tmp = t_vecU.minCoeff();
 		if (t_tmp < t)
-		{
 			t = t_tmp;
-		}
-		tmp = tmp + _nSt + _nInp;	
 	}
 	// cout << "finished general treatment at the beginning" << endl << endl;
 	
+	
 	// special case for last blocks
-	x_bar_hat_tmp = z_hat.template segment<_n+_nSt>((_N-1)*offset+_m+_n+tmp);
-	dx_bar_hat_tmp = dz_hat.template segment<_n+_nSt>((_N-1)*offset+_m+_n+tmp);
-	c_hat_tmp = z_hat.template segment<_m+_nF_xTheta>((_N-1)*offset+_m+_n+_n+tmp+_nSt);
-	dc_hat_tmp = dz_hat.template segment<_m+_nF_xTheta>((_N-1)*offset+_m+_n+_n+tmp+_nSt);
-	check = fx[_N-1] - (Fx_hat[_N-1]*x_bar_hat_tmp);
-	dcheck = Fx_hat[_N-1]*dx_bar_hat_tmp;
-	t_vec.resize(_nSt);
-	t_vec.setConstant(1);
-	// cout << "check:" << endl << check << endl << endl;
+	x_bar_hat_tmp = z_hat.template segment<_n+1>((_N-1)*offset2+_m+_n+1);
+	dx_bar_hat_tmp = dz_hat.template segment<_n+1>((_N-1)*offset2+_m+_n+1);
+	c_hat_tmp = z_hat.template segment<_m+1>(_N*offset2);
+	dc_hat_tmp = dz_hat.template segment<_m+1>(_N*offset2);
+	checkX = fx[_N-1] - (Fx_hat[_N-1]*x_bar_hat_tmp);
+	dcheckX = Fx_hat[_N-1]*dx_bar_hat_tmp;
+	t_vecX.setConstant(1);
 	for (int j=1; j<= _nSt; j++)
 	{
-		if (dcheck[j-1]>0)
-		{
-			t_vec[j-1] = check[j-1]/dcheck[j-1];
-		}
+		if (dcheckX[j-1]>0)
+			t_vecX[j-1] = checkX[j-1]/dcheckX[j-1];
 	}
-	t_tmp = t_vec.minCoeff();
+	t_tmp = t_vecX.minCoeff();
 	if (t_tmp < t)
-	{
 		t = t_tmp;
-	}
 	
-	x_bar_hat_tmp = z_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nInp+_nSt)+_n);
-	dx_bar_hat_tmp = dz_hat.template segment<_n+_nSt>(_m+_nInp+(_pos_omega-1)*(offset+_nInp+_nSt)+_n);
-	check = f_xTheta - (F_xTheta_hat*x_bar_hat_tmp + F_theta_hat*c_hat_tmp);
-	dcheck = F_xTheta_hat*dx_bar_hat_tmp + F_theta_hat*dc_hat_tmp;
-	
-	t_vec.resize(_nF_xTheta);
-	t_vec.setConstant(1);
-	// cout << "check:" << endl << check << endl << endl;
+	x_bar_hat_tmp = z_hat.template segment<_n+1>((_pos_omega-1)*offset2+_m+_n+1);
+	dx_bar_hat_tmp = dz_hat.template segment<_n+1>((_pos_omega-1)*offset2+_m+_n+1);
+	checkTheta = f_xTheta - (F_xTheta_hat*x_bar_hat_tmp + F_theta_hat*c_hat_tmp);
+	dcheckTheta = F_xTheta_hat*dx_bar_hat_tmp + F_theta_hat*dc_hat_tmp;
+	t_vecTheta.setConstant(1);
 	for (int j=1; j<= _nF_xTheta; j++)
 	{
-		if(dcheck[j-1]>0)
-		{
-			t_vec[j-1] = check[j-1]/dcheck[j-1];
-		}
+		if(dcheckTheta[j-1]>0)
+			t_vecTheta[j-1] = checkTheta[j-1]/dcheckTheta[j-1];
 	}
-	t_tmp = t_vec.minCoeff();
+	t_tmp = t_vecTheta.minCoeff();
 	if (t_tmp < t)
-	{
 		t = t_tmp;
-	}
 	
 	// return result
 	if (t == 1)
-	{
 		return 1;
-	} 
 	else
-	{
-		return 0.99*t;	// guarantees strict feasibility
-	}
+		return 0.99*t;	// guarantees strict feasibility	
 }
-
-
-
-
 
 
 

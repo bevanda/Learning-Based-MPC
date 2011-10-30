@@ -4,7 +4,8 @@ fid = fopen('ConstrParam.bin','w');
 
 fwrite(fid, kappa_start_PhaseII, 'double');     % double kappa_PhaseII_arg
 fwrite(fid, kappa_start_PhaseI, 'double');     % double kappa_PhaseI_arg
-fwrite(fid, n_iter, 'int');             % int n_iter_arg
+fwrite(fid, n_iter_PhaseI, 'int');             % int n_iter_arg
+fwrite(fid, n_iter_PhaseII, 'int');             % int n_iter_hat_arg
 fwrite(fid, mu, 'double');              % double mu_arg
 fwrite(fid, eps_barrier, 'double');     % double eps_barrier_arg
 fwrite(fid, eps_nt, 'double');          % double eps_nt_arg
@@ -14,6 +15,7 @@ fwrite(fid, alpha_ls, 'double');        % double alpha_ls_arg
 fwrite(fid, beta_ls, 'double');         % double beta_ls_arg
 fwrite(fid, reg_PhaseII, 'double');      % regularization term in PhaseI
 fwrite(fid, reg_PhaseI, 'double');     % regularization term in PhaseII
+fwrite(fid, weight_PhaseI, 'double');    % double weight_hat
 
 fwrite(fid, A, 'double');               % Matrix<Type, _n, _n> &A_arg
 fwrite(fid, B, 'double');               % Matrix<Type, _n, _m> &B_arg

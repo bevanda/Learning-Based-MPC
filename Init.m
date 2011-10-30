@@ -13,6 +13,23 @@ N = 10;      % MPC horizon
 m = 2;      % # input
 n = 5;      % # states
 
+%% Parameters for constructor
+kappa_start_PhaseI = 1000;  % barrier parameter for PhaseI - can be as high as 1e10
+kappa_start_PhaseII = 1e9;  % barrier parameter for PhaseII - 
+mu = 1/10;   % decrease parameter of kappa, i.e. kappa := mu*kappa
+eps_nt = 0.1;   % tolerance for residua norm([r_p ; r_d]) in Newton method
+eps_normRp = 0.1;   % tolerance for primal residua norm(r_p)
+eps_barrier = 0.1;  % barrier parameter, suboptimality of the solution
+eps_ls = 1e-7;     % smallest t, s.t. z+ = z + t*dz, nu+ = nu + t*dnu
+n_iter_PhaseI = 30; % maximum number of Newton iterations for fixed kappa in PhaseI
+n_iter_PhaseII = 10;    % maximum number of Newton iterations for a fixed kappa in PhaseII
+alpha_ls = 0.01; % alpha parameter in line search, (0.01,0.3)
+beta_ls = 0.5;  % 0.1 <     beta_ls < 0.8
+reg_PhaseI = 1e-6; % regularization Term in PhaseI
+reg_PhaseII = 1e-6;  % regularization Term in PhaseII
+weight_PhaseI = 1e3;    % weight for linear cost (i.e. the original PhaseI problem)
+
+
 %% System dynamic parameters
 
 A = [1 0 1.2 1.3 1
@@ -33,10 +50,10 @@ K = -[  -0.687725010189527   1.970370349984470  -0.865901978685416  -3.069636538
    0.181027584433678   1.040671203681152  -0.344287251091615   0.362844179335401  -1.109614558033092]; 
 
 %% cost and constraint matrices
-Q_tilde = 10*eye(n);
-Q_tilde_f = Q_tilde+5;
+Q_tilde = 1*eye(n);
+Q_tilde_f = Q_tilde+1;
 
-R = 2*eye(m);
+R = 1*eye(m);
 
 % constraint matrices: constrained on 
 H = eye(n); k = 1000*ones(n,1);
@@ -107,26 +124,10 @@ F_theta = [ 1  0
             0 -1];
       
 f_xTheta = 100*[20 20 20 20 30 30 40 40 50 50]';
-
-
-%% Parameters for constructor
-kappa_start_PhaseI = 100;  % barrier parameter for PhaseI - can be as high as 1e10
-kappa_start_PhaseII = 1e9;  % barrier parameter for PhaseII - 
-mu = 1/10;   % decrease parameter of kappa, i.e. kappa := mu*kappa
-eps_nt = 0.1;   % tolerance for residua norm([r_p ; r_d]) in Newton method
-eps_normRp = 0.1;   % tolerance for primal residua norm(r_p)
-eps_barrier = 0.1;  % barrier parameter, suboptimality of the solution
-eps_ls = 1e-7;     % smallest t, s.t. z+ = z + t*dz, nu+ = nu + t*dnu
-n_iter = 20;    % number of maximum Newton iterations for a fixed kappa in PhaseII
-alpha_ls = 0.01; % alpha parameter in line search, (0.01,0.3)
-beta_ls = 0.5;  % 0.1 < beta_ls < 0.8
-reg_PhaseI = 0.1; % regularization Term in PhaseI
-reg_PhaseII = 1e-5;  % regularization Term in PhaseII
  
-
 %% write data for constructor arguments into file
 % ConstrParam.bin
 
-writeParam      % call writeParam.m
+writeParam;      % call writeParam.m
 
 disp(['new parameters written to binary file']);
