@@ -799,7 +799,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRdRp(
 			r_d.template segment<_n>(_m+(_pos_omega-1)*offset+_n) = 2*Q_bar*z.template segment<_n>(_m+(_pos_omega-1)*offset+_n) + 2*S*z.template segment<_m>(_m+(_pos_omega-1)*offset+_n+_n) + q_bar_vec[i] +
 					kappa*Fx_transp[_pos_omega-1]*d.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) + kappa*Fu_bar_transp[_pos_omega]*d.template segment<_nInp>(i*(_nInp+_nSt)) + 
 					nu.template segment<_n>((_pos_omega-1)*offset1+_n) - Bm_bar_transp*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n) - A_bar_transp*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n+_n)
-					+ F_xTheta_transp * d.template segment<_nF_xTheta>(num_constr-_nF_xTheta);
+					+ kappa*F_xTheta_transp * d.template segment<_nF_xTheta>(num_constr-_nF_xTheta);
 		}
 		
 		r_d.template segment<_m>(_m+(i-1)*offset+_n+_n) = 2*S_transp*z.template segment<_n>(_m+(i-1)*offset+_n) + 2*R*z.template segment<_m>(_m+(i-1)*offset+_n+_n) + r_vec[i] +
