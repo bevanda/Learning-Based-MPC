@@ -13,6 +13,7 @@
 5) Optimize index calculations, merge different loops into 1 loop
 6) avoid using namespace Eigen/std
 11) compGamma(): use vector addition rather than piece by piece addition?
+12) directly use _arg from arguments rather than copying, esp. during step();
 
 
 
@@ -80,13 +81,13 @@ private:
 	Matrix<Type, _m, _nF_xTheta> F_theta_transp;	// transpose of above 
 	Matrix<Type, _nF_xTheta, 1> f_xTheta;	// right-hand-side of constraint above
 	
-	Matrix<Type, _n, _n> Lm;		// oracle matrix, O = Lm*x_tilde + Mm*u + tm
-	Matrix<Type, _n, _m> Mm;		// oracle matrix, O = Lm*x_tilde + Mm*u + tm
-	Matrix<Type, _n, 1> tm;			// oracle matrix, O = Lm*x_tilde + Mm*u + tm
+	// const Matrix<Type, _n, _n> *Lm;		// oracle matrix, O = Lm*x_tilde + Mm*u + tm
+	// const Matrix<Type, _n, _m> *Mm;		// oracle matrix, O = Lm*x_tilde + Mm*u + tm
+	// const Matrix<Type, _n, 1> *tm;			// oracle matrix, O = Lm*x_tilde + Mm*u + tm
 	Matrix<Type, _m, _n> K;			// Gain matrix, s.t. (A+B*K) is stable/Schur
 	Matrix<Type, _n, _m> K_transp;
 	
-	Matrix<Type, _n, 1> x_hat;		// state estimate of current state x_hat[m]
+	const Matrix<Type, _n, 1> *x_hat;		// state estimate of current state x_hat[m]
 	
 	// search directions dz and dnu for all variables z, nu, lambda, t
 	Matrix<Type, _N*(_m + _n + _n) + _m, 1> z;	// z(+) = z + alpha*dz
@@ -111,7 +112,6 @@ private:
 	Matrix<Type, _n, _m> S;		// S = K'*R
 	Matrix<Type, _m, _n> S_transp;	// S_trans = S'
 	Matrix<Type, _n, _n> Q_bar;	// Q_bar = K'*R*K = S*K
-	Matrix<Type, _n, 1> q_bar;	// q_bar' = r'*K;
 	Matrix<Type, _n, 1> q_bar_vec[_N];
 	Matrix<Type, _n, _n> A_bar;	// A_bar = A+B*K
 	Matrix<Type, _n, _n> A_bar_transp;	// transpose of above
@@ -306,15 +306,16 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 												   													  )
 {
 	// initialization
-	Lm = Lm_arg;
-	Mm = Mm_arg;
-	tm = tm_arg;
-	x_hat = x_hat_arg;
+	// Lm = &Lm_arg;
+	// Mm = &Mm_arg;
+	// tm = &tm_arg;
+	x_hat = &x_hat_arg;
+	
 	x_star = x_star_arg;
 	tm_tilde = tm_arg + s;
-	Am_tilde = A + Lm;
+	Am_tilde = A + Lm_arg;
 	Am_tilde_transp = Am_tilde.transpose();
-	Bm = B + Mm;
+	Bm = B + Mm_arg;
 	Bm_transp = Bm.transpose();
 	Bm_bar = Bm * K;
 	Bm_bar_transp = Bm_bar.transpose();
@@ -329,11 +330,11 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 	// z.setRandom();
 	// z = 100*z;
 	compRQ();	// compute u_star, x_star -> cost matrices 
-	// return K*x_hat + z.template segment<_m>(0);
+	// return K*(*x_hat) + z.template segment<_m>(0);
 	
 	compInitPoints();	// computes more suitable initial points, also for infeasible start
 						// but makes warm start less useful
-	// return K*x_hat + z.template segment<_m>(0);
+	// return K*(*x_hat) + z.template segment<_m>(0);
 
 	int itNewton = 0;
 	double sigma;
@@ -385,9 +386,9 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 		condition =  (r_H.norm()>resNorm_H) || (r_C.norm()>resNorm_C) || (r_P.norm()>resNorm_P) || (mu_pd>muNorm);
 	} while(condition);
 
-	// cout << " =====> computed optimal z_vector:" << endl << setprecision (30) << z << endl << endl;
+	cout << " =====> computed optimal z_vector:" << endl << setprecision (30) << z << endl << endl;
 	cout << "number of Newton iterations required: " << itNewton << endl << endl;
-	return K*x_hat + z.template segment<_m>(0);
+	return K*(*x_hat) + z.template segment<_m>(0);
 }
 
 
@@ -397,7 +398,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResid
 {
 	// 1. compute r_H = -2*H*z - g - P'*lambda - C'*nu;
 	// handle first case separately
-	r_H.template segment<_m>(0) = 2*R*z.template segment<_m>(0) + (r_vec[0]+2*S_transp*x_hat) + 
+	r_H.template segment<_m>(0) = 2*R*z.template segment<_m>(0) + (r_vec[0]+2*S_transp*(*x_hat)) + 
 				Fu_transp[0]*lambda.template segment<_nInp>(0) - Bm_transp*nu.template segment<_n>(0) - B_transp*nu.template segment<_n>(_n);
 						
 	// handle the cases in the middle, without the end, three block to deal with in each round
@@ -441,8 +442,8 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResid
 	// cout << setprecision(30) << "r_H" << endl << r_H << endl << endl;
 	
 	// 2. r_C = b - C*z;
-	r_C.template segment<_n>(0) = -Bm*z.template segment<_m>(0) + z.template segment<_n>(_m) - ( Am_tilde + Bm_bar)*x_hat - tm_tilde;
-	r_C.template segment<_n>(_n) = -B*z.template segment<_m>(0) + z.template segment<_n>(_m+_n) - (A_bar*x_hat + s);
+	r_C.template segment<_n>(0) = -Bm*z.template segment<_m>(0) + z.template segment<_n>(_m) - ( Am_tilde + Bm_bar)*(*x_hat) - tm_tilde;
+	r_C.template segment<_n>(_n) = -B*z.template segment<_m>(0) + z.template segment<_n>(_m+_n) - (A_bar*(*x_hat) + s);
 	
 	// deal with the rest, class variable: offset = _n + _n + _m;
 	for (int i=1; i <= _N-1; i++)
@@ -458,7 +459,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResid
 	
 	// 3. r_P = -slack + h - P*z;
 	c_tmp = z.template segment<_m>(0);
-	r_P.template segment<_nInp>(0) = -slack.template segment<_nInp>(0) + (fu[0] - Fu[0]*K*x_hat) - (Fu[0]*c_tmp);	// should be >0
+	r_P.template segment<_nInp>(0) = -slack.template segment<_nInp>(0) + (fu[0] - Fu[0]*K*(*x_hat)) - (Fu[0]*c_tmp);	// should be >0
 
 	// general treatment in the middle, class variable: offset = _n + _n + _m
 	for (int i=1; i <= _N-1; i++) // blocks in the middle
@@ -1286,7 +1287,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRQ()
 	// compute the vectors u_star
 	// "ColPivHouseholderQRPreconditioner" is more accurate, "HouseholderQRPreconditioner" is faster
 	JacobiSVD<MatrixXd, HouseholderQRPreconditioner> svd(Bm, ComputeThinU | ComputeThinV);	// computes SVD of Bm
-	u_star[0] = svd.solve(x_star[0] - Am_tilde*x_hat - tm_tilde);	
+	u_star[0] = svd.solve(x_star[0] - Am_tilde*(*x_hat) - tm_tilde);	
 	
 	for (int i=1; i <= _N-1; i++)
 		u_star[i] = svd.solve(x_star[i] - Am_tilde*x_star[i-1] - tm_tilde);
@@ -1296,13 +1297,19 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRQ()
 		cout << "u_star[" << i << "]" << endl << u_star[i] << endl << endl;
 	*/
 	
-	// compute the vectors q_tilde[]; q_tilde_f; r[]
-	for (int i = 0; i <= _N-1; i++)
+	// compute the vectors q_bar_vec[]; q_tilde_vec[]; r_vec[]
+	q_tilde_vec[0] = -2*Q_tilde*x_star[0];
+	r_vec[0] = -2*R*u_star[0];
+	// q_bar_vec[0] is never used
+	for (int i = 1; i <= _N-2; i++)		// be careful how to use it
 	{
-		q_tilde_vec[i] = -2*x_star[i];
-		r_vec[i] = -2*u_star[i];
-		q_bar_vec[i] = K_transp*r_vec[i];
+		q_tilde_vec[i] = -2*Q_tilde*x_star[i];
+		r_vec[i] = -2*R*u_star[i];
+		q_bar_vec[i] = K_transp*r_vec[i];	
 	}
+	q_tilde_vec[_N-1] = -2*Q_tilde_f*x_star[_N-1];
+	r_vec[_N-1] = -2*R*u_star[_N-1];
+	q_bar_vec[_N-1] = K_transp*r_vec[_N-1];
 	
 	/*
 	for (int i = 0; i <= _N-1; i++)

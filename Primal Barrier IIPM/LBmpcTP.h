@@ -494,6 +494,12 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 	//update z_warm from previous z_warm
 	z_warm.template segment<(_N-1)*(_m+_n+_n)>(0) = z_warm.template segment<(_N-1)*(_m+_n+_n)>(offset);
 	
+	// ONLY TEMPORARILY
+	// z_warm << -2 ,    3  ,   3  ,   1 ,   -2 ,    2 ,   -3 ,    0  ,  -1  ,   0  ,   5 ,    3  ,   5  ,  -3  ,   0  ,  -4  ,   3  ,   1  ,   4  ,   5  ,   4 ,   -1,
+		// -5  ,   0  ,  -3 ,   -3  ,  -2  ,  -4  ,   2  ,   2   ,  0  ,  -2  ,   3  ,   1 ,    5  ,   4  ,  -1  ,   0   , -2   ,  1  ,   3  ,   2 ,   -4   ,  3,
+		// -5   , -1   ,  2   ,  3  ,  -1   ,  2;
+	z_warm.setZero();
+	
 	compRQ();	// compute u_star, x_star -> cost matrices 
 	z = z_warm;
 	
@@ -1696,13 +1702,19 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compRQ()
 		cout << "u_star[" << i << "]" << endl << u_star[i] << endl << endl;
 	*/
 	
-	// compute the vectors q_tilde[]; q_tilde_f; r[]
-	for (int i = 0; i <= _N-1; i++)
+	// compute the vectors q_bar_vec[]; q_tilde_vec[]; r_vec[]
+	q_tilde_vec[0] = -2*Q_tilde*x_star[0];
+	r_vec[0] = -2*R*u_star[0];
+	// q_bar_vec[0] is never used
+	for (int i = 1; i <= _N-2; i++)		// be careful how to use it
 	{
-		q_tilde_vec[i] = -2*x_star[i];
-		r_vec[i] = -2*u_star[i];
-		q_bar_vec[i] = K_transp*r_vec[i];
+		q_tilde_vec[i] = -2*Q_tilde*x_star[i];
+		r_vec[i] = -2*R*u_star[i];
+		q_bar_vec[i] = K_transp*r_vec[i];	
 	}
+	q_tilde_vec[_N-1] = -2*Q_tilde_f*x_star[_N-1];
+	r_vec[_N-1] = -2*R*u_star[_N-1];
+	q_bar_vec[_N-1] = K_transp*r_vec[_N-1];
 	
 	/*
 	for (int i = 0; i <= _N-1; i++)
