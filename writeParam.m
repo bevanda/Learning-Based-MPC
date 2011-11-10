@@ -1,6 +1,6 @@
 % writeParam.m
 
-fid = fopen('ConstrParam.bin','w');
+fid = fopen(fileName,'w');
 
 fwrite(fid, n_iter, 'int');             % int n_iter_arg
 fwrite(fid, reg, 'double');      % regularization term in PhaseI

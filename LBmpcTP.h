@@ -1,8 +1,8 @@
 // Ompctp.h -- a Learning Based MPC class template
 // header for class LBmpcTP
-// date: October 28, 2011
+// date: November 8, 2011
 // author: Xiaojing ZHANG
-// version: 0.1
+// version: 0.2
 
 
 /* Remarks:
@@ -16,7 +16,6 @@
 12) directly use _arg from arguments rather than copying, esp. during step();
 
 
-
 Improvements:
 1) different step length for primal and dual step (Numerical Optimization Nocedal/Wright)
 2) different/better termination condition?
@@ -27,6 +26,7 @@ Improvements:
 #define LBMPCTP_H_
 
 #include <iostream>
+#include <fstream>		// read binary data
 #include <Eigen/Dense>
 #include <iomanip>		// for setprecision (9)
 #include <cmath>
@@ -58,6 +58,9 @@ private:
 	double resNorm_P;
 	double muNorm;
 	double damp;
+	double reg;		// regularization term
+	double compTime;	// stores computational time
+	bool verbose;	// if set, program will print status updates
 	
 	Matrix<Type, _n, _n> A;			// dynamics matrix A, n x n
 	Matrix<Type, _n, _n> A_transp;	// transpose of above
@@ -81,9 +84,6 @@ private:
 	Matrix<Type, _m, _nF_xTheta> F_theta_transp;	// transpose of above 
 	Matrix<Type, _nF_xTheta, 1> f_xTheta;	// right-hand-side of constraint above
 	
-	// const Matrix<Type, _n, _n> *Lm;		// oracle matrix, O = Lm*x_tilde + Mm*u + tm
-	// const Matrix<Type, _n, _m> *Mm;		// oracle matrix, O = Lm*x_tilde + Mm*u + tm
-	// const Matrix<Type, _n, 1> *tm;			// oracle matrix, O = Lm*x_tilde + Mm*u + tm
 	Matrix<Type, _m, _n> K;			// Gain matrix, s.t. (A+B*K) is stable/Schur
 	Matrix<Type, _n, _m> K_transp;
 	
@@ -124,7 +124,7 @@ private:
 	Matrix<Type, _nInp, _n> Fu_bar[_N];	// array of (full-rank) input constraint matrices, #row may change, but <= nInp
 	Matrix<Type, _n, _nInp> Fu_bar_transp[_N];	//transpose of above
 	
-	// used in compResidua(), 
+	// used in compResiduals(), 
 	Matrix<Type, _m, 1> c_tmp;		// use this to temporarily copy c-blocks out of z
 	Matrix<Type, _n, 1> x_bar_tmp;	// use this to temporarily copy x_bar-blocks out of z
 	
@@ -173,13 +173,10 @@ private:
  	const Matrix<Type, _n, 1> *x_star;		// at each time step, we would like to track x_star[]
 	Matrix<Type, _m, 1> u_star[_N];		// u_star[] is the least squares problem to track x_star[], but might not be feasible
 	
-	double reg;		// regularization term
-	double compTime;	// stores computational time
-
 // ---------- private methods ----------
 	void compRQ();		// computes the cost vectors r and q								
 	void compInitPoints();	// compute suitable initial starting points (z0, lambda0, nu0, slack0)
-	void compResidua();	// computes all 4 residua
+	void compResiduals();	// computes all 4 residua
 	void compPhi();		
 	void compPhi_tilde();	// compute Cholesky decomposition
 	void compY();	// Schur complement
@@ -191,103 +188,149 @@ private:
 	void compAlpha();
 	double getTimer();	// method returning the computational time
 
-	
 public:
 	LBmpcTP();	// default constructor
-	
-	// standard constructor: uses references whenever possible to avoid copying of big matrices
-	// note: arrays cannot be copied by value, always given as pointers, length implicitly given by _N
-	LBmpcTP(int n_iter_arg, double reg_arg, double resNorm_H_arg, double resNorm_C_arg, double resNorm_P_arg, double muNorm_arg,
-		   const Matrix<Type, _n, _n> &A_arg, Matrix<Type, _n, _m> &B_arg,
-		   const Matrix<Type, _n, _n> &Q_tilde_arg, const Matrix<Type, _n, _n> &Q_tilde_f_arg,
-		   const Matrix<Type, _m, _m> &R_arg, const Matrix<Type, _nSt, _n> Fx_arg[], 
-		   const Matrix<Type, _nSt, 1> fx_arg[], const Matrix<Type, _nInp, _m> Fu_arg[],
-		   const Matrix<Type, _nInp, 1> fu_arg[], const Matrix<Type, _nF_xTheta, _n> &F_xTheta_arg,
-		   const Matrix<Type, _nF_xTheta, _m> &F_theta_arg, const Matrix<Type, _nF_xTheta, 1> &f_xTheta_arg,
-		   const Matrix<Type, _m, _n> &K_arg, const Matrix<Type, _n, 1> &s_arg
-	      );	
+	// standard constructor	
+	LBmpcTP(const char fileName[], bool verbose_arg);	
 
-	// "step" computes and returns the optimal input 
-	Matrix<Type, _m, 1> step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
-														const Matrix<Type, _n, 1> &x_hat_arg,
-														const Matrix<Type, _n, 1> x_star_arg[]
-													   );
-													
+	// "step" computes and returns status code
+	int step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
+			const Matrix<Type, _n, 1> &x_hat_arg, const Matrix<Type, _n, 1> x_star_arg[]);
+	
+	Matrix<Type, _m, 1> u_opt;												
 	//~LBmpcTP();	// destructor
 };
 
 
-
 //  ==================== Implementation of Methods ==================
-
 // default constructor
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP()
 {
-	cerr << "LBmpcTP() constructor was called with no arguments -- Please consult the documentation" << endl;
+	cerr << "LBmpcTP() constructor was called with no arguments -- Please provide fileName" << endl;
 }
 
 // constructor
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
-LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP(
-	   int n_iter_arg, double reg_arg, double resNorm_H_arg, double resNorm_C_arg, double resNorm_P_arg, double muNorm_arg,
- 	   const Matrix<Type, _n, _n> &A_arg, Matrix<Type, _n, _m> &B_arg,
-	   const Matrix<Type, _n, _n> &Q_tilde_arg, const Matrix<Type, _n, _n> &Q_tilde_f_arg,
-	   const Matrix<Type, _m, _m> &R_arg, const Matrix<Type, _nSt, _n> Fx_arg[], 
-	   const Matrix<Type, _nSt, 1> fx_arg[], const Matrix<Type, _nInp, _m> Fu_arg[],
-	   const Matrix<Type, _nInp, 1> fu_arg[], const Matrix<Type, _nF_xTheta, _n> &F_xTheta_arg,
-	   const Matrix<Type, _nF_xTheta, _m> &F_theta_arg, const Matrix<Type, _nF_xTheta, 1> &f_xTheta_arg,
-	   const Matrix<Type, _m, _n> &K_arg, const Matrix<Type, _n, 1> &s_arg
-      )
+LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP( const char fileName[], bool verbose_arg )
 {
 	// first starting z can be modified
 	z.setConstant(0);
 	nu.setConstant(1);	// any nu good to initialize
 	lambda.setConstant(1);
 	slack.setConstant(1);
+	verbose = verbose_arg;
 	// srand ( time(NULL) );
 	// nu.setRandom(); nu = 100*nu;
 	// lambda.setRandom(); lambda = 100*lambda;
 	// slack.setRandom(); slack = 100*slack;
 	
-	n_iter = n_iter_arg;	// max number of iterations
-	reg = reg_arg;
-	resNorm_H = resNorm_H_arg;	// squared norm of r_H
-	resNorm_C = resNorm_C_arg;	// squared norm of r_C
-	resNorm_P = resNorm_P_arg;	// squared norm of r_P
-	muNorm = muNorm_arg;	// squared norm of r_slack
+	// -------------- read from binary file -----------------
+	ifstream fin;			 	// Definition input file object
+	fin.open(fileName, ios::binary);	//	open file
+	if (!fin.is_open())
+	{
+		cerr << "File open error \n"; 
+		return;
+	}
+	
+	// read 
+	fin.read((char *) &n_iter, sizeof(int));
+	fin.read((char *) &reg, sizeof(double));
+	fin.read((char *) &resNorm_H, sizeof(double));
+	fin.read((char *) &resNorm_C, sizeof(double));
+	fin.read((char *) &resNorm_P, sizeof(double));
+	fin.read((char *) &muNorm, sizeof(double));
+	
+	// read A
+	for (int i = 0; i <= _n-1; i++)		
+		for (int j = 0; j <= _n-1; j++)
+			fin.read((char *) &A(j,i), sizeof(double));
+
+	// read B
+	for (int i = 0; i <= _m-1; i++)	// #columns
+		for (int j = 0; j <= _n-1; j++) // #rows
+			fin.read((char *) &B(j,i), sizeof(double));
+	
+	// read s
+	for (int i = 0; i <= _n-1; i++)	// #columns
+		fin.read((char *) &s(i,0), sizeof(double));
+
+	// read Q_tilde
+	for (int i = 0; i <= _n-1; i++)	// #columns
+		for (int j = 0; j <= _n-1; j++) // #rows
+			fin.read((char *) &Q_tilde(j,i), sizeof(double));
+	
+	// read Q_tilde_f
+	for (int i = 0; i <= _n-1; i++)	// #columns
+		for (int j = 0; j <= _n-1; j++) // #rows
+			fin.read((char *) &Q_tilde_f(j,i), sizeof(double));
+	
+	// read R
+	for (int i = 0; i <= _m-1; i++)	// #columns
+		for (int j = 0; j <= _m-1; j++) // #rows
+			fin.read((char *) &R(j,i), sizeof(double));
+	
+	// read Fx[_N]
+	for (int k = 0; k <= _N-1; k++)
+		for (int i = 0; i <= _n-1; i++)	// #columns
+			for (int j = 0; j <= _nSt-1; j++) // #rows
+				fin.read((char *) &Fx[k](j,i), sizeof(double));
+	
+	// read fx[_N]
+	for (int k = 0; k <= _N-1; k++)
+		for (int i = 0; i <= _nSt-1; i++)	// #columns
+				fin.read((char *) &fx[k](i,0), sizeof(double));
+	
+	// read Fu[_N]
+	for (int k = 0; k <= _N-1; k++)
+		for (int i = 0; i <= _m-1; i++)	// #columns
+			for (int j = 0; j <= _nInp-1; j++) // #rows
+				fin.read((char *) &Fu[k](j,i), sizeof(double));
+	
+	// read fu[_N]
+	for (int k = 0; k <= _N-1; k++)
+		for (int i = 0; i <= _nInp-1; i++)	// #columns
+				fin.read((char *) &fu[k](i,0), sizeof(double));
+	
+	// read F_xTheta
+	for (int i = 0; i <= _n-1; i++)	// #columns
+		for (int j = 0; j <= _nF_xTheta-1; j++) // #rows
+			fin.read((char *) &F_xTheta(j,i), sizeof(double));
+	
+	// read F_theta
+	for (int i = 0; i <= _m-1; i++)	// #columns
+		for (int j = 0; j <= _nF_xTheta-1; j++) // #rows
+			fin.read((char *) &F_theta(j,i), sizeof(double));
+	
+	// read f_xTheta
+	for (int i = 0; i <= _nF_xTheta-1; i++)	// #columns
+		fin.read((char *) &f_xTheta(i,0), sizeof(double));
+
+	// read K_arg
+	for (int i = 0; i <= _n-1; i++)	// #columns
+		for (int j = 0; j <= _m-1; j++) // #rows
+			fin.read((char *) &K(j,i), sizeof(double));
+
+	fin.close();				// close file
+	
 	damp = 0.95;
 	
 	offset = _n + _n + _m;
-	A = A_arg;
-	A_transp = A_arg.transpose();
-	B = B_arg;
-	B_transp = B_arg.transpose();
-	Q_tilde = Q_tilde_arg;
-	Q_tilde_f = Q_tilde_f_arg;
-	R = R_arg;	
-	K = K_arg;
+	A_transp = A.transpose();
+	B_transp = B.transpose();
 	K_transp = K.transpose();
 		
 	for (int i=0; i < _N; i++)
 	{
-		Fx[i] = Fx_arg[i];
-		Fx_transp[i] = Fx_arg[i].transpose();
-		fx[i] = fx_arg[i];
-		
-		Fu[i] = Fu_arg[i];
-		Fu_transp[i] = Fu_arg[i].transpose();
-		fu[i] = fu_arg[i];
+		Fx_transp[i] = Fx[i].transpose();
+		Fu_transp[i] = Fu[i].transpose();
 		Fu_bar[i] = Fu[i]*K;		// the first one is NOT used
 		Fu_bar_transp[i] = Fu_bar[i].transpose();
 	}
 	
-	F_xTheta = F_xTheta_arg;
-	F_xTheta_transp = F_xTheta_arg.transpose();
-	F_theta = F_theta_arg;
-	F_theta_transp = F_theta_arg.transpose();
-	f_xTheta = f_xTheta_arg;
-	s = s_arg;
+	F_xTheta_transp = F_xTheta.transpose();
+	F_theta_transp = F_theta.transpose();
 	
 	// do some preliminary Matrix calculations	
 	S = K.transpose() * R;
@@ -295,20 +338,58 @@ LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::LBmpcTP(
 	Q_bar = S * K;
 	A_bar = A + B*K;
 	A_bar_transp = A_bar.transpose();
+	
+	/*
+	// test output
+	cout << "n_iter: " << n_iter << endl << endl;
+	cout << "reg: " << reg << endl << endl;
+	cout << "resNorm_H: " << resNorm_H << endl << endl;
+	cout << "resNorm_C: " << resNorm_C << endl << endl;
+	cout << "resNorm_P: " << resNorm_P << endl << endl;
+	cout << "muNorm: " << muNorm << endl << endl;
+	
+	cout << "A: " << endl << A << endl << endl;
+	cout << "B: " << endl << B << endl << endl;
+	cout << "s:" << endl << s << endl << endl;
+	cout << "Q_tilde: " << endl << Q_tilde << endl << endl;
+	cout << "Q_tilde_f: " << endl << Q_tilde_f << endl << endl;
+	cout << "R: " << endl << R << endl << endl;
+	
+	for (int i = 0; i<= _N-1; i++)
+	{
+		cout << "Fx[" << i << "]: " << endl << Fx[i] << endl << endl;
+	}
+	for (int i = 0; i <= _N-1; i++)
+	{
+		cout << "fx[" << i << "]: " << endl << fx[i] << endl << endl;
+	}
+	for (int i = 0; i <= _N-1; i++)
+	{
+		cout << "Fu[" << i << "]: " << endl << Fu[0] << endl << endl;
+	}
+	for (int i = 0; i <= _N-1; i++)
+	{
+		cout << "fu[" << i << "]: " << endl << fu[i] << endl << endl;
+	}
+	cout << "F_xTheta: " << endl << F_xTheta << endl << endl;
+	cout << "F_theta: " << endl << F_theta << endl << endl;
+	cout << "f_xTheta: " << endl << f_xTheta << endl << endl;
+	cout << "K:" << endl << K << endl << endl;
+	*/
 }
 
 
 // step function returns optimal input
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
-Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
+int LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
 																									   const Matrix<Type, _n, 1> &x_hat_arg,
 																									  const Matrix<Type, _n, 1> x_star_arg[]
 												   													  )
 {
+	if (verbose)
+		cout << "*********** START OPTIMIZATION ***********" << endl;
+		
 	// initialization
-	// Lm = &Lm_arg;
-	// Mm = &Mm_arg;
-	// tm = &tm_arg;
 	x_hat = &x_hat_arg;
 	
 	x_star = x_star_arg;
@@ -330,15 +411,12 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 	// z.setRandom();
 	// z = 100*z;
 	compRQ();	// compute u_star, x_star -> cost matrices 
-	// return K*(*x_hat) + z.template segment<_m>(0);
-	
 	compInitPoints();	// computes more suitable initial points, also for infeasible start
 						// but makes warm start less useful
-	// return K*(*x_hat) + z.template segment<_m>(0);
 
 	int itNewton = 0;
 	double sigma;
-	compResidua();	// compute r_H, r_C, r_P, r_T
+	compResiduals();	// compute r_H, r_C, r_P, r_T
 	double mu_pd = lambda.dot(slack)/(_N*(_nInp+_nSt)+_nF_xTheta);	// mu of primal-dual IPM
 	double mu_pd_p;	// mu_p of for predictor step in primal-dual IPM
 	Matrix<Type, _N*(_nSt + _nInp) + _nF_xTheta, 1> ones;
@@ -348,7 +426,34 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 		itNewton++;
 		if (itNewton >= n_iter)
 		{
-			cerr << "more than " << n_iter << " Newton steps required -> unsuccessful" << endl;
+			if(verbose)
+				cerr << "-------- more than " << n_iter << " Newton steps required" << endl;
+			if(r_H.norm()>resNorm_H)
+			{
+				if(verbose)
+					cout << "norm(r_H) > " << resNorm_H << endl;
+				return 1;			
+			}
+			else if (r_C.norm()>resNorm_C)
+			{
+				if(verbose)
+					cout << "norm(r_C) > " << resNorm_C << endl;
+				return 2;	
+			}	
+			else if (r_P.norm()>resNorm_P)
+			{
+				if(verbose)
+					cout << "norm(r_P) > " << resNorm_P << endl;
+				return 3;
+			}
+			else if (mu_pd>muNorm)
+			{
+					if(verbose)
+						cout << "mu > " << muNorm << endl;
+					return 4;
+			}
+			else 
+				return 6;
 			break;
 		}
 		// compute dz, dnu, dlambda, dslack	
@@ -369,32 +474,47 @@ Matrix<Type, _m, 1> LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omeg
 		compBeta();
 		compDnu();		// Y * dnu = -beta
 		compDz();		// Phi*dz = -r_d_bar - C'*dnu
+		
 		compDlambda();	// dlambda = (P*dz - r_P + r_T./lambda) .* lambda ./ t
 		dslack = (r_T - slack.cwiseProduct(dlambda)).cwiseQuotient(lambda);		// compute dslack = (r_T - slack.*dlambda) ./ lambda
 		compAlpha();
 		
 		// update z, nu, lambda, slack
+		for (int i = 0; i <= _N*(_m + _n + _n) + _m-1; i++)
+		{
+			if (isnan(dz[i]))
+			{
+				if (verbose)
+					cout << "NAN detected during iteration number " << itNewton << endl;
+				u_opt = K*(*x_hat) + z.template segment<_m>(0); 
+				return 5;
+			}
+		}
 		z = z + damp*alpha*dz;
+		
+		
 		nu = nu + damp*alpha*dnu;
 		lambda = lambda + damp*alpha*dlambda;
 		slack = slack + damp*alpha*dslack;
 		
-		compResidua();	// compute r_H, r_C, r_P, r_T
+		compResiduals();	// compute r_H, r_C, r_P, r_T
 		mu_pd = lambda.dot(slack)/(_N*(_nInp+_nSt)+_nF_xTheta);
-		
-		// condition = ( (r_H.norm()>resNormSq_H) || (r_C.norm()>resNormSq_C) || (r_P.norm()>resNormSq_P) || (mu>muNormSq) ) && (itNewton >= 100);
 		condition =  (r_H.norm()>resNorm_H) || (r_C.norm()>resNorm_C) || (r_P.norm()>resNorm_P) || (mu_pd>muNorm);
 	} while(condition);
 
-	cout << " =====> computed optimal z_vector:" << endl << setprecision (30) << z << endl << endl;
-	cout << "number of Newton iterations required: " << itNewton << endl << endl;
-	return K*(*x_hat) + z.template segment<_m>(0);
+	if(verbose)
+	{
+		cout << " =====> computed optimal z_vector:" << endl << setprecision (30) << z << endl << endl;
+		cout << "number of Newton iterations required: " << itNewton << endl << endl;
+	}
+	u_opt = K*(*x_hat) + z.template segment<_m>(0); 
+	return 0;
 }
 
 
 // ------------ function computes residua r_H, r_C, r_P, r_T -------------
 template <class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
-void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResidua()
+void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResiduals()
 {
 	// 1. compute r_H = -2*H*z - g - P'*lambda - C'*nu;
 	// handle first case separately
@@ -496,7 +616,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compInitP
 	Array<Type, _N*(_nSt + _nInp) + _nF_xTheta, 1> arr_ones;
 	arr_ones.setConstant(1);
 	
-	compResidua();	// compute r_H, r_C, r_P, r_T
+	compResiduals();	// compute r_H, r_C, r_P, r_T
 	compPhi();	// Phi = 2*H + kappa*P'*diag(1./slack)*diag(lambda)*P
 	compPhi_tilde();	// Phi_tilde = Phi^{-1}; computes Chol-Dec
 	compY();			// Y = C*Phi_tilde*C'

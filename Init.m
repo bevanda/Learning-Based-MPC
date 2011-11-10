@@ -1,7 +1,7 @@
 %% Init.m
 % Writes relevant data to binary file.
 % author: Xiaojing ZHANG
-% date: October 28, 2011
+% date: November 10, 2011
 
 
 clc; 
@@ -9,26 +9,21 @@ clear all;
 format('short');
 
 %% MPC parameters:
-N = 10;      % MPC horizon
+N = 4;      % MPC horizon
 m = 2;      % # input
 n = 5;      % # states
 
-%% Parameters for constructor
-kappa_start_PhaseI = 1000;  % barrier parameter for PhaseI - can be as high as 1e10
-kappa_start_PhaseII = 1e9;  % barrier parameter for PhaseII - 
-mu = 1/10;   % decrease parameter of kappa, i.e. kappa := mu*kappa
-eps_nt = 0.1;   % tolerance for residua norm([r_p ; r_d]) in Newton method
-eps_normRp = 0.1;   % tolerance for primal residua norm(r_p)
-eps_barrier = 0.1;  % barrier parameter, suboptimality of the solution
-eps_ls = 1e-7;     % smallest t, s.t. z+ = z + t*dz, nu+ = nu + t*dnu
-n_iter_PhaseI = 30; % maximum number of Newton iterations for fixed kappa in PhaseI
-n_iter_PhaseII = 10;    % maximum number of Newton iterations for a fixed kappa in PhaseII
-alpha_ls = 0.01; % alpha parameter in line search, (0.01,0.3)
-beta_ls = 0.5;  % 0.1 <     beta_ls < 0.8
-reg_PhaseI = 1e-6; % regularization Term in PhaseI
-reg_PhaseII = 1e-6;  % regularization Term in PhaseII
-weight_PhaseI = 1e3;    % weight for linear cost (i.e. the original PhaseI problem)
+%% binary file name
+fileName = 'ConstrParam.bin';
 
+%% Parameters for constructor
+
+n_iter = 200; % maximum number of Newton iterations
+reg = 1e-3;  % regularization Term
+resNorm_H = 0.1;
+resNorm_C = 0.1;
+resNorm_P = 0.1;
+muNorm = 0.1;
 
 %% System dynamic parameters
 
