@@ -7,6 +7,7 @@
 #   make VERBOSE=1
 project(lbmpc)
 cmake_minimum_required(VERSION 2.4.6)
+set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
