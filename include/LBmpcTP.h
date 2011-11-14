@@ -199,6 +199,21 @@ public:
 	
 	Matrix<Type, _m, 1> u_opt;												
 	//~LBmpcTP();	// destructor
+
+        void get_A(Matrix<Type, _n, _n>& Aout)
+        {
+          Aout = A;
+        }
+
+        void get_B(Matrix<Type, _n, _m>& Bout)
+        {
+          Bout = B;
+        }
+
+        void get_s(Matrix<Type, _n, 1>& sout)
+        {
+          sout = s;
+        }
 };
 
 
@@ -486,7 +501,7 @@ int LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::step(const M
 			{
 				if (verbose)
 					cout << "NAN detected during iteration number " << itNewton << endl;
-				u_opt = K*(*x_hat) + z.template segment<_m>(0); 
+				u_opt = K*(*x_hat) + z.template segment<_m>(0);
 				return 5;
 			}
 		}
@@ -507,7 +522,7 @@ int LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::step(const M
 		cout << " =====> computed optimal z_vector:" << endl << setprecision (30) << z << endl << endl;
 		cout << "number of Newton iterations required: " << itNewton << endl << endl;
 	}
-	u_opt = K*(*x_hat) + z.template segment<_m>(0); 
+	u_opt = K*(*x_hat) + z.template segment<_m>(0);
 	return 0;
 }
 
@@ -518,7 +533,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResid
 {
 	// 1. compute r_H = -2*H*z - g - P'*lambda - C'*nu;
 	// handle first case separately
-	r_H.template segment<_m>(0) = 2*R*z.template segment<_m>(0) + (r_vec[0]+2*S_transp*(*x_hat)) + 
+	r_H.template segment<_m>(0) = 2*R*z.template segment<_m>(0) + (r_vec[0]+2*S_transp*(*x_hat)) +
 				Fu_transp[0]*lambda.template segment<_nInp>(0) - Bm_transp*nu.template segment<_n>(0) - B_transp*nu.template segment<_n>(_n);
 						
 	// handle the cases in the middle, without the end, three block to deal with in each round
@@ -531,26 +546,26 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResid
 		if (i != _pos_omega)	
 		{	
 			r_H.template segment<_n>(_m+(i-1)*offset+_n) = 2*Q_bar*z.template segment<_n>(_m+(i-1)*offset+_n) + 2*S*z.template segment<_m>(_m+(i-1)*offset+_n+_n) + q_bar_vec[i] +
-					Fx_transp[i-1]*lambda.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) + Fu_bar_transp[i]*lambda.template segment<_nInp>(i*(_nInp+_nSt)) + 
+					Fx_transp[i-1]*lambda.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) + Fu_bar_transp[i]*lambda.template segment<_nInp>(i*(_nInp+_nSt)) +
 					nu.template segment<_n>((i-1)*offset1+_n) - Bm_bar_transp*nu.template segment<_n>((i-1)*offset1+_n+_n) - A_bar_transp*nu.template segment<_n>((i-1)*offset1+_n+_n+_n);
 		}
 		else	// must add the additional term: F_xTheta'*d(.)
 		{
 			r_H.template segment<_n>(_m+(_pos_omega-1)*offset+_n) = 2*Q_bar*z.template segment<_n>(_m+(_pos_omega-1)*offset+_n) + 2*S*z.template segment<_m>(_m+(_pos_omega-1)*offset+_n+_n) + q_bar_vec[i] +
-					Fx_transp[_pos_omega-1]*lambda.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) + Fu_bar_transp[_pos_omega]*lambda.template segment<_nInp>(i*(_nInp+_nSt)) + 
+					Fx_transp[_pos_omega-1]*lambda.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) + Fu_bar_transp[_pos_omega]*lambda.template segment<_nInp>(i*(_nInp+_nSt)) +
 					nu.template segment<_n>((_pos_omega-1)*offset1+_n) - Bm_bar_transp*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n) - A_bar_transp*nu.template segment<_n>((_pos_omega-1)*offset1+_n+_n+_n)
 					+ F_xTheta_transp * lambda.template segment<_nF_xTheta>(_N*(_nSt+_nInp));	// used to be: num_constr - _nF_xTheta
 		}
 		
 		r_H.template segment<_m>(_m+(i-1)*offset+_n+_n) = 2*S_transp*z.template segment<_n>(_m+(i-1)*offset+_n) + 2*R*z.template segment<_m>(_m+(i-1)*offset+_n+_n) + r_vec[i] +
-				Fu_transp[i]*lambda.template segment<_nInp>(i*(_nInp+_nSt)) - 
-				Bm_transp*nu.template segment<_n>((i-1)*offset1+_n+_n) - B_transp*nu.template segment<_n>((i-1)*offset1+_n+_n+_n);		
+				Fu_transp[i]*lambda.template segment<_nInp>(i*(_nInp+_nSt)) -
+				Bm_transp*nu.template segment<_n>((i-1)*offset1+_n+_n) - B_transp*nu.template segment<_n>((i-1)*offset1+_n+_n+_n);
 	}
 	r_H.template segment<_n>(_m+(_N-1)*offset) = 2*Q_tilde_f*z.template segment<_n>(_m+(_N-1)*offset) + q_tilde_vec[_N-1] + nu.template segment<_n>((_N-1)*offset1);
 	
 	if(_pos_omega == _N)
 	{
-		r_H.template segment<_n>(_m+(_N-1)*offset+_n) = Fx_transp[_N-1]*lambda.template segment<_nSt>(_nInp+(_N-1)*(_nInp+_nSt)) + F_xTheta_transp*lambda.template segment<_nF_xTheta>(_N*(_nInp+_nSt)) + 
+		r_H.template segment<_n>(_m+(_N-1)*offset+_n) = Fx_transp[_N-1]*lambda.template segment<_nSt>(_nInp+(_N-1)*(_nInp+_nSt)) + F_xTheta_transp*lambda.template segment<_nF_xTheta>(_N*(_nInp+_nSt)) +
 				nu.template segment<_n>((_N-1)*offset1+_n);
 	}
 	else	//standard
@@ -570,7 +585,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResid
 	{
 		r_C.template segment<_n>(2*_n*i) = -Am_tilde*z.template segment<_n>((i-1)*offset+_m) - Bm_bar*z.template segment<_n>((i-1)*offset+_m+_n) -
 			Bm*z.template segment<_m>((i-1)*offset+_m+_n+_n) + z.template segment<_n>((i-1)*offset+_m+_n+_n+_m) - tm_tilde;
-		r_C.template segment<_n>(2*_n*i+_n) = -A_bar*z.template segment<_n>((i-1)*offset+_m+_n) - B*z.template segment<_m>((i-1)*offset+_m+_n+_n) + 
+		r_C.template segment<_n>(2*_n*i+_n) = -A_bar*z.template segment<_n>((i-1)*offset+_m+_n) - B*z.template segment<_m>((i-1)*offset+_m+_n+_n) +
 						z.template segment<_n>((i-1)*offset+_m+_n+_n+_m+_n) - s;
 	}
 	r_C = -r_C;
@@ -586,12 +601,12 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compResid
 	{	// compute (h - P*z)_i
 		x_bar_tmp = z.template segment<_n>((i-1)*offset+_m+_n);
 		c_tmp = z.template segment<_m>((i-1)*offset+_m+_n+_n);
-		r_P.template segment<_nSt>(_nInp + (i-1)*(_nInp+_nSt)) = -slack.template segment<_nSt>(_nInp + (i-1)*(_nInp+_nSt)) + fx[i-1] - Fx[i-1]*x_bar_tmp;	
+		r_P.template segment<_nSt>(_nInp + (i-1)*(_nInp+_nSt)) = -slack.template segment<_nSt>(_nInp + (i-1)*(_nInp+_nSt)) + fx[i-1] - Fx[i-1]*x_bar_tmp;
 		r_P.template segment<_nInp>(i*(_nInp+_nSt)) = -slack.template segment<_nInp>(i*(_nInp+_nSt)) + fu[i] - (Fu[i]*K*x_bar_tmp + Fu[i]*c_tmp);
 	}
 	// special case for last blocks
 	x_bar_tmp = z.template segment<_n>((_N-1)*offset+_m+_n);
-	c_tmp = z.template segment<_m>((_N-1)*offset+_m+_n+_n);	
+	c_tmp = z.template segment<_m>((_N-1)*offset+_m+_n+_n);
 	r_P.template segment<_nSt>(_nInp+(_N-1)*(_nSt+_nInp)) = -slack.template segment<_nSt>(_nInp+(_N-1)*(_nSt+_nInp)) + fx[_N-1] - (Fx[_N-1]*x_bar_tmp);
 	x_bar_tmp = z.template segment<_n>((_pos_omega-1)*offset+_m+_n);
 	r_P.template segment<_nF_xTheta>(_N*(_nSt+_nInp)) = -slack.template segment<_nF_xTheta>(_N*(_nSt+_nInp)) + f_xTheta - (F_xTheta*x_bar_tmp + F_theta*c_tmp);
@@ -928,14 +943,14 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY()
 			X[4+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega-1].template triangularView<Upper>().solve( U[4+(_pos_omega-2)*3] );
 			X_bar[5+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-2].template triangularView<Upper>().solve(U_bar[5+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-2]*X[4+(_pos_omega-2)*3]);
 			X[5+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve(U[5+(_pos_omega-2)*3] - LLambda1_transp*XO[0]);
-			X_bar[6+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[5+(_pos_omega-2)*3] - LLambda0_transp*XO[0]);		
+			X_bar[6+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[5+(_pos_omega-2)*3] - LLambda0_transp*XO[0]);
 		}
 		else	// if the off-diag element in P*z<h has no influence
 		{
 			X[4+(i-1)*3] = LOmicron_diag_transp[i].template triangularView<Upper>().solve( U[4+(i-1)*3] );
 			X_bar[5+(i-1)*5] = LRho_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[5+(i-1)*5] - LSigma_offDiag_transp[i-1]*X[4+(i-1)*3]);
 			X[5+(i-1)*3] = LOmicron_diag_transp[i+1].template triangularView<Upper>().solve(U[5+(i-1)*3]);
-			X_bar[6+(i-1)*5] = LRho_diag_transp[i].template triangularView<Upper>().solve(U_bar[6+(i-1)*5] - LSigma_offDiag_transp[i]*X[5+(i-1)*3]);		
+			X_bar[6+(i-1)*5] = LRho_diag_transp[i].template triangularView<Upper>().solve(U_bar[6+(i-1)*5] - LSigma_offDiag_transp[i]*X[5+(i-1)*3]);
 		}
 	}
 	
@@ -950,7 +965,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compY()
 		X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3] );
 		X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
 		X[5+(_N-2)*3] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(U[5+(_N-2)*3]);
-		X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5] - LSigma_offDiag_transp[_N-1]*X[5+(_N-2)*3]);		
+		X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5] - LSigma_offDiag_transp[_N-1]*X[5+(_N-2)*3]);
 	}
 	else if(_pos_omega == _N-1)	// compute col2 and col3
 	{
@@ -1067,7 +1082,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compBeta(
 	// 1. r_d_bar = -r_H - P'*(lambda.*r_P./t - r_T./t)
 	tmp = (lambda.cwiseProduct(r_P) - r_T).cwiseQuotient(slack);
 	// 1.1 r_d_bar = -r_H - P'*tmp
-	r_d_bar.template segment<_m>(0) = -r_H.template segment<_m>(0) - Fu_transp[0]*tmp.template segment<_nInp>(0);			
+	r_d_bar.template segment<_m>(0) = -r_H.template segment<_m>(0) - Fu_transp[0]*tmp.template segment<_nInp>(0);
 	int offset1 = 2*_n;	// offset required in nu for C'*nu
 	for (int i=1; i<= _N-1; i++)
 	{
@@ -1080,7 +1095,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compBeta(
 		else	// must add the additional term: F_xTheta'*d(.)
 		{
 			r_d_bar.template segment<_n>(_m+(_pos_omega-1)*offset+_n) = -r_H.template segment<_n>(_m+(i-1)*offset+_n)
-					- Fx_transp[_pos_omega-1]*tmp.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) - Fu_bar_transp[_pos_omega]*tmp.template segment<_nInp>(i*(_nInp+_nSt))  
+					- Fx_transp[_pos_omega-1]*tmp.template segment<_nSt>(_nInp+(i-1)*(_nInp+_nSt)) - Fu_bar_transp[_pos_omega]*tmp.template segment<_nInp>(i*(_nInp+_nSt))
 					- F_xTheta_transp * tmp.template segment<_nF_xTheta>(_N*(_nSt+_nInp)); // used to be: num_constr-_nF_xTheta;
 		}
 		
@@ -1121,7 +1136,7 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compBeta(
 	{
 		tmp2.template segment<_n>(_m+(_N-1)*offset) = LPi_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_bar.template segment<_n>(_m+(_N-1)*offset));
 		tmp2.template segment<_n>(_m+(_N-1)*offset+_n) = LRho_diag[_N-1].matrixLLT().triangularView<Lower>().solve(r_d_bar.template segment<_n>(_m+(_N-1)*offset+_n));
-		tmp2.template segment<_m>(_m+(_N-1)*offset+_n+_n) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(r_d_bar.template segment<_m>(_m+(_N-1)*offset+_n+_n) - LLambda0*tmp2.template segment<_n>(_m+(_pos_omega-1)*offset+_n) - LLambda1*tmp2.template segment<_m>(_m+(_pos_omega-1)*offset+_n+_n) );	
+		tmp2.template segment<_m>(_m+(_N-1)*offset+_n+_n) = LOmicron_diag[_N].matrixLLT().triangularView<Lower>().solve(r_d_bar.template segment<_m>(_m+(_N-1)*offset+_n+_n) - LLambda0*tmp2.template segment<_n>(_m+(_pos_omega-1)*offset+_n) - LLambda1*tmp2.template segment<_m>(_m+(_pos_omega-1)*offset+_n+_n) );
 	}
 	// cout << "tmp2:" << setprecision(30)<< endl << tmp2 << endl << endl;
 	
@@ -1168,13 +1183,13 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compBeta(
 
 	for(int i=1; i<= _N-1; i++)
 	{
-		beta.template segment<_n>(2*i*_n) = r_C.template segment<_n>(2*i*_n) + (    
-			- Am_tilde*tmp1.template segment<_n>(_m+(i-1)*offset) 
+		beta.template segment<_n>(2*i*_n) = r_C.template segment<_n>(2*i*_n) + (
+			- Am_tilde*tmp1.template segment<_n>(_m+(i-1)*offset)
 			- Bm_bar * tmp1.template segment<_n>(_m+(i-1)*offset+_n)
-			- Bm* tmp1.template segment<_m>(_m+(i-1)*offset+_n+_n) 
+			- Bm* tmp1.template segment<_m>(_m+(i-1)*offset+_n+_n)
 			+ tmp1.template segment<_n>(i*offset+_m)    );
 					
-		beta.template segment<_n>(2*i*_n+_n) = r_C.template segment<_n>( 2*i*_n+_n) + (  
+		beta.template segment<_n>(2*i*_n+_n) = r_C.template segment<_n>( 2*i*_n+_n) + (
 		    - A_bar * tmp1.template segment<_n>(_m+_n+(i-1)*offset)
 		    - B * tmp1.template segment<_m>(_m+_n+(i-1)*offset+_n)
 			+ tmp1.template segment<_n>(_m+(i)*offset+_n)        );
@@ -1360,12 +1375,12 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega> :: compDlamb
 	{	// compute (h - P*z)_i
 		x_bar_tmp = dz.template segment<_n>((i-1)*offset+_m+_n);
 		c_tmp = dz.template segment<_m>((i-1)*offset+_m+_n+_n);
-		tmp.template segment<_nSt>(_nInp + (i-1)*(_nInp+_nSt)) = Fx[i-1]*x_bar_tmp;	
+		tmp.template segment<_nSt>(_nInp + (i-1)*(_nInp+_nSt)) = Fx[i-1]*x_bar_tmp;
 		tmp.template segment<_nInp>(i*(_nInp+_nSt)) = (Fu[i]*K*x_bar_tmp + Fu[i]*c_tmp);
 	}
 	// special case for last blocks
 	x_bar_tmp = dz.template segment<_n>((_N-1)*offset+_m+_n);
-	c_tmp = dz.template segment<_m>((_N-1)*offset+_m+_n+_n);	
+	c_tmp = dz.template segment<_m>((_N-1)*offset+_m+_n+_n);
 	tmp.template segment<_nSt>(_nInp+(_N-1)*(_nSt+_nInp)) = (Fx[_N-1]*x_bar_tmp);
 	x_bar_tmp = dz.template segment<_n>((_pos_omega-1)*offset+_m+_n);
 	tmp.template segment<_nF_xTheta>(_N*(_nSt+_nInp)) = (F_xTheta*x_bar_tmp + F_theta*c_tmp);

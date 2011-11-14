@@ -10,13 +10,16 @@ cmake_minimum_required(VERSION 2.4.6)
 set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 
 FIND_PACKAGE(Eigen3 REQUIRED)
 
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_executable(mainLBmpcTP src/mainLBmpcTP.cpp)
+add_executable(example0 src/example0.cpp)
+add_executable(qr_example src/qr_example.cpp)
+target_link_libraries(qr_example rt)
 
 # ------------------------- Begin Generic CMake Variable Logging ------------------
 # if you are building in-source, this is the same as CMAKE_SOURCE_DIR, otherwise 
