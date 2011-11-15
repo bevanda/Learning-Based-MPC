@@ -18,7 +18,7 @@ using namespace std;
 int main(int argc, const char* argv[])
 {
   // ------ SPECIFY parameters -------
-  const int _N = 15; // MPC horizon
+  const int _N = 60; // MPC horizon
   const int _m = 3; // #input
   const int _n = 10; // #states
   const int _nSt = 20; // # state constraints
@@ -43,6 +43,16 @@ int main(int argc, const char* argv[])
     cerr << "Usage: " << argv[0] << " [path-to-ConstrParam.bin]" << endl;
     return 1;
   }
+
+#ifdef EIGEN_VECTORIZE
+  cout << "EIGEN_VECTORIZE set!" << endl;
+#else
+  cout << "EIGEN_VECTORIZE not set!" << endl;
+#endif
+#ifdef NDEBUG
+  cout << "NDEBUG set" << endl;
+#endif
+
   // -------- object instantiation -----------
   // fileName contains name of file with parameters
   // bool verbose: 1 or 0
@@ -96,11 +106,15 @@ int main(int argc, const char* argv[])
     clock_gettime(CLOCK_REALTIME, &end_rt);
     double duration = (end_rt.tv_sec - start_rt.tv_sec) + 1e-9*(end_rt.tv_nsec - start_rt.tv_nsec);
     cout << "status: " << status << " dur: " << duration;
+    cout << " iter: " << myObj.n_iter_last;
     if (!status)
     {
       u_opt = myObj.u_opt;
       cout << " u_opt: " << u_opt.transpose();
       cout << " x_hat: " << x_hat.transpose();
+      cout << endl;
+    } else
+    {
       cout << endl;
     }
 
