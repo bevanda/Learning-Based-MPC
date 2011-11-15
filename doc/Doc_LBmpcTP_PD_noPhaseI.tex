@@ -63,7 +63,7 @@ This instance of LBMPC is given by the following optimization problem:
 	 &	\bar{x}[m+i|m]= A \bar{x}[m+i-1|m] + B \check{u}[m+i-1|m]+s, \quad \forall i \nonumber\\
 	 & \check{u}[m+i-1|m] = K\bar{x}[m+i-1|m] + c[m+i-1|m], \quad \forall i \nonumber \\
 	 & F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}, \quad F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}, \quad \forall i \nonumber \\
-	 & F_{x\theta}\bar{x}[m+i|m] + F_\theta \theta \leq f_{x\theta},\quad \text{for some } j\in\{1,\ldots, N\} \nonumber
+	 & F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta},\quad \text{for some } j\in\{1,\ldots, N\} \nonumber
 \end{align}
 
 \noindent
@@ -73,13 +73,13 @@ We assume that the conditions given in table \ref{tab: matrix assumptions} hold.
 \caption{We make the following assumptions for \eqref{eq: LBMPC}.}
 \begin{center}
 \begin{tabular}{|l|l|}\hline
- $\tilde{Q}$ & positive definite\\ \hline
- $\tilde{Q}_f$ & positive definite\\ \hline
- $R$ & positive semidefinite \\ \hline
- $F_{\bar{x},i}$ & full rank \\ \hline
- $F_{\check{u},i}$ & full rank \\ \hline
- $F_\theta$ & full rank \\ \hline
- $K$ & $A+BK$ Schur \\ \hline
+ $\tilde{Q}\in\mathbb{R}^{n\times n}$ & positive definite\\ \hline
+ $\tilde{Q}_f\in\mathbb{R}^{n\times n}$ & positive definite\\ \hline
+ $R\in\mathbb{R}^{m\times m}$ & positive semidefinite \\ \hline
+ $F_{\bar{x},i}\in\mathbb{R}^{\texttt{\_nSt}\times n}$ & full rank \\ \hline
+ $F_{\check{u},i}\in\mathbb{R}^{\texttt{\_nInp}\times m}$ & full rank \\ \hline
+ $F_\theta\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times m}$ & full rank \\ \hline
+ $K\in\mathbb{R}^{m\times n}$ & $A+BK$ Schur \\ \hline
 \end{tabular}
 \end{center}
 \label{tab: matrix assumptions}
@@ -164,34 +164,34 @@ In appendix \ref{app: Init.m}, a typical implementation of the \texttt{Init.m} f
 \begin{tabular}{|l|l|l|}\hline
 {\bf MATLAB variable} & description & typical range/value \\ \hline\hline
 
- \texttt{N} & length of MPC horizon & \\ \hline
- \texttt{m} & number of inputs & \\ \hline
- \texttt{n} & number of states & \\ \hline \hline
+ \texttt{N} $\in\mathbb{N}$ & length of MPC horizon & \\ \hline
+ \texttt{m} $\in\mathbb{N}$ & number of inputs & \\ \hline
+ \texttt{n} $\in\mathbb{N}$ & number of states & \\ \hline \hline
  
- \texttt{fileName} & name of binary file that stores the matrices and scalars defined below. \\ \hline \hline
+ \texttt{fileName} & name of binary file that stores the matrices and scalars defined below. & \\ \hline \hline
  
- \texttt{A} & linear dynamics matrix: $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
- \texttt{B} & input-state dynamics matrix: $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
- \texttt{s} & affine offset in state dynamics:  $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
- \texttt{K} & feedback gain matrix, $\check{u}=K\bar{x}+c$, $A+BK$ is stable & \\ \hline \hline
+ \texttt{A} $\in\mathbb{R}^{n\times n}$ & linear dynamics matrix: $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
+ \texttt{B} $\in\mathbb{R}^{n\times m}$ & input-state dynamics matrix: $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
+ \texttt{s} $\in\mathbb{R}^{n}$ & affine offset in state dynamics:  $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
+ \texttt{K} $\in\mathbb{R}^{m\times n}$  & feedback gain matrix, $\check{u}=K\bar{x}+c$, $A+BK$ is stable & \\ \hline \hline
   
- \texttt{Q\_tilde} & p.d. weight matrix for state & \\ \hline
- \texttt{Q\_tilde\_f} & p.d. weight matrix for final state & \\ \hline
- \texttt{R} & p.s.d. weight matrix on input & \\ \hline
- \texttt{Fx\{$i$\}} & $F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}$, full-rank, $i=1,\ldots,N$ & \\ \hline
- \texttt{fx\{$i$\}} & $F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}$ & \\ \hline
- \texttt{Fu\{$i$\}} & $F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}$, full-rank, $i=0,\ldots,N-1$ & \\ \hline
- \texttt{fu\{$i$\}} & $F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}$ & \\ \hline
- \texttt{F\_xTheta} & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline
- \texttt{F\_theta} & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$, full-rank & \\ \hline
- \texttt{f\_xTheta} & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline \hline
+ \texttt{Q\_tilde} $\in\mathbb{R}^{n\times n}$ & p.d. weight matrix for state & \\ \hline
+ \texttt{Q\_tilde\_f} $\in\mathbb{R}^{n\times n}$ & p.d. weight matrix for final state & \\ \hline
+ \texttt{R} $\in\mathbb{R}^{m\times m}$ & p.s.d. weight matrix on input & \\ \hline
+ \texttt{Fx\{$i$\}} $\in\mathbb{R}^{\texttt{\_nSt}\times n}$ & $F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}$, full-rank, $i=1,\ldots,N$ & \\ \hline
+ \texttt{fx\{$i$\}} $\in\mathbb{R}^{\texttt{\_nSt}}$ & $F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}$ & \\ \hline
+ \texttt{Fu\{$i$\}} $\in\mathbb{R}^{\texttt{\_nInp}\times m}$ & $F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}$, full-rank, $i=0,\ldots,N-1$ & \\ \hline
+ \texttt{fu\{$i$\}} $\in\mathbb{R}^{\texttt{\_nInp}}$ & $F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}$ & \\ \hline
+ \texttt{F\_xTheta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times n}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline
+ \texttt{F\_theta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times m}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$, full-rank & \\ \hline
+ \texttt{f\_xTheta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline \hline
 
- \texttt{n\_iter} & max. number of Newton steps to solve \eqref{eq: reformulation} & $[50,200]$ \\ \hline
- \texttt{reg} & regularization coefficient to render Matrix $H$ in \eqref{eq: reformulation} positive definite & $[0,0.1]$, depends on $H$ \\ \hline
- \texttt{resNorm\_H} & $\epsilon_H$, necessary stopping criteria for $\|r_H\|$, \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
- \texttt{resNorm\_C} & $\epsilon_C$, necessary stopping criteria for $\|r_C\|$, \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
- \texttt{resNorm\_P} & $\epsilon_P$, necessary stopping criteria for $\|r_P\|$, \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
- \texttt{muNorm} & $\epsilon_\mu$, necessary stopping criteria for $\mu$, \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
+ \texttt{n\_iter} $\in\mathbb{N}$ & max. number of Newton steps to solve \eqref{eq: reformulation} & $[50,200]$ \\ \hline
+ \texttt{reg} $\in\mathbb{R}$  & regularization coefficient to render Matrix $H$ in \eqref{eq: reformulation} positive definite & $[0,0.1]$, depends on $H$ \\ \hline
+ \texttt{resNorm\_H}  $\in\mathbb{R}$& $\epsilon_H$, necessary stopping criteria for $\|r_H\|$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
+ \texttt{resNorm\_C} $\in\mathbb{R}$ & $\epsilon_C$, necessary stopping criteria for $\|r_C\|$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
+ \texttt{resNorm\_P} $\in\mathbb{R}$ & $\epsilon_P$, necessary stopping criteria for $\|r_P\|$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
+ \texttt{muNorm} $\in\mathbb{R}$ & $\epsilon_\mu$, necessary stopping criteria for $\mu$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
 
 \end{tabular}
 \end{center}
