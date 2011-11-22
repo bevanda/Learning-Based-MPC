@@ -156,7 +156,7 @@ disp('Terminal set polytope:');
 term_poly
 
 % x-theta constraints:
-F_xTheta = F_w(:, n);
+F_xTheta = F_w(:, 1:n);
 F_theta = F_w(:,n+1:n+m);
 f_xTheta = h_w;
 

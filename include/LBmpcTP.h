@@ -799,7 +799,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
         if (isnan(dz[i]))
         {
           if (verbose)
-            cout << "NAN detected during iteration number " << itNewton << endl;
+          cout << "NAN detected during iteration number " << itNewton << endl;
           u_opt = K * (*x_hat) + z.template segment<_m> (0);
           return 5;
         }
