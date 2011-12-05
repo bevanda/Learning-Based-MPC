@@ -5,11 +5,23 @@
 % techreport = internal reports, not yet published
 
 
+
+
 @TechReport{Aswani2011LBMPC,
 author = {Anil Aswani and Humberto Gonzalez and Shankar S. Sastry and Claire Tomlin},
 title = {Provable Safe and Robust Learning-Based Model Predictive Control} ,
 institution = {Department of Electrical Engineering and Computer Sciences, University of California, Berkeley},
 year = {2011}
+}
+
+@INPROCEEDINGS{Bartlett2000ASMvsIPM, 
+author={R. A. Bartlett, and A. W\''achter and L. T. Biegler}, 
+booktitle={American Control Conference, 2000. Proceedings of the 2000}, 
+title={Active set vs. interior point strategies for model predictive control}, 
+year={2000}, 
+volume={6}, 
+pages={4229 -4233 vol.6}, 
+keywords={active set method;interior point method;linearization;model predictive control;nonlinear control systems;quadratic programming;receding time horizon;approximation theory;linearisation techniques;matrix algebra;nonlinear control systems;predictive control;quadratic programming;}
 }
 
 @Article {Bemporad2002ExplLGQ,
@@ -39,6 +51,77 @@ year = {2004},
 edition = {1st}
 }
 
+@INPROCEEDINGS{Cho2003, 
+author={E.G. Cho and K.A. Thoney and T.J. Hodgson and R.E. King}, 
+booktitle={Simulation Conference, 2003. Proceedings of the 2003 Winter}, 
+title={Rolling horizon scheduling of multi-factory supply chains}, 
+year={2003}, 
+month={dec.}, 
+volume={2}, 
+pages={ 1409 -- 1416}
+}
+
+@Misc{CPLEX,
+author = {Available: http://www.ibm.com/software/integration/ optimization/cplex-optimization-studio/},
+title = {CPLEX},
+howpublished = {ONLINE}
+}
+
+
+@Book{Fiacco1968,
+author = {Anthony V. Fiacco and Garth P. McCormick},
+title = {Nonlinear Programming: Sequential Unconstrained Minimization Techniques},
+publisher = {John Wiley and Sons},
+year = {1968},
+address = {New York}
+}
+
+@Book{Fletcher1987,
+author = {Roger Fletcher},
+title = {Practical Methods of Optimization},
+publisher = {Wiley},
+year = {1987},
+edition = {2}
+}
+
+
+@InProceedings{Frisch1955,
+author = {K. R. Frisch},
+title = {The logarithmic potential method of convex programming},
+year = {1955},
+organization = {University Institute of Economics, Oslo, Norway},
+publisher = {unpublished manuscript}
+}
+
+@Article{Garcia1988,
+author = {Carlos E. Garcia and David M. Prett and Manfred Morari},
+title = {Model predictive control: Theory and practice -- A survey},
+journal = {Automatica},
+year = {1989},
+volume = {25},
+number = {3},
+pages = {335--348}
+}
+
+@Article{Gertz2003OOQP,
+author = {E. M. Gertz and S. J. Wright},
+title = {Object-Oriented Software for Quadratic Programming},
+journal = {ACM TRANSACTIONS ON MATHEMATICAL SOFTWARE},
+year = {2003},
+volume = {29},
+number = {1},
+pages = {58-81}
+}
+
+@Manual{Gill1986LSSOL,
+title = {LSSOL 1.0 Uers's Guide},
+author = {P. E. Gill and S. J. Hammerling and W. Murray and M. A. Saunders and M. H. Wright},
+organization = {Stanford Systems Optimization Laboratory},
+year = {1986}
+}
+
+
+
 @Booklet{Jorgensen2006,
 author = {John Bagterp Jørgensen},
 title = {Quadratic Optimization, Primal-Dual Interior-Point Algorithm},
@@ -47,16 +130,32 @@ month = {November},
 year = {2006}
 }
 
+@PhdThesis{Herzog2005,
+author = {Florian Herzog},
+title = {Strategic portfolio management for long-term investments},
+school = {ETH Zurich},
+year = {2005};
+address = {Zurich}
+}
+
+
+@Article{Karmakar1984,
+author = {Narendra Karmakar},
+title = {A new polynomial time algorithm for linear programming},
+journal = {Combinatorica 4},
+year = {1984},
+pages = {373--395}
+}
+
+
 @Article{Kolmanovsky1998,
 	author = {Ilya Kolmanovsky and Elmer G. Gilbert},
 	title = {Theory and computation of disturbance invariant sets for discrete-time linear systems},
 	journal = {Mathematical Problems in Engineering},
 	year = {1998},
-	key = {10.1155/S1024123X98000866},
 	volume = {4},
 	number = {4},
 	pages = {317-367},
-	url = {http://dx.doi.org/10.1155/S1024123X98000866}
 }
 
 @MastersThesis{Krueth2008,
@@ -66,6 +165,15 @@ school = {Technical University of Denmark},
 year = {2008}
 }
 
+@Book{Kwon2005,
+author = {W. H. Kwon and S. Han},
+title = {Receding Horizon Control},
+publisher = {Springer Verlag},
+year = {2005},
+OPTaddress = {New York}
+}
+
+
 @article{Limon2008MPCtrackingConstrainedLS,
 	title = {MPC for tracking piecewise constant references for constrained linear systems},
 	journal = {Automatica},
@@ -74,8 +182,6 @@ year = {2008}
 	pages = {2382 - 2387},
 	year = {2008},
 	issn = {0005-1098},
-	doi = {10.1016/j.automatica.2008.01.023},
-	url = {http://www.sciencedirect.com/science/article/pii/S0005109808001106},	
 	author = {D. Limon and I. Alvarado and T. Alamo and E.F. Camacho},
 	keywords = {Model predictive control},
 	keywords = {State and input constraints},
@@ -93,6 +199,12 @@ year = {2008}
  	pages={248--260}
 }
 
+@Misc{LSSOL,
+author = {available: http://www.stanford.edu/group/SOL/lssol.htm},
+title = {LSSOL},
+OPThowpublished = {online}
+}
+
 @Article{Mehrotra1992PDIPM,
 author = {Sanjay Mehrotra},
 title = {On the implementation of a primal-dual interior point method},
@@ -101,6 +213,44 @@ year = {1992},
 volume = {2},
 number = {4},
 pages = {575--601}
+}
+
+
+@Article{Meszros2008NumIssueIPM,
+author = {Csaba M\'esz\'ros},
+title = {On Numerical Issues of Interior Point Methods},
+journal = {SIAM Journal on Matrix Analysis and Applications},
+year = {2008},
+volume = {30},
+number = {1},
+pages = {223-235}
+}
+
+
+@Article {Monteiro1989_1,
+   author = {Renato D. C. Monteiro and Ilan Adler},
+   affiliation = {Department of Industrial Engineering and Operations Research University of California 94720 Berkeley CA USA},
+   title = {Interior path following primal-dual algorithms. part I: Linear programming},
+   journal = {Mathematical Programming},
+   publisher = {Springer Berlin / Heidelberg},
+   keyword = {Mathematics and Statistics},
+   pages = {27-41},
+   volume = {44},
+   issue = {1},
+   year = {1989}
+}
+
+@article {Monteiro1989_2,
+   author = {Renato D. C. Monteiro and Ilan Adler},
+   affiliation = {Department of Industrial Engineering and Operations Research University of California 94720 Berkeley CA USA},
+   title = {Interior path following primal-dual algorithms. part II: Convex quadratic programming},
+   journal = {Mathematical Programming},
+   publisher = {Springer Berlin / Heidelberg},
+   keyword = {Mathematics and Statistics},
+   pages = {43-66},
+   volume = {44},
+   issue = {1},
+   year = {1989}
 }
 
 @Book{Nocedal2000NumOpt,
@@ -114,6 +264,13 @@ edition = {2nd},
 month = {April}
 }
 
+@PhdThesis{Ponceleon1991,
+author = {Dulce B. Poncele\'on},
+title = {Barrier Methods for Large-Scale Quadratic Programming},
+school = {Stanford University},
+year = {1991}
+}
+
 @article{Potra2000IPM,
 title = {Interior-point methods},
 journal = {Journal of Computational and Applied Mathematics},
@@ -121,9 +278,17 @@ volume = {124},
 number = {1-2},
 pages = {281 - 302},
 year = {2000},
-issn = {0377-0427},
-doi = {10.1016/S0377-0427(00)00433-7},
 author = {Florian A. Potra and Stephen J. Wright}
+}
+
+@Article{Qin03asurvey,
+author = {S. Joe Qin and Thomas A. Badgwell},
+title = {A survey of industrial model predictive control technology},
+journal = {Control Engineering Practice},
+year = {2003},
+volume = {11},
+number = {7},
+pages = {733--764}
 }
 
 @ARTICLE{Rao98IMP2MPC,
@@ -133,6 +298,23 @@ author = {Florian A. Potra and Stephen J. Wright}
     year = {1998},
     volume = {99},
     pages = {723--757}
+}
+
+@INPROCEEDINGS{Shahzad2010WellCondIPM, 
+author={A. Shahzad and E. C. Kerrigan and G. A. Constantinides}, 
+booktitle={Decision and Control (CDC), 2010 49th IEEE Conference on}, 
+title={A fast well-conditioned interior point method for predictive control}, 
+year={2010}, 
+month={dec.}, 
+pages={508 -513}, 
+keywords={approximate linear system;computational complexity;iterative method;predictive control;quadratic programming;well conditioned interior point method;iterative methods;linear systems;predictive control;quadratic programming;}
+}
+
+
+@Misc{SNOPT,
+author = {http://www.sbsi-sol-optimize.com/asp/sol\_product\_snopt.htm},
+title = {SNOPT},
+howpublished = {online}
 }
 
 @article {Spjotvold2007ContSelofQP,
@@ -146,9 +328,26 @@ author = {Florian A. Potra and Stephen J. Wright}
    pages = {177-189},
    volume = {134},
    issue = {2},
-   url = {http://dx.doi.org/10.1007/s10957-007-9215-z},
-   note = {10.1007/s10957-007-9215-z},
    year = {2007}
+}
+
+@InProceedings{Tondel01,
+author = {P. Tøndel and T.A. Johansen and A. Bemporad},
+booktitle={Decision and Control, 2001. Proceedings of the 40th IEEE Conference on}, 
+title = {An Algorithm for Multi-Parametric Quadratic Programming and Explicit MPC Solutions},
+pages = {1199 -1204},
+year = {2001},
+volume = {2},
+keywords={constrained linear model-predictive control problems;efficiency;explicit solutions;exploration strategy;multi-parametric piecewise linear solution;multi-parametric quadratic programming algorithm;parameter space subdivision;partitioning;polyhedral state-space partition;problem solving;state vector components;piecewise linear techniques;predictive control;problem solving;quadratic programming;state-space methods;}
+}
+
+@Manual{VanderbreiLOQO,
+title = {LOQO: An Interior Point Code for Quadratic Programming},
+author = {Robert J. Vanderbrei},
+organization = {Statistics and Operations Research, Princeton University},
+address = {SOR-94-15},
+month = {November},
+year = {1998}
 }
 
 @Article{Wang2010FastMPC,
@@ -162,251 +361,62 @@ pages = {267-278},
 month = {March}
 }
 
+@Book{Wittle1982,
+author = {P. Wittle},
+title = {Optimization Over Time},
+publisher = {Wiley},
+year = {1982},
+OPTaddress = {New York}
+}
+
+@Book{Wright1997PDIPM,
+author = {Stephen Wright},
+title = {Primal-Dual Interior-Point Methods},
+publisher = {SIAM, Society for Industrial and Applied Mathematics},
+year = {1997}
+}
+
+@Article{Wright1997StabAugSystemFact,
+author = {Stephen Wright},
+title = {Stability of Augmented System Factorizations in Interior-Point Methods},
+journal = {SIAM Journal on Matrix Analysis and Applications},
+year = {1997},
+volume = {18},
+number = {1},
+pages = {191-222}
+}
+
+@Article{Wright1995StabilityLinEqSolversIPM,
+author = {Stephen Wright},
+title = {Stability of Linear Equations Solvers in Interior-Point Methods},
+journal = {SIAM Journal on Matrix Analysis and Applications},
+year = {1995},
+volume = {16},
+number = {4},
+}
+
+
+
 @INPROCEEDINGS{Wright97applyingnew,
     author = {Stephen Wright},
     title = {Applying New Optimization Algorithms To Model Predictive Control},
-    booktitle = {Fifth International Conference on Chemical Process Control ? CPC V},
+    booktitle = {Fifth International Conference on Chemical Process Control -- CPC V},
     year = {1997},
     pages = {147--155},
     publisher = {CACHE Publications}
 }
 
-
-
-
-
-
-
-
-@ARTICLE{Boukhezzar,
-  author = {Boukhezzar, B. and Lupu, L. Siguerdidjane, H. and Hand, M.},
-  title = {Multivariable control strategy for variable speed, variable pitch
-	wind turbines},
-  journal = {Renewable Energy},
-  year = {2007},
-  volume = {32},
-  pages = {1273-1287},
-  number = {8},
-  month = {July},
-  owner = {burkart},
-  timestamp = {2010.09.08}
+@Article{Wright1999ModChol,
+author = {Stephen Wright},
+title = {Modified Cholesky factorizations in interior-point algorithms for linear programming},
+journal = {SIAM Journal on Optimization},
+year = {1999},
+volume = {9},
+number = {4},
+pages = {1159--1191}
 }
 
 
 
 
-
-
-@MISC{GlobWind,
-  author = {Global Wind Energy Council},
-  title = {Global Wind 2009 Report},
-  howpublished = {Annual Report},
-  month = {March},
-  year = {2010},
-  owner = {burkart},
-  timestamp = {2010.09.07}
-}
-
-@TECHREPORT{HansenA,
-  author = {Hansen, A.D. and Jauch, C. and Sørensen, P. and Iov, F. and Blaabjerg,
-	F.},
-  title = {Dynamic wind turbine models in power system simulation tool DIgSILENT},
-  institution = {Risø National Laboratory},
-  year = {2003},
-  month = {December},
-  note = {ISBN 87-550-3198-6},
-  owner = {burkart},
-  timestamp = {2010.09.08}
-}
-
-@TECHREPORT{HansenM,
-  author = {Hansen, M.H. and Hansen, A. and Larsen, T.J. and Øye, S. and Sørensen,
-	P. and Fuglsang, P.},
-  title = {Control design for a pitch-regulated, variable speed wind turbine},
-  institution = {Risø National Laboratory},
-  year = {2005},
-  month = {January},
-  note = {ISBN 87-550-3409-8},
-  owner = {burkart},
-  timestamp = {2010.09.08}
-}
-
-@MASTERSTHESIS{Henriksen,
-  author = {Henriksen, L.C.},
-  title = {Model Predictive Control of a Wind
-	
-	Turbine},
-  school = {Technical University of Denmark},
-  year = {2007},
-  owner = {burkart},
-  timestamp = {2010.09.08}
-}
-
-@TECHREPORT{Hooft,
-  author = {van der Hooft, E.L. and Schaak, P. and van Engelen, T.G.},
-  title = {Wind turbine control algorithms},
-  institution = {ECN},
-  year = {2003},
-  number = {ECN-C-03-111},
-  month = {December},
-  owner = {burkart},
-  timestamp = {2010.09.08}
-}
-
-@ARTICLE{Hojstrup,
-  author = {Højstrup, J.},
-  title = {Velocity Spectra in the Unstable Planetary Boundary Layer},
-  journal = {Journal of Atmospheric Sciences},
-  year = {1982},
-  volume = {39},
-  pages = {2239-2248},
-  number = {10},
-  owner = {burkart},
-  timestamp = {2010.09.30}
-}
-
-@ARTICLE{Johnson,
-  author = {Johnson, K.E. and Pao, L.Y. and Balas, M.J. and Fingersh, L.J.},
-  title = {Control of variable-speed wind turbines: standard and adaptive techniques
-	for maximizing energy capture},
-  journal = {Control Systems Magazine, IEEE},
-  year = {2006},
-  volume = {26},
-  pages = { 70 - 81},
-  number = {3},
-  month = {June},
-  doi = {10.1109/MCS.2006.1636311},
-  issn = {0272-1708},
-  keywords = { adaptive control; asymptotic stability; rotor speed; time-varying
-	wind input; torque control; variable-speed wind turbines; adaptive
-	control; asymptotic stability; rotors; time-varying systems; torque
-	control; velocity control; wind turbines;}
-}
-
-@ARTICLE{Kanellos,
-  author = {Kanellos, F.D. and Hatziargyriou, N.D.},
-  title = {Control of Variable Speed Wind Turbines in Islanded Mode of Operation},
-  journal = {Energy Conversion, IEEE Transactions on},
-  year = {2008},
-  volume = {23},
-  pages = {535 -543},
-  number = {2},
-  month = {jun.},
-  doi = {10.1109/TEC.2008.921553},
-  issn = {0885-8969},
-  keywords = {control strategies;distributed generation;frequency control;islanded
-	operation mode;power electronics interface;variable speed wind turbines;voltage
-	control;distributed power generation;power generation control;wind
-	turbines;}
-}
-
-@BOOK{Khalil,
-  title = {Nonlinear Systems},
-  publisher = {Prentice Hall},
-  year = {2001},
-  author = {Khalil, H.K.},
-  edition = {Third},
-  note = {ISBN 978-0-19-9208241},
-  owner = {burkart},
-  timestamp = {2010.09.27}
-}
-
-@MASTERSTHESIS{Knudsen,
-  author = {Knudsen, T.},
-  title = {Regulering af vindmøller},
-  school = {Technical University of Denmark},
-  year = {1983},
-  owner = {burkart},
-  timestamp = {2010.09.30}
-}
-
-@ARTICLE{Kumar,
-  author = {Kumar, A. and Stol, K.},
-  title = {Simulating Feedback Linearization control of wind turbines using
-	high-order models},
-  journal = {Wind Energy},
-  year = {2010},
-  volume = {13},
-  pages = {419-432},
-  number = {5},
-  month = {July},
-  owner = {burkart},
-  timestamp = {2010.09.08}
-}
-
-@TECHREPORT{Lygeros,
-  author = {Lygeros, J.},
-  title = {Lecture Notes on Hybrid Systems},
-  institution = {Automatic Control Laboratory, ETH Zürich},
-  year = {2006},
-  month = {December},
-  howpublished = {Lecture Notes},
-  owner = {burkart},
-  timestamp = {2010.10.04}
-}
-
-@TECHREPORT{Ronner,
-  author = {Ronner, B.},
-  title = {Lecture Notes on Drive Systems I},
-  institution = {Power Electronics Laboratory, ETH Zürich},
-  year = {2008},
-  howpublished = {Lecture Notes},
-  owner = {burkart},
-  timestamp = {2010.10.04}
-}
-
-@BOOK{Sastry,
-  title = {Nonlinear Systems: Analysis, Stability, and Control},
-  publisher = {Springer},
-  year = {1999},
-  author = {Sastry, S.},
-  note = {ISBN 0-387-98513-1},
-  owner = {burkart},
-  timestamp = {2010.09.27}
-}
-
-@ARTICLE{Simoes,
-  author = {Simoes, M.G. and Bose, B.K. and Spiegel, R.J.},
-  title = {Design and performance evaluation of a fuzzy-logic-based variable-speed
-	wind generation system},
-  journal = {Industry Applications, IEEE Transactions on},
-  year = {1997},
-  volume = {33},
-  pages = {956 -965},
-  number = {4},
-  month = {jul.},
-  doi = {10.1109/28.605737},
-  issn = {0093-9994},
-  keywords = {3.5 kW;PWM AC-AC power conversion;cage-type induction generator;control
-	performance;control strategy development;double-sided PWM power converter;fuzzy
-	logic control;performance evaluation;unity power factor;utility grid;variable-speed
-	wind generation system;AC-AC power convertors;PWM power convertors;asynchronous
-	generators;control system synthesis;fuzzy control;machine control;machine
-	testing;power station control;wind power plants;wind turbines;}
-}
-
-@INPROCEEDINGS{Slootweg,
-  author = {Slootweg, J.G. and Polinder, H. and Kling, W.L.},
-  title = {Dynamic modelling of a wind turbine with doubly fed induction generator},
-  year = {2001},
-  volume = {1},
-  pages = {644 -649 vol.1},
-  doi = {10.1109/PESS.2001.970114},
-  journal = {Power Engineering Society Summer Meeting, 2001. IEEE},
-  keywords = {control simulation;doubly-fed induction generator;dynamic modelling;electrical
-	power systems;electricity generation;pitch angle;terminal voltage
-	controllers;voltage control;voltage source converter;wind turbine;wound
-	rotor induction generator;asynchronous generators;control system
-	analysis;machine theory;power convertors;power station control;rotors;voltage
-	control;wind power plants;wind turbines;}
-}
-
-@MASTERSTHESIS{Thomsen,
-  author = {Thomsen, S.C.},
-  title = {Nonlinear Control of a Wind Turbine},
-  school = {Technical University of Denmark},
-  year = {2006},
-  owner = {burkart},
-  timestamp = {2010.09.08}
-}
 

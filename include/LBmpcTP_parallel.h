@@ -1,8 +1,21 @@
 // Ompctp.h -- a Learning Based MPC class template
 // header for class LBmpcTP
-// date: November 8, 2011
+// date: November 25, 2011
 // author: Xiaojing ZHANG
-// version: 0.2
+// version: 0.3
+
+/* 
+NEW:
+a) adaptive step-length
+b) new termination condition
+c) detects (possible) infeasibility
+d) parallel programming with openmp: 	
+		i) gcc required "-fopenmp" flag, 
+		ii) use most recent gcc version
+		iii) disable hyperthreading
+		iv) set num_threads(2) to number of physical CPUs
+
+*/
 
 
 /* Remarks:
@@ -15,11 +28,6 @@
  11) compGamma(): use vector addition rather than piece by piece addition?
  12) directly use _arg from arguments rather than copying, esp. during step();
 
-
- Improvements:
- 1) different step length for primal and dual step (Numerical Optimization Nocedal/Wright)
- 2) different/better termination condition?
- 3) adaptive damping factor
  */
 
 #ifndef LBMPCTP_H_
@@ -30,6 +38,8 @@
 #include <Eigen/Dense>
 #include <iomanip>		// for setprecision (9)
 #include <cmath>
+#include <cfloat>		// for limits in floating numbers
+#include <omp.h>
 
 using namespace Eigen;
 using namespace std;
@@ -44,24 +54,26 @@ using namespace std;
  _nF_xTheta:	number of constraints of F_xTheta*x[m+N]+F_theta*theta <= f_xTheta
  _pos_omega: (x_bar[.+_pos_omega] , theta) \in Omega
  */
+
 const int Nhoriz = 60;
 
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
   class LBmpcTP
   {
-  private:
+private:
     // ----------- input variables ------------
     int n_iter; // number of Newton iterations for fixed kappa in PhaseII
     double alpha; // step size
     int offset; // = _n + _n + _m: often used variable
-    double resNorm_H;
-    double resNorm_C;
-    double resNorm_P;
-    double muNorm;
+    double eps_primal;
+    double eps_dual;
+    double eps_mu;
     double damp;
     double reg; // regularization term
     double compTime; // stores computational time
     bool verbose; // if set, program will print status updates
+	double denomPrimalFeas;	// denominator in feas check
+	double denomDualFeas;	// denominator in feas check
 
     Matrix<Type, _n, _n> A; // dynamics matrix A, n x n
     Matrix<Type, _n, _n> A_transp; // transpose of above
@@ -170,7 +182,9 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     Matrix<Type, 2 * _N * _n, 1> beta; // beta = r_C + C*(Phi\r_d_bar), where r_d_bar = -r_H - P'*(lambda.*r_P./t - r_T./t);
 
     // pointers might be dangerous b/c no control over length
-    const Matrix<Type, _n, 1> *x_star; // at each time step, we would like to track x_star[]
+    // const Matrix<Type, _n, 1> *x_star; // at each time step, we would like to track x_star[]
+	Matrix<Type, _n, 1> x_star[_N];
+
     Matrix<Type, _m, 1> u_star[_N]; // u_star[] is the least squares problem to track x_star[], but might not be feasible
 
     // ---------- private methods ----------
@@ -179,339 +193,45 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     void compResiduals(); // computes all 4 residua
     void compPhi();
     void compPhi_tilde(); // compute Cholesky decomposition
-    //void compY(); // Schur complement
-    inline void compY()
-    {
-      // computation of Y is done in three steps: Y = C * X
-      // 1. L*U = C'
-      // 2. L'*X = U --> L*L'*X = Phi*X = C', i.e. X = Phi_tilde * C'
-      // 3. C*X = C*Phi_tilde*C' = Y
+    void compY();
+    void compBeta(); // beta = -r_p + C*Phi_tilde*r_d;
+    void compL(); // L*L' = Y
+    void compDnu();
+    void compDz();
+    void compDlambda(); // dlambda = (P*dz - r_P + r_T./lambda) .* lambda ./ t
+    void compAlpha_affine();
+	void compAlpha_corrector();
+    double getTimer(); // method returning the computational time
+	void compDenomFeasCheck();
 
-      Matrix<Type, _n, _n> eye;
-      eye.setIdentity();
+public:
+    LBmpcTP(); // default constructor
+    // standard constructor
+    LBmpcTP(const char fileName[], bool verbose_arg);
 
-      // 1. Compute elements of Matrix U
-      // treat the first 2 U_bar and first 3 U specially
-      U[0] = LOmicron_diag[0].matrixLLT().triangularView<Lower> ().solve(-Bm_transp);
-      U_bar[0] = LPi_diag[0].matrixLLT().triangularView<Lower> ().solve(eye);
-
-      U[1] = LOmicron_diag[0].matrixLLT().triangularView<Lower> ().solve(-B_transp);
-      U_bar[1] = LRho_diag[0].matrixLLT().triangularView<Lower> ().solve(eye);
-      U[2] = LOmicron_diag[1].matrixLLT().triangularView<Lower> ().solve( /*zero*/-LSigma_offDiag[0] * U_bar[1]);
-
-      // remaining U_bar and U in middle have structures
-      for (int i = 1; i <= _N - 2; i++)
-      {
-        U_bar[2 + (i - 1) * 5] = LPi_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-Am_tilde_transp);
-        U_bar[3 + (i - 1) * 5] = LRho_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-Bm_bar_transp);
-        U[3 + (i - 1) * 3] = LOmicron_diag[i].matrixLLT().triangularView<Lower> ().solve(
-                                                                                         -Bm_transp - LSigma_offDiag[i
-                                                                                             - 1] * U_bar[3 + (i - 1)
-                                                                                             * 5]);
-        U_bar[4 + (i - 1) * 5] = LPi_diag[i].matrixLLT().triangularView<Lower> ().solve(eye);
-
-        U_bar[5 + (i - 1) * 5] = LRho_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-A_bar_transp);
-        U[4 + (i - 1) * 3] = LOmicron_diag[i].matrixLLT().triangularView<Lower> ().solve(
-                                                                                         -B_transp - LSigma_offDiag[i
-                                                                                             - 1] * U_bar[5 + (i - 1)
-                                                                                             * 5]);
-        U_bar[6 + (i - 1) * 5] = LRho_diag[i].matrixLLT().triangularView<Lower> ().solve(eye);
-        U[5 + (i - 1) * 3] = LOmicron_diag[i + 1].matrixLLT().triangularView<Lower> ().solve(
-        /*zero*/-LSigma_offDiag[i] * U_bar[6 + (i - 1) * 5]);
-      }
-
-      U_bar[2 + (_N - 2) * 5] = LPi_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-Am_tilde_transp);
-      U_bar[3 + (_N - 2) * 5] = LRho_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-Bm_bar_transp);
-      U[3 + (_N - 2) * 3] = LOmicron_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(
-                                                                                             -Bm_transp
-                                                                                                 - LSigma_offDiag[_N
-                                                                                                     - 2] * U_bar[3
-                                                                                                     + (_N - 2) * 5]);
-      U_bar[4 + (_N - 2) * 5] = LPi_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(eye);
-
-      U_bar[5 + (_N - 2) * 5] = LRho_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-A_bar_transp);
-      U[4 + (_N - 2) * 3] = LOmicron_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(
-                                                                                             -B_transp
-                                                                                                 - LSigma_offDiag[_N
-                                                                                                     - 2] * U_bar[5
-                                                                                                     + (_N - 2) * 5]);
-      U_bar[6 + (_N - 2) * 5] = LRho_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(eye);
-
-      if (_N == _pos_omega)
-        U[5 + (_N - 2) * 3] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-        /*zero*/-LSigma_offDiag[_N - 1] * U_bar[6 + (_N - 2) * 5]);
-      else
-      {
-        UO[0] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-        /*zero*/-LLambda0 * U_bar[1 + (_pos_omega - 1) * 5] - LLambda1 * U[2 + (_pos_omega - 1) * 3]);
-        UO[1] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-        /*zero*/-LLambda0 * U_bar[3 + (_pos_omega - 1) * 5] - LLambda1 * U[3 + (_pos_omega - 1) * 3]);
-        UO[2] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-        /*zero*/-LLambda0 * U_bar[5 + (_pos_omega - 1) * 5] - LLambda1 * U[4 + (_pos_omega - 1) * 3]);
-      }
-
-      /*
-       cout << "U[0]" << endl << U[0] << endl << endl;
-       cout << "U_bar[0]" << endl << U_bar[0] << endl << endl;
-       cout << "U[1]" << endl << U[1] << endl << endl;
-       cout << "U_bar[1]" << endl << U_bar[1] << endl << endl;
-       cout << "U[2]" << endl << U[2] << endl << endl;
-       for (int i=1; i<= _N-2; i++)
-       {
-       cout << "U_bar[" << 2+(i-1)*5 << "]" << endl << U_bar[2+(i-1)*5] << endl << endl ;
-       cout << "U_bar[" << 3+(i-1)*5 << "]" << endl << U_bar[3+(i-1)*5] << endl << endl ;
-       cout << "U[" << 3+(i-1)*3 << "]" << endl << U[3+(i-1)*3] << endl << endl;
-       cout << "U_bar[" << 4+(i-1)*5 << "]" << endl << U_bar[4+(i-1)*5] << endl << endl;
-
-       cout << "U_bar[" << 5+(i-1)*5 << "]" << endl << U_bar[5+(i-1)*5] << endl << endl ;
-       cout << "U[" << 4+(i-1)*3 << "]" << endl << U[4+(i-1)*3] << endl << endl ;
-       cout << "U_bar[" << 6+(i-1)*5 << "]" << endl << U_bar[6+(i-1)*5] << endl << endl ;
-       cout << "U[" << 5+(i-1)*3 << "]" << endl << U[5+(i-1)*3] << endl << endl ;
-       }
-       cout << "U_bar[" << 2+(_N-2)*5 << "]" << endl << U_bar[2+(_N-2)*5] << endl << endl ;
-       cout << "U_bar[" << 3+(_N-2)*5 << "]" << endl << U_bar[3+(_N-2)*5] << endl << endl ;
-       cout << "U[" << 3+(_N-2)*3 << "]" << endl << U[3+(_N-2)*3] << endl << endl;
-       cout << "U_bar[" << 4+(_N-2)*5 << "]" << endl << U_bar[4+(_N-2)*5] << endl << endl;
-
-       cout << "U_bar[" << 5+(_N-2)*5 << "]" << endl << U_bar[5+(_N-2)*5] << endl << endl ;
-       cout << "U[" << 4+(_N-2)*3 << "]" << endl << U[4+(_N-2)*3] << endl << endl ;
-       cout << "U_bar[" << 6+(_N-2)*5 << "]" << endl << U_bar[6+(_N-2)*5] << endl << endl ;
-
-       if (_N == _pos_omega)
-       {
-       cout << "U[" << 5+(_N-2)*3 << "]" << endl << U[5+(_N-2)*3] << endl << endl ;
-       }
-       else
-       {
-       cout << "UO[0]" << endl << UO[0] << endl << endl;
-       cout << "UO[1]" << endl << UO[1] << endl << endl;
-       cout << "UO[2]" << endl << UO[2] << endl << endl;
-       }
-       */
-
-      // 2. Compute elements in Matrix X
-      // treat the first 2 X_bar and first 3 X specially
-
-      if (_pos_omega != _N)
-      {
-        XO[0] = LOmicron_diag_transp[_N].template triangularView<Upper> ().solve(UO[0]);
-        XO[1] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(UO[1]);
-        XO[2] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(UO[2]);
-      }
-
-      X[0] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[0]);
-      X_bar[0] = LPi_diag_transp[0].template triangularView<Upper>().solve(U_bar[0]);
-
-      if (_pos_omega == 1) // build col1
-
-            {
-              X[1] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[1]);
-              X[2] = LOmicron_diag_transp[1].template triangularView<Upper>().solve(U[2] - LLambda1_transp*XO[0]);
-              X_bar[1] = LRho_diag_transp[0].template triangularView<Upper>().solve(U_bar[1] - LSigma_offDiag_transp[0]*X[2] - LLambda0_transp*XO[0]);
-            }
-            else
-            {
-              X[1] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[1]);
-              X[2] = LOmicron_diag_transp[1].template triangularView<Upper>().solve(U[2]);
-              X_bar[1] = LRho_diag_transp[0].template triangularView<Upper>().solve(U_bar[1] - LSigma_offDiag_transp[0]*X[2]);
-            }
-
-            // remaining X_bar and X have structures
-            // if(_N != _pos_omega), then the off-diagonal element incluences three columns, i.e col1, col2, col3
-            for (int i = 1; i <= _N-2; i++)
-            {
-              if (i == _pos_omega) // col2
-
-              {
-                X_bar[2+(_pos_omega-1)*5] = LPi_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[2+(_pos_omega-1)*5]);
-                X[3+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve(U[3+(_pos_omega-1)*3]-LLambda1_transp*XO[1]);
-                X_bar[3+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[3+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[3+(_pos_omega-1)*3] - LLambda0_transp*XO[1]);
-                X_bar[4+(_pos_omega-1)*5] = LPi_diag_transp[_pos_omega].template triangularView<Upper>().solve(U_bar[4+(_pos_omega-1)*5]);
-              }
-              else // standard
-
-              {
-                X_bar[2+(i-1)*5] = LPi_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[2+(i-1)*5]);
-                X[3+(i-1)*3] = LOmicron_diag_transp[i].template triangularView<Upper>().solve(U[3+(i-1)*3]);
-                X_bar[3+(i-1)*5] = LRho_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[3+(i-1)*5] - LSigma_offDiag_transp[i-1]*X[3+(i-1)*3]);
-                X_bar[4+(i-1)*5] = LPi_diag_transp[i].template triangularView<Upper>().solve(U_bar[4+(i-1)*5]);
-              }
-
-              if (i == _pos_omega) // col3
-
-              {
-                X[4+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve( U[4+(_pos_omega-1)*3] - LLambda1_transp*XO[2]);
-                X_bar[5+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[5+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[4+(_pos_omega-1)*3] - LLambda0_transp*XO[2]);
-                X[5+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega+1].template triangularView<Upper>().solve(U[5+(_pos_omega-1)*3]);
-                X_bar[6+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega]*X[5+(_pos_omega-1)*3]);
-              }
-              else if(i == _pos_omega-1) // col1
-
-              {
-                X[4+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega-1].template triangularView<Upper>().solve( U[4+(_pos_omega-2)*3] );
-                X_bar[5+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-2].template triangularView<Upper>().solve(U_bar[5+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-2]*X[4+(_pos_omega-2)*3]);
-                X[5+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve(U[5+(_pos_omega-2)*3] - LLambda1_transp*XO[0]);
-                X_bar[6+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[5+(_pos_omega-2)*3] - LLambda0_transp*XO[0]);
-              }
-              else // if the off-diag element in P*z<h has no influence
-
-              {
-                X[4+(i-1)*3] = LOmicron_diag_transp[i].template triangularView<Upper>().solve( U[4+(i-1)*3] );
-                X_bar[5+(i-1)*5] = LRho_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[5+(i-1)*5] - LSigma_offDiag_transp[i-1]*X[4+(i-1)*3]);
-                X[5+(i-1)*3] = LOmicron_diag_transp[i+1].template triangularView<Upper>().solve(U[5+(i-1)*3]);
-                X_bar[6+(i-1)*5] = LRho_diag_transp[i].template triangularView<Upper>().solve(U_bar[6+(i-1)*5] - LSigma_offDiag_transp[i]*X[5+(i-1)*3]);
-              }
-            }
-
-            // compute last two columns
-            if (_pos_omega == _N)
-            {
-              X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
-              X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
-              X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
-              X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
-
-              X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3] );
-              X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
-              X[5+(_N-2)*3] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(U[5+(_N-2)*3]);
-              X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5] - LSigma_offDiag_transp[_N-1]*X[5+(_N-2)*3]);
-            }
-            else if(_pos_omega == _N-1) // compute col2 and col3
-
-            {
-              X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
-              X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3] - LLambda1_transp*XO[1]);
-              X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3] - LLambda0_transp*XO[1]);
-              X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
-
-              X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3] - LLambda1_transp*XO[2]);
-              X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3] - LLambda0_transp*XO[2]);
-              X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
-            }
-            else // standard, no influence by off-diag element in P
-
-            {
-              X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
-              X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
-              X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
-              X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
-
-              X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3]);
-              X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
-              X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
-            }
-
-            /*
-             cout << "X[0]" << endl << X[0] << endl << endl;
-             cout << "X_bar[0]" << endl << X_bar[0] << endl << endl;
-             cout << "X[1]" << endl << X[1] << endl << endl;
-             cout << "X_bar[1]" << endl << X_bar[1] << endl << endl;
-             cout << "X[2]" << endl << X[2] << endl << endl;
-             for (int i=1; i<= _N-2; i++)
-             {
-             cout << "X_bar[" << 2+(i-1)*5 << "]" << endl << X_bar[2+(i-1)*5] << endl << endl ;
-             cout << "X_bar[" << 3+(i-1)*5 << "]" << endl << X_bar[3+(i-1)*5] << endl << endl ;
-             cout << "X[" << 3+(i-1)*3 << "]" << endl << X[3+(i-1)*3] << endl << endl;
-             cout << "X_bar[" << 4+(i-1)*5 << "]" << endl << X_bar[4+(i-1)*5] << endl << endl;
-
-             cout << "X_bar[" << 5+(i-1)*5 << "]" << endl << X_bar[5+(i-1)*5] << endl << endl ;
-             cout << "X[" << 4+(i-1)*3 << "]" << endl << X[4+(i-1)*3] << endl << endl ;
-             cout << "X_bar[" << 6+(i-1)*5 << "]" << endl << X_bar[6+(i-1)*5] << endl << endl ;
-             cout << "X[" << 5+(i-1)*3 << "]" << endl << X[5+(i-1)*3] << endl << endl ;
-             }
-             cout << "X_bar[2+(_N-2)*5]" << endl << X_bar[2+(_N-2)*5] << endl << endl ;
-             cout << "X_bar[3+(_N-2)*5]" << endl << X_bar[3+(_N-2)*5] << endl << endl ;
-             cout << "X[3+(_N-2)*3]" << endl << X[3+(_N-2)*3] << endl << endl;
-             cout << "X_bar[4+(_N-2)*5]" << endl << X_bar[4+(_N-2)*5] << endl << endl;
-
-             cout << "X_bar[5+(_N-2)*5]" << endl << X_bar[5+(_N-2)*5] << endl << endl ;
-             cout << "X[4+(_N-2)*3]" << endl << X[4+(_N-2)*3] << endl << endl ;
-             cout << "X_bar[6+(_N-2)*5]" << endl << X_bar[6+(_N-2)*5] << endl << endl ;
-             if (_pos_omega == _N)
-             {
-             cout << "X[5+(_N-2)*3]" << endl << X[5+(_N-2)*3] << endl << endl ;
-             }
-             else
-             {
-             cout << "XO[0]" << endl << XO[0] << endl << endl;
-             cout << "XO[1]" << endl << XO[1] << endl << endl;
-             cout << "XO[2]" << endl << XO[2] << endl << endl;
-             }
-             */
-
-            // 3. Compute Y = C*X
-            // compute first three Y separately
-            Y[0][0] = -Bm*X[0] + X_bar[0];
-
-            Y[0][1] = -Bm*X[1];
-            Y[1][1] = -B*X[1] + X_bar[1];
-
-            // compute rest by filling Y column by column; done for 2 neighboring rows
-            // we fill Y column by column, treating the first two columns specially
-            for (int i=1; i <= _N-1; i++)
-            {
-              Y[0][2*(i-1)+2] = X_bar[2+(i-1)*5];
-              Y[1][2*(i-1)+2] = X_bar[3+(i-1)*5];
-              Y[2][2*(i-1)+2] = -Am_tilde*X_bar[2+(i-1)*5] - Bm_bar*X_bar[3+(i-1)*5] - Bm*X[3+(i-1)*3] + X_bar[4+(i-1)*5];
-
-              Y[0][2*(i-1)+3] = X_bar[5+(i-1)*5];
-              Y[1][2*(i-1)+3] = -Bm_bar*X_bar[5+(i-1)*5] - Bm*X[4+(i-1)*3];
-              Y[2][2*(i-1)+3] = -A_bar*X_bar[5+(i-1)*5] - B*X[4+(i-1)*3] + X_bar[6+(i-1)*5];
-            }
-
-            /*
-             cout << "Y[0][0]" << endl << Y[0][0] << endl << endl;
-             cout << "Y[0][1]" << endl << Y[0][1] << endl << endl;
-             cout << "Y[1][1]" << endl << Y[1][1] << endl << endl;
-             for (int i=1; i <= _N-1; i++)
-             {
-             cout << "Y[0][2*(i-1)+2]" << endl << Y[0][2*(i-1)+2] << endl << endl;
-             cout << "Y[1][2*(i-1)+2]" << endl << Y[1][2*(i-1)+2] << endl << endl;
-             cout << "Y[2][2*(i-1)+2]" << endl << Y[2][2*(i-1)+2] << endl << endl;
-
-             cout << "Y[0][2*(i-1)+3]" << endl << Y[0][2*(i-1)+3] << endl << endl;
-             cout << "Y[1][2*(i-1)+3]" << endl << Y[1][2*(i-1)+3] << endl << endl;
-             cout << "Y[2][2*(i-1)+3]" << endl << Y[2][2*(i-1)+3] << endl << endl;
-             }
-             */
-          }
-
-          void compBeta(); // beta = -r_p + C*Phi_tilde*r_d;
-          void compL(); // L*L' = Y
-          void compDnu();
-          void compDz();
-          void compDlambda(); // dlambda = (P*dz - r_P + r_T./lambda) .* lambda ./ t
-          void compAlpha();
-          double getTimer(); // method returning the computational time
-
-        public:
-          LBmpcTP(); // default constructor
-          // standard constructor
-          LBmpcTP(const char fileName[], bool verbose_arg);
-
-          // "step" computes and returns status code
-          int step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
+    // "step" computes and returns status code
+    int step(const Matrix<Type, _n, _n> &Lm_arg, const Matrix<Type, _n, _m> &Mm_arg, const Matrix<Type, _n, 1> &tm_arg,
               const Matrix<Type, _n, 1> &x_hat_arg, const Matrix<Type, _n, 1> x_star_arg[]);
 
-          Matrix<Type, _m, 1> u_opt;
-          int n_iter_last; // number of iterations in previous step
-          //~LBmpcTP();	// destructor
+    Matrix<Type, _m, 1> u_opt;
+    int n_iter_last; // number of iterations in previous step
+    //~LBmpcTP();	// destructor
 
-          void get_A(Matrix<Type, _n, _n>& Aout)
-          {
-            Aout = A;
-          }
+    void get_A(Matrix<Type, _n, _n>& Aout)
+    {
+     	Aout = A;
+    }
 
-          void get_B(Matrix<Type, _n, _m>& Bout)
-          {
-            Bout = B;
-          }
+    void get_B(Matrix<Type, _n, _m>& Bout)
+    {
+    	Bout = B;
+    }
 
-          void get_s(Matrix<Type, _n, 1>& sout)
-          {
-            sout = s;
-          }
-        };
+    void get_s(Matrix<Type, _n, 1>& sout)
+    {
+        sout = s;
+    }
+};
 
         //  ==================== Implementation of Methods ==================
         // default constructor
@@ -528,15 +248,16 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     n_iter_last(0)
   {
     // first starting z can be modified
-    z.setConstant(0);
+	z.setConstant(0);
     nu.setConstant(1); // any nu good to initialize
-    lambda.setConstant(1);
-    slack.setConstant(1);
+    lambda.setConstant(1);	// strictly positive
+    slack.setConstant(1);	// strictly positive
     verbose = verbose_arg;
     // srand ( time(NULL) );
     // nu.setRandom(); nu = 100*nu;
     // lambda.setRandom(); lambda = 100*lambda;
     // slack.setRandom(); slack = 100*slack;
+	// z.setRandom(); z = 100*z;
 
     // -------------- read from binary file -----------------
     ifstream fin; // Definition input file object
@@ -550,10 +271,9 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     // read
     fin.read((char *)&n_iter, sizeof(int));
     fin.read((char *)&reg, sizeof(double));
-    fin.read((char *)&resNorm_H, sizeof(double));
-    fin.read((char *)&resNorm_C, sizeof(double));
-    fin.read((char *)&resNorm_P, sizeof(double));
-    fin.read((char *)&muNorm, sizeof(double));
+    fin.read((char *)&eps_primal, sizeof(double));
+    fin.read((char *)&eps_dual, sizeof(double));
+    fin.read((char *)&eps_mu, sizeof(double));
 
     // read A
     for (int i = 0; i <= _n - 1; i++)
@@ -627,7 +347,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 
     fin.close(); // close file
 
-    damp = 0.95;
+    damp = 0.999;
 
     offset = _n + _n + _m;
     A_transp = A.transpose();
@@ -656,10 +376,9 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
      // test output
      cout << "n_iter: " << n_iter << endl << endl;
      cout << "reg: " << reg << endl << endl;
-     cout << "resNorm_H: " << resNorm_H << endl << endl;
-     cout << "resNorm_C: " << resNorm_C << endl << endl;
-     cout << "resNorm_P: " << resNorm_P << endl << endl;
-     cout << "muNorm: " << muNorm << endl << endl;
+     cout << "eps_primal: " << eps_primal << endl << endl;
+     cout << "eps_dual: " << eps_dual << endl << endl;
+     cout << "eps_mu: " << eps_mu << endl << endl;
 
      cout << "A: " << endl << A << endl << endl;
      cout << "B: " << endl << B << endl << endl;
@@ -702,10 +421,14 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     if (verbose)
       cout << "*********** START OPTIMIZATION ***********" << endl;
 
+	// cout << "a0" << endl;
+
     // initialization
     x_hat = &x_hat_arg;
 
-    x_star = x_star_arg;
+	for (int i=0;i<=_N;i++)
+    	x_star[i] = x_star_arg[i];
+
     tm_tilde = tm_arg + s;
     Am_tilde = A + Lm_arg;
     Am_tilde_transp = Am_tilde.transpose();
@@ -716,14 +439,15 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 
     //update z from previous z, which was assumed to be optimal or created during instantiation of object
     z.template segment<(_N - 1) * (_m + _n + _n)> (0) = z.template segment<(_N - 1) * (_m + _n + _n)> (offset);
-    // ONLY TEMPORARILY
-    // z << -2 ,    3  ,   3  ,   1 ,   -2 ,    2 ,   -3 ,    0  ,  -1  ,   0  ,   5 ,    3  ,   5  ,  -3  ,   0  ,  -4  ,   3  ,   1  ,   4  ,   5  ,   4 ,   -1,
-    // -5  ,   0  ,  -3 ,   -3  ,  -2  ,  -4  ,   2  ,   2   ,  0  ,  -2  ,   3  ,   1 ,    5  ,   4  ,  -1  ,   0   , -2   ,  1  ,   3  ,   2 ,   -4   ,  3,
-    // -5   , -1   ,  2   ,  3  ,  -1   ,  2;
     // srand ( time(NULL) );
     // z.setRandom();
     // z = 100*z;
+
+	// cout << "a1" << endl;
     compRQ(); // compute u_star, x_star -> cost matrices
+	compDenomFeasCheck();	// computes norm of vectors g, h, b in cost and constraints
+
+	// cout << "a2" << endl;
     compInitPoints(); // computes more suitable initial points, also for infeasible start
     // but makes warm start less useful
 
@@ -734,6 +458,19 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     double mu_pd_p; // mu_p of for predictor step in primal-dual IPM
     Matrix<Type, _N * (_nSt + _nInp) + _nF_xTheta, 1> ones;
     bool condition;
+	double numPrimalFeas;	// = r_C.squaredNorm() + r_P_squaredNorm()
+	double numDualFeas;		// r_H.norm()
+	
+	// variables needed to detect infeasibility
+	double term_primal = 0;
+	double term_primal_old = DBL_MAX;
+	double term_dual;
+	double term_dual_old = DBL_MAX;
+	double term_mu_old;
+	int incr_term_primal = 0;
+	int incr_term_dual = 0;
+	u_opt = K * (*x_hat) + z.template segment<_m> (0);
+	// cout << "a3" << endl;
     do
     {
       itNewton++;
@@ -742,32 +479,28 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
         n_iter_last = itNewton - 1;
         if (verbose)
           cerr << "-------- more than " << n_iter << " Newton steps required" << endl;
-        if (r_H.norm() > resNorm_H)
+        if (term_primal > eps_primal*eps_primal)
         {
           if (verbose)
-            cout << "norm(r_H) > " << resNorm_H << endl;
+            cerr << "problem primal infeasible" << endl;
           return 1;
         }
-        else if (r_C.norm() > resNorm_C)
+        else if (term_primal > eps_dual)
         {
           if (verbose)
-            cout << "norm(r_C) > " << resNorm_C << endl;
+            cerr << "problem dual infeasible " << endl;
           return 2;
         }
-        else if (r_P.norm() > resNorm_P)
+        else if (mu_pd > eps_mu)
         {
           if (verbose)
-            cout << "norm(r_P) > " << resNorm_P << endl;
+            cerr << "complementary slackness not satisfied " << endl;
           return 3;
         }
-        else if (mu_pd > muNorm)
-        {
-          if (verbose)
-            cout << "mu > " << muNorm << endl;
-          return 4;
-        }
         else
-          return 6;
+			if (verbose)
+				cerr << "unknown error" << endl;
+          return 5;
         break;
       }
       // compute dz, dnu, dlambda, dslack
@@ -781,7 +514,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
       compDlambda(); // dlambda = (P*dz - r_P + r_T./lambda) .* lambda ./ t
       dslack = (r_T - slack.cwiseProduct(dlambda)).cwiseQuotient(lambda); // compute dslack = (r_T - slack.*dlambda) ./ lambda
 
-      compAlpha(); // computes steplength for predictor
+      compAlpha_affine(); // computes steplength for predictor
       mu_pd_p = (lambda + alpha * dlambda).dot(slack + alpha * dslack) / (_N * (_nSt + _nInp) + _nF_xTheta);
       sigma = pow(mu_pd_p / mu_pd, 3);
       r_T = r_T - dlambda.cwiseProduct(dslack) + ones.setConstant(sigma * mu_pd);
@@ -791,28 +524,69 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 
       compDlambda(); // dlambda = (P*dz - r_P + r_T./lambda) .* lambda ./ t
       dslack = (r_T - slack.cwiseProduct(dlambda)).cwiseQuotient(lambda); // compute dslack = (r_T - slack.*dlambda) ./ lambda
-      compAlpha();
-
+      compAlpha_corrector();	// compute step length corrector
+	// cout << "alpha in compAlpha_corrector: " << alpha << endl;
+	// return 0;
+	
       // update z, nu, lambda, slack
       for (int i = 0; i <= _N * (_m + _n + _n) + _m - 1; i++)
       {
         if (isnan(dz[i]))
         {
           if (verbose)
-          cout << "NAN detected during iteration number " << itNewton << endl;
-          u_opt = K * (*x_hat) + z.template segment<_m> (0);
+          	cout << "NAN detected during iteration number " << itNewton << endl;
           return 5;
         }
       }
-      z = z + damp * alpha * dz;
+      z = z + alpha * dz;
 
-      nu = nu + damp * alpha * dnu;
-      lambda = lambda + damp * alpha * dlambda;
-      slack = slack + damp * alpha * dslack;
+      nu = nu + alpha * dnu;
+      lambda = lambda + alpha * dlambda;
+      slack = slack + alpha * dslack;
 
       compResiduals(); // compute r_H, r_C, r_P, r_T
       mu_pd = lambda.dot(slack) / (_N * (_nInp + _nSt) + _nF_xTheta);
-      condition = (r_H.norm() > resNorm_H) || (r_C.norm() > resNorm_C) || (r_P.norm() > resNorm_P) || (mu_pd > muNorm);
+	  numPrimalFeas = r_C.squaredNorm() + r_P.squaredNorm();
+	numDualFeas = r_H.norm();
+	
+	// cout << "mu_pd: " << mu_pd << " | r_H.norm: " << r_H.norm() << " | r_C.norm: " << r_C.norm() << " | r_P.norm: " << r_P.norm() << endl;	
+    // condition = (r_H.norm() > eps_dual) || (r_C.norm() > eps_primal) || (r_P.norm() > eps_primal) || (mu_pd > eps_mu);
+	
+	// cout << "numPrimalFeas/denomPrimalFeas: " << numPrimalFeas/denomPrimalFeas << " | numDualFeas/denomDualFeas: " << numDualFeas/denomDualFeas << " | mu_pd: " << mu_pd << endl;
+	term_primal = numPrimalFeas/denomPrimalFeas;
+	if(term_primal > term_primal_old)
+		incr_term_primal++;
+	else	// reset
+		incr_term_primal = 0;
+		
+	term_dual = numDualFeas/denomDualFeas;
+	if (term_dual > term_dual_old)
+		incr_term_dual++;
+	else	// reset
+		incr_term_dual = 0;
+		
+	if ( ( term_primal < term_primal_old) && (term_dual < term_dual_old)  && (mu_pd < term_mu_old))
+		u_opt = K * (*x_hat) + z.template segment<_m> (0);	// get the next best u_opt
+		
+	if (incr_term_primal > 2)
+	{
+		if (verbose)
+			cerr << "problem is primal infeasible" << endl;
+		return 1;
+	}
+	
+	if (incr_term_dual > 2)
+	{
+		if (verbose)
+			cerr << "problem is dual infeasible" << endl;
+		return 2;
+	}
+		
+	term_mu_old = mu_pd;
+	term_primal_old = term_primal;
+	term_dual_old = term_dual;
+	
+	condition = ( term_primal > eps_primal*eps_primal) || (term_dual > eps_dual)  || (mu_pd > eps_mu);
     } while (condition);
 
     if (verbose)
@@ -820,7 +594,8 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
       cout << " =====> computed optimal z_vector:" << endl << setprecision(30) << z << endl << endl;
       cout << "number of Newton iterations required: " << itNewton << endl << endl;
     }
-    u_opt = K * (*x_hat) + z.template segment<_m> (0);
+
+	u_opt = K * (*x_hat) + z.template segment<_m> (0);
     n_iter_last = itNewton;
     return 0;
   }
@@ -837,7 +612,11 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 
     // handle the cases in the middle, without the end, three block to deal with in each round
     int offset1 = 2 * _n; // offset required in nu for C'*nu
-    for (int i = 1; i <= _N - 1; i++)
+#pragma omp parallel num_threads(2)
+{
+	int i;
+	#pragma omp for 
+    for (i = 1; i <= _N - 1; i++)
     {
       r_H.template segment<_n> (_m + (i - 1) * offset) = 2 * Q_tilde * z.template segment<_n> (_m + (i - 1) * offset)
           + q_tilde_vec[i - 1] + nu.template segment<_n> ((i - 1) * offset1) - Am_tilde_transp
@@ -879,6 +658,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
                                                                                                            + _n + _n)
           - B_transp * nu.template segment<_n> ((i - 1) * offset1 + _n + _n + _n);
     }
+}
     r_H.template segment<_n> (_m + (_N - 1) * offset) = 2 * Q_tilde_f * z.template segment<_n> (_m + (_N - 1) * offset)
         + q_tilde_vec[_N - 1] + nu.template segment<_n> ((_N - 1) * offset1);
 
@@ -904,6 +684,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     // cout << setprecision(30) << "r_H" << endl << r_H << endl << endl;
 
     // 2. r_C = b - C*z;
+
     r_C.template segment<_n> (0) = -Bm * z.template segment<_m> (0) + z.template segment<_n> (_m) - (Am_tilde + Bm_bar)
         * (*x_hat) - tm_tilde;
     r_C.template segment<_n> (_n) = -B * z.template segment<_m> (0) + z.template segment<_n> (_m + _n) - (A_bar
@@ -1034,7 +815,11 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     Omicron[0] = 2 * R + Fu_transp[0] * d_diagU[0] * Fu[0] + reg * eyeM;
 
     // do the rest by computing three block and three block
-    for (int i = 1; i <= _N - 1; i++)
+#pragma omp parallel num_threads(2)
+{
+	int i;
+	#pragma omp for
+    for (i = 1; i <= _N - 1; i++)
     {
       if (i != _pos_omega)
       {
@@ -1050,6 +835,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
       Sigma[i - 1] = 2 * S + (Fu_bar_transp[i] * d_diagU[i] * Fu[i]);
       Omicron[i] = 2 * R + (Fu_transp[i] * d_diagU[i] * Fu[i]) + reg * eyeM;
     }
+}
 
     // special treatment for last block
     if (_pos_omega == _N)
@@ -1086,7 +872,12 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     // decompose Phi = L_Phi*L_Phi'
     LOmicron_diag[0].compute(Omicron[0]);
     LOmicron_diag_transp[0] = LOmicron_diag[0].matrixLLT().transpose();
-    for (int i = 1; i <= _N - 1; i++)
+
+#pragma omp parallel num_threads(2)
+{
+	int i;
+	#pragma omp for
+    for (i = 1; i <= _N - 1; i++)
     {
       LPi_diag[i - 1].compute(2 * Q_tilde);
       LPi_diag_transp[i - 1] = LPi_diag[i - 1].matrixLLT().transpose();
@@ -1109,6 +900,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
         LLambda1 = LLambda1_transp.transpose();
       }
     }
+}
 
     LPi_diag[_N - 1].compute(2 * Q_tilde_f);
     LPi_diag_transp[_N - 1] = LPi_diag[_N - 1].matrixLLT().transpose();
@@ -1156,302 +948,317 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 
 // ------- computes Y = C*Phi_tilde*C' ------------------------
 // ------------ works -----------------------------------------
-//template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
-//  void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compY()
-//  {
-//    // computation of Y is done in three steps: Y = C * X
-//    // 1. L*U = C'
-//    // 2. L'*X = U --> L*L'*X = Phi*X = C', i.e. X = Phi_tilde * C'
-//    // 3. C*X = C*Phi_tilde*C' = Y
-//
-//    Matrix<Type, _n, _n> eye;
-//    eye.setIdentity();
-//
-//    // 1. Compute elements of Matrix U
-//    // treat the first 2 U_bar and first 3 U specially
-//    U[0] = LOmicron_diag[0].matrixLLT().triangularView<Lower> ().solve(-Bm_transp);
-//    U_bar[0] = LPi_diag[0].matrixLLT().triangularView<Lower> ().solve(eye);
-//
-//    U[1] = LOmicron_diag[0].matrixLLT().triangularView<Lower> ().solve(-B_transp);
-//    U_bar[1] = LRho_diag[0].matrixLLT().triangularView<Lower> ().solve(eye);
-//    U[2] = LOmicron_diag[1].matrixLLT().triangularView<Lower> ().solve( /*zero*/-LSigma_offDiag[0] * U_bar[1]);
-//
-//    // remaining U_bar and U in middle have structures
-//    for (int i = 1; i <= _N - 2; i++)
-//    {
-//      U_bar[2 + (i - 1) * 5] = LPi_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-Am_tilde_transp);
-//      U_bar[3 + (i - 1) * 5] = LRho_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-Bm_bar_transp);
-//      U[3 + (i - 1) * 3] = LOmicron_diag[i].matrixLLT().triangularView<Lower> ().solve(
-//                                                                                       -Bm_transp - LSigma_offDiag[i
-//                                                                                           - 1]
-//                                                                                           * U_bar[3 + (i - 1) * 5]);
-//      U_bar[4 + (i - 1) * 5] = LPi_diag[i].matrixLLT().triangularView<Lower> ().solve(eye);
-//
-//      U_bar[5 + (i - 1) * 5] = LRho_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-A_bar_transp);
-//      U[4 + (i - 1) * 3]
-//          = LOmicron_diag[i].matrixLLT().triangularView<Lower> ().solve(
-//                                                                        -B_transp - LSigma_offDiag[i - 1] * U_bar[5
-//                                                                            + (i - 1) * 5]);
-//      U_bar[6 + (i - 1) * 5] = LRho_diag[i].matrixLLT().triangularView<Lower> ().solve(eye);
-//      U[5 + (i - 1) * 3] = LOmicron_diag[i + 1].matrixLLT().triangularView<Lower> ().solve(
-//      /*zero*/-LSigma_offDiag[i] * U_bar[6 + (i - 1) * 5]);
-//    }
-//
-//    U_bar[2 + (_N - 2) * 5] = LPi_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-Am_tilde_transp);
-//    U_bar[3 + (_N - 2) * 5] = LRho_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-Bm_bar_transp);
-//    U[3 + (_N - 2) * 3] = LOmicron_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(
-//                                                                                           -Bm_transp
-//                                                                                               - LSigma_offDiag[_N - 2]
-//                                                                                                   * U_bar[3 + (_N - 2)
-//                                                                                                       * 5]);
-//    U_bar[4 + (_N - 2) * 5] = LPi_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(eye);
-//
-//    U_bar[5 + (_N - 2) * 5] = LRho_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-A_bar_transp);
-//    U[4 + (_N - 2) * 3] = LOmicron_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(
-//                                                                                           -B_transp
-//                                                                                               - LSigma_offDiag[_N - 2]
-//                                                                                                   * U_bar[5 + (_N - 2)
-//                                                                                                       * 5]);
-//    U_bar[6 + (_N - 2) * 5] = LRho_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(eye);
-//
-//    if (_N == _pos_omega)
-//      U[5 + (_N - 2) * 3] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-//      /*zero*/-LSigma_offDiag[_N - 1] * U_bar[6 + (_N - 2) * 5]);
-//    else
-//    {
-//      UO[0] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-//      /*zero*/-LLambda0 * U_bar[1 + (_pos_omega - 1) * 5] - LLambda1 * U[2 + (_pos_omega - 1) * 3]);
-//      UO[1] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-//      /*zero*/-LLambda0 * U_bar[3 + (_pos_omega - 1) * 5] - LLambda1 * U[3 + (_pos_omega - 1) * 3]);
-//      UO[2] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
-//      /*zero*/-LLambda0 * U_bar[5 + (_pos_omega - 1) * 5] - LLambda1 * U[4 + (_pos_omega - 1) * 3]);
-//    }
-//
-//    /*
-//     cout << "U[0]" << endl << U[0] << endl << endl;
-//     cout << "U_bar[0]" << endl << U_bar[0] << endl << endl;
-//     cout << "U[1]" << endl << U[1] << endl << endl;
-//     cout << "U_bar[1]" << endl << U_bar[1] << endl << endl;
-//     cout << "U[2]" << endl << U[2] << endl << endl;
-//     for (int i=1; i<= _N-2; i++)
-//     {
-//     cout << "U_bar[" << 2+(i-1)*5 << "]" << endl << U_bar[2+(i-1)*5] << endl << endl ;
-//     cout << "U_bar[" << 3+(i-1)*5 << "]" << endl << U_bar[3+(i-1)*5] << endl << endl ;
-//     cout << "U[" << 3+(i-1)*3 << "]" << endl << U[3+(i-1)*3] << endl << endl;
-//     cout << "U_bar[" << 4+(i-1)*5 << "]" << endl << U_bar[4+(i-1)*5] << endl << endl;
-//
-//     cout << "U_bar[" << 5+(i-1)*5 << "]" << endl << U_bar[5+(i-1)*5] << endl << endl ;
-//     cout << "U[" << 4+(i-1)*3 << "]" << endl << U[4+(i-1)*3] << endl << endl ;
-//     cout << "U_bar[" << 6+(i-1)*5 << "]" << endl << U_bar[6+(i-1)*5] << endl << endl ;
-//     cout << "U[" << 5+(i-1)*3 << "]" << endl << U[5+(i-1)*3] << endl << endl ;
-//     }
-//     cout << "U_bar[" << 2+(_N-2)*5 << "]" << endl << U_bar[2+(_N-2)*5] << endl << endl ;
-//     cout << "U_bar[" << 3+(_N-2)*5 << "]" << endl << U_bar[3+(_N-2)*5] << endl << endl ;
-//     cout << "U[" << 3+(_N-2)*3 << "]" << endl << U[3+(_N-2)*3] << endl << endl;
-//     cout << "U_bar[" << 4+(_N-2)*5 << "]" << endl << U_bar[4+(_N-2)*5] << endl << endl;
-//
-//     cout << "U_bar[" << 5+(_N-2)*5 << "]" << endl << U_bar[5+(_N-2)*5] << endl << endl ;
-//     cout << "U[" << 4+(_N-2)*3 << "]" << endl << U[4+(_N-2)*3] << endl << endl ;
-//     cout << "U_bar[" << 6+(_N-2)*5 << "]" << endl << U_bar[6+(_N-2)*5] << endl << endl ;
-//
-//     if (_N == _pos_omega)
-//     {
-//     cout << "U[" << 5+(_N-2)*3 << "]" << endl << U[5+(_N-2)*3] << endl << endl ;
-//     }
-//     else
-//     {
-//     cout << "UO[0]" << endl << UO[0] << endl << endl;
-//     cout << "UO[1]" << endl << UO[1] << endl << endl;
-//     cout << "UO[2]" << endl << UO[2] << endl << endl;
-//     }
-//     */
-//
-//    // 2. Compute elements in Matrix X
-//    // treat the first 2 X_bar and first 3 X specially
-//
-//    if (_pos_omega != _N)
-//    {
-//      XO[0] = LOmicron_diag_transp[_N].template triangularView<Upper> ().solve(UO[0]);
-//      XO[1] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(UO[1]);
-//      XO[2] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(UO[2]);
-//    }
-//
-//    X[0] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[0]);
-//    X_bar[0] = LPi_diag_transp[0].template triangularView<Upper>().solve(U_bar[0]);
-//
-//    if (_pos_omega == 1) // build col1
-//
-//          {
-//            X[1] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[1]);
-//            X[2] = LOmicron_diag_transp[1].template triangularView<Upper>().solve(U[2] - LLambda1_transp*XO[0]);
-//            X_bar[1] = LRho_diag_transp[0].template triangularView<Upper>().solve(U_bar[1] - LSigma_offDiag_transp[0]*X[2] - LLambda0_transp*XO[0]);
-//          }
-//          else
-//          {
-//            X[1] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[1]);
-//            X[2] = LOmicron_diag_transp[1].template triangularView<Upper>().solve(U[2]);
-//            X_bar[1] = LRho_diag_transp[0].template triangularView<Upper>().solve(U_bar[1] - LSigma_offDiag_transp[0]*X[2]);
-//          }
-//
-//          // remaining X_bar and X have structures
-//          // if(_N != _pos_omega), then the off-diagonal element incluences three columns, i.e col1, col2, col3
-//          for (int i = 1; i <= _N-2; i++)
-//          {
-//            if (i == _pos_omega) // col2
-//
-//            {
-//              X_bar[2+(_pos_omega-1)*5] = LPi_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[2+(_pos_omega-1)*5]);
-//              X[3+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve(U[3+(_pos_omega-1)*3]-LLambda1_transp*XO[1]);
-//              X_bar[3+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[3+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[3+(_pos_omega-1)*3] - LLambda0_transp*XO[1]);
-//              X_bar[4+(_pos_omega-1)*5] = LPi_diag_transp[_pos_omega].template triangularView<Upper>().solve(U_bar[4+(_pos_omega-1)*5]);
-//            }
-//            else // standard
-//
-//            {
-//              X_bar[2+(i-1)*5] = LPi_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[2+(i-1)*5]);
-//              X[3+(i-1)*3] = LOmicron_diag_transp[i].template triangularView<Upper>().solve(U[3+(i-1)*3]);
-//              X_bar[3+(i-1)*5] = LRho_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[3+(i-1)*5] - LSigma_offDiag_transp[i-1]*X[3+(i-1)*3]);
-//              X_bar[4+(i-1)*5] = LPi_diag_transp[i].template triangularView<Upper>().solve(U_bar[4+(i-1)*5]);
-//            }
-//
-//            if (i == _pos_omega) // col3
-//
-//            {
-//              X[4+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve( U[4+(_pos_omega-1)*3] - LLambda1_transp*XO[2]);
-//              X_bar[5+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[5+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[4+(_pos_omega-1)*3] - LLambda0_transp*XO[2]);
-//              X[5+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega+1].template triangularView<Upper>().solve(U[5+(_pos_omega-1)*3]);
-//              X_bar[6+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega]*X[5+(_pos_omega-1)*3]);
-//            }
-//            else if(i == _pos_omega-1) // col1
-//
-//            {
-//              X[4+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega-1].template triangularView<Upper>().solve( U[4+(_pos_omega-2)*3] );
-//              X_bar[5+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-2].template triangularView<Upper>().solve(U_bar[5+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-2]*X[4+(_pos_omega-2)*3]);
-//              X[5+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve(U[5+(_pos_omega-2)*3] - LLambda1_transp*XO[0]);
-//              X_bar[6+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[5+(_pos_omega-2)*3] - LLambda0_transp*XO[0]);
-//            }
-//            else // if the off-diag element in P*z<h has no influence
-//
-//            {
-//              X[4+(i-1)*3] = LOmicron_diag_transp[i].template triangularView<Upper>().solve( U[4+(i-1)*3] );
-//              X_bar[5+(i-1)*5] = LRho_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[5+(i-1)*5] - LSigma_offDiag_transp[i-1]*X[4+(i-1)*3]);
-//              X[5+(i-1)*3] = LOmicron_diag_transp[i+1].template triangularView<Upper>().solve(U[5+(i-1)*3]);
-//              X_bar[6+(i-1)*5] = LRho_diag_transp[i].template triangularView<Upper>().solve(U_bar[6+(i-1)*5] - LSigma_offDiag_transp[i]*X[5+(i-1)*3]);
-//            }
-//          }
-//
-//          // compute last two columns
-//          if (_pos_omega == _N)
-//          {
-//            X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
-//            X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
-//            X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
-//            X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
-//
-//            X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3] );
-//            X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
-//            X[5+(_N-2)*3] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(U[5+(_N-2)*3]);
-//            X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5] - LSigma_offDiag_transp[_N-1]*X[5+(_N-2)*3]);
-//          }
-//          else if(_pos_omega == _N-1) // compute col2 and col3
-//
-//          {
-//            X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
-//            X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3] - LLambda1_transp*XO[1]);
-//            X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3] - LLambda0_transp*XO[1]);
-//            X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
-//
-//            X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3] - LLambda1_transp*XO[2]);
-//            X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3] - LLambda0_transp*XO[2]);
-//            X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
-//          }
-//          else // standard, no influence by off-diag element in P
-//
-//          {
-//            X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
-//            X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
-//            X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
-//            X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
-//
-//            X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3]);
-//            X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
-//            X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
-//          }
-//
-//          /*
-//           cout << "X[0]" << endl << X[0] << endl << endl;
-//           cout << "X_bar[0]" << endl << X_bar[0] << endl << endl;
-//           cout << "X[1]" << endl << X[1] << endl << endl;
-//           cout << "X_bar[1]" << endl << X_bar[1] << endl << endl;
-//           cout << "X[2]" << endl << X[2] << endl << endl;
-//           for (int i=1; i<= _N-2; i++)
-//           {
-//           cout << "X_bar[" << 2+(i-1)*5 << "]" << endl << X_bar[2+(i-1)*5] << endl << endl ;
-//           cout << "X_bar[" << 3+(i-1)*5 << "]" << endl << X_bar[3+(i-1)*5] << endl << endl ;
-//           cout << "X[" << 3+(i-1)*3 << "]" << endl << X[3+(i-1)*3] << endl << endl;
-//           cout << "X_bar[" << 4+(i-1)*5 << "]" << endl << X_bar[4+(i-1)*5] << endl << endl;
-//
-//           cout << "X_bar[" << 5+(i-1)*5 << "]" << endl << X_bar[5+(i-1)*5] << endl << endl ;
-//           cout << "X[" << 4+(i-1)*3 << "]" << endl << X[4+(i-1)*3] << endl << endl ;
-//           cout << "X_bar[" << 6+(i-1)*5 << "]" << endl << X_bar[6+(i-1)*5] << endl << endl ;
-//           cout << "X[" << 5+(i-1)*3 << "]" << endl << X[5+(i-1)*3] << endl << endl ;
-//           }
-//           cout << "X_bar[2+(_N-2)*5]" << endl << X_bar[2+(_N-2)*5] << endl << endl ;
-//           cout << "X_bar[3+(_N-2)*5]" << endl << X_bar[3+(_N-2)*5] << endl << endl ;
-//           cout << "X[3+(_N-2)*3]" << endl << X[3+(_N-2)*3] << endl << endl;
-//           cout << "X_bar[4+(_N-2)*5]" << endl << X_bar[4+(_N-2)*5] << endl << endl;
-//
-//           cout << "X_bar[5+(_N-2)*5]" << endl << X_bar[5+(_N-2)*5] << endl << endl ;
-//           cout << "X[4+(_N-2)*3]" << endl << X[4+(_N-2)*3] << endl << endl ;
-//           cout << "X_bar[6+(_N-2)*5]" << endl << X_bar[6+(_N-2)*5] << endl << endl ;
-//           if (_pos_omega == _N)
-//           {
-//           cout << "X[5+(_N-2)*3]" << endl << X[5+(_N-2)*3] << endl << endl ;
-//           }
-//           else
-//           {
-//           cout << "XO[0]" << endl << XO[0] << endl << endl;
-//           cout << "XO[1]" << endl << XO[1] << endl << endl;
-//           cout << "XO[2]" << endl << XO[2] << endl << endl;
-//           }
-//           */
-//
-//          // 3. Compute Y = C*X
-//          // compute first three Y separately
-//          Y[0][0] = -Bm*X[0] + X_bar[0];
-//
-//          Y[0][1] = -Bm*X[1];
-//          Y[1][1] = -B*X[1] + X_bar[1];
-//
-//          // compute rest by filling Y column by column; done for 2 neighboring rows
-//          // we fill Y column by column, treating the first two columns specially
-//          for (int i=1; i <= _N-1; i++)
-//          {
-//            Y[0][2*(i-1)+2] = X_bar[2+(i-1)*5];
-//            Y[1][2*(i-1)+2] = X_bar[3+(i-1)*5];
-//            Y[2][2*(i-1)+2] = -Am_tilde*X_bar[2+(i-1)*5] - Bm_bar*X_bar[3+(i-1)*5] - Bm*X[3+(i-1)*3] + X_bar[4+(i-1)*5];
-//
-//            Y[0][2*(i-1)+3] = X_bar[5+(i-1)*5];
-//            Y[1][2*(i-1)+3] = -Bm_bar*X_bar[5+(i-1)*5] - Bm*X[4+(i-1)*3];
-//            Y[2][2*(i-1)+3] = -A_bar*X_bar[5+(i-1)*5] - B*X[4+(i-1)*3] + X_bar[6+(i-1)*5];
-//          }
-//
-//          /*
-//           cout << "Y[0][0]" << endl << Y[0][0] << endl << endl;
-//           cout << "Y[0][1]" << endl << Y[0][1] << endl << endl;
-//           cout << "Y[1][1]" << endl << Y[1][1] << endl << endl;
-//           for (int i=1; i <= _N-1; i++)
-//           {
-//           cout << "Y[0][2*(i-1)+2]" << endl << Y[0][2*(i-1)+2] << endl << endl;
-//           cout << "Y[1][2*(i-1)+2]" << endl << Y[1][2*(i-1)+2] << endl << endl;
-//           cout << "Y[2][2*(i-1)+2]" << endl << Y[2][2*(i-1)+2] << endl << endl;
-//
-//           cout << "Y[0][2*(i-1)+3]" << endl << Y[0][2*(i-1)+3] << endl << endl;
-//           cout << "Y[1][2*(i-1)+3]" << endl << Y[1][2*(i-1)+3] << endl << endl;
-//           cout << "Y[2][2*(i-1)+3]" << endl << Y[2][2*(i-1)+3] << endl << endl;
-//           }
-//           */
-//        }
+template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
+void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compY()
+ {
+   // computation of Y is done in three steps: Y = C * X
+   // 1. L*U = C'
+   // 2. L'*X = U --> L*L'*X = Phi*X = C', i.e. X = Phi_tilde * C'
+   // 3. C*X = C*Phi_tilde*C' = Y
+
+   Matrix<Type, _n, _n> eye;
+   eye.setIdentity();
+
+   // 1. Compute elements of Matrix U
+   // treat the first 2 U_bar and first 3 U specially
+   U[0] = LOmicron_diag[0].matrixLLT().triangularView<Lower> ().solve(-Bm_transp);
+   U_bar[0] = LPi_diag[0].matrixLLT().triangularView<Lower> ().solve(eye);
+
+   U[1] = LOmicron_diag[0].matrixLLT().triangularView<Lower> ().solve(-B_transp);
+   U_bar[1] = LRho_diag[0].matrixLLT().triangularView<Lower> ().solve(eye);
+   U[2] = LOmicron_diag[1].matrixLLT().triangularView<Lower> ().solve( /*zero*/-LSigma_offDiag[0] * U_bar[1]);
+
+   // remaining U_bar and U in middle have structures
+#pragma omp parallel num_threads(2)
+{
+	int i;
+	#pragma omp for
+   for (i = 1; i <= _N - 2; i++)
+   {
+     U_bar[2 + (i - 1) * 5] = LPi_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-Am_tilde_transp);
+     U_bar[3 + (i - 1) * 5] = LRho_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-Bm_bar_transp);
+     U[3 + (i - 1) * 3] = LOmicron_diag[i].matrixLLT().triangularView<Lower> ().solve(
+                                                                                      -Bm_transp - LSigma_offDiag[i
+                                                                                          - 1]
+                                                                                          * U_bar[3 + (i - 1) * 5]);
+     U_bar[4 + (i - 1) * 5] = LPi_diag[i].matrixLLT().triangularView<Lower> ().solve(eye);
+
+     U_bar[5 + (i - 1) * 5] = LRho_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(-A_bar_transp);
+     U[4 + (i - 1) * 3]
+         = LOmicron_diag[i].matrixLLT().triangularView<Lower> ().solve(
+                                                                       -B_transp - LSigma_offDiag[i - 1] * U_bar[5
+                                                                           + (i - 1) * 5]);
+     U_bar[6 + (i - 1) * 5] = LRho_diag[i].matrixLLT().triangularView<Lower> ().solve(eye);
+     U[5 + (i - 1) * 3] = LOmicron_diag[i + 1].matrixLLT().triangularView<Lower> ().solve(
+     /*zero*/-LSigma_offDiag[i] * U_bar[6 + (i - 1) * 5]);
+   }
+}
+
+   U_bar[2 + (_N - 2) * 5] = LPi_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-Am_tilde_transp);
+   U_bar[3 + (_N - 2) * 5] = LRho_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-Bm_bar_transp);
+   U[3 + (_N - 2) * 3] = LOmicron_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(
+                                                                                          -Bm_transp
+                                                                                              - LSigma_offDiag[_N - 2]
+                                                                                                  * U_bar[3 + (_N - 2)
+                                                                                                      * 5]);
+   U_bar[4 + (_N - 2) * 5] = LPi_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(eye);
+
+   U_bar[5 + (_N - 2) * 5] = LRho_diag[_N - 2].matrixLLT().triangularView<Lower> ().solve(-A_bar_transp);
+   U[4 + (_N - 2) * 3] = LOmicron_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(
+                                                                                          -B_transp
+                                                                                              - LSigma_offDiag[_N - 2]
+                                                                                                  * U_bar[5 + (_N - 2)
+                                                                                                      * 5]);
+   U_bar[6 + (_N - 2) * 5] = LRho_diag[_N - 1].matrixLLT().triangularView<Lower> ().solve(eye);
+
+   if (_N == _pos_omega)
+     U[5 + (_N - 2) * 3] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
+     /*zero*/-LSigma_offDiag[_N - 1] * U_bar[6 + (_N - 2) * 5]);
+   else
+   {
+     UO[0] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
+     /*zero*/-LLambda0 * U_bar[1 + (_pos_omega - 1) * 5] - LLambda1 * U[2 + (_pos_omega - 1) * 3]);
+     UO[1] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
+     /*zero*/-LLambda0 * U_bar[3 + (_pos_omega - 1) * 5] - LLambda1 * U[3 + (_pos_omega - 1) * 3]);
+     UO[2] = LOmicron_diag[_N].matrixLLT().triangularView<Lower> ().solve(
+     /*zero*/-LLambda0 * U_bar[5 + (_pos_omega - 1) * 5] - LLambda1 * U[4 + (_pos_omega - 1) * 3]);
+   }
+
+   /*
+    cout << "U[0]" << endl << U[0] << endl << endl;
+    cout << "U_bar[0]" << endl << U_bar[0] << endl << endl;
+    cout << "U[1]" << endl << U[1] << endl << endl;
+    cout << "U_bar[1]" << endl << U_bar[1] << endl << endl;
+    cout << "U[2]" << endl << U[2] << endl << endl;
+    for (int i=1; i<= _N-2; i++)
+    {
+    cout << "U_bar[" << 2+(i-1)*5 << "]" << endl << U_bar[2+(i-1)*5] << endl << endl ;
+    cout << "U_bar[" << 3+(i-1)*5 << "]" << endl << U_bar[3+(i-1)*5] << endl << endl ;
+    cout << "U[" << 3+(i-1)*3 << "]" << endl << U[3+(i-1)*3] << endl << endl;
+    cout << "U_bar[" << 4+(i-1)*5 << "]" << endl << U_bar[4+(i-1)*5] << endl << endl;
+
+    cout << "U_bar[" << 5+(i-1)*5 << "]" << endl << U_bar[5+(i-1)*5] << endl << endl ;
+    cout << "U[" << 4+(i-1)*3 << "]" << endl << U[4+(i-1)*3] << endl << endl ;
+    cout << "U_bar[" << 6+(i-1)*5 << "]" << endl << U_bar[6+(i-1)*5] << endl << endl ;
+    cout << "U[" << 5+(i-1)*3 << "]" << endl << U[5+(i-1)*3] << endl << endl ;
+    }
+    cout << "U_bar[" << 2+(_N-2)*5 << "]" << endl << U_bar[2+(_N-2)*5] << endl << endl ;
+    cout << "U_bar[" << 3+(_N-2)*5 << "]" << endl << U_bar[3+(_N-2)*5] << endl << endl ;
+    cout << "U[" << 3+(_N-2)*3 << "]" << endl << U[3+(_N-2)*3] << endl << endl;
+    cout << "U_bar[" << 4+(_N-2)*5 << "]" << endl << U_bar[4+(_N-2)*5] << endl << endl;
+
+    cout << "U_bar[" << 5+(_N-2)*5 << "]" << endl << U_bar[5+(_N-2)*5] << endl << endl ;
+    cout << "U[" << 4+(_N-2)*3 << "]" << endl << U[4+(_N-2)*3] << endl << endl ;
+    cout << "U_bar[" << 6+(_N-2)*5 << "]" << endl << U_bar[6+(_N-2)*5] << endl << endl ;
+
+    if (_N == _pos_omega)
+    {
+    cout << "U[" << 5+(_N-2)*3 << "]" << endl << U[5+(_N-2)*3] << endl << endl ;
+    }
+    else
+    {
+    cout << "UO[0]" << endl << UO[0] << endl << endl;
+    cout << "UO[1]" << endl << UO[1] << endl << endl;
+    cout << "UO[2]" << endl << UO[2] << endl << endl;
+    }
+    */
+
+   // 2. Compute elements in Matrix X
+   // treat the first 2 X_bar and first 3 X specially
+
+   if (_pos_omega != _N)
+   {
+     XO[0] = LOmicron_diag_transp[_N].template triangularView<Upper> ().solve(UO[0]);
+     XO[1] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(UO[1]);
+     XO[2] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(UO[2]);
+   }
+
+   X[0] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[0]);
+   X_bar[0] = LPi_diag_transp[0].template triangularView<Upper>().solve(U_bar[0]);
+
+   if (_pos_omega == 1) // build col1
+
+         {
+           X[1] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[1]);
+           X[2] = LOmicron_diag_transp[1].template triangularView<Upper>().solve(U[2] - LLambda1_transp*XO[0]);
+           X_bar[1] = LRho_diag_transp[0].template triangularView<Upper>().solve(U_bar[1] - LSigma_offDiag_transp[0]*X[2] - LLambda0_transp*XO[0]);
+         }
+         else
+         {
+           X[1] = LOmicron_diag_transp[0].template triangularView<Upper>().solve(U[1]);
+           X[2] = LOmicron_diag_transp[1].template triangularView<Upper>().solve(U[2]);
+           X_bar[1] = LRho_diag_transp[0].template triangularView<Upper>().solve(U_bar[1] - LSigma_offDiag_transp[0]*X[2]);
+         }
+
+#pragma omp parallel num_threads(2)
+{
+	int i;
+	#pragma omp for
+         // remaining X_bar and X have structures
+         // if(_N != _pos_omega), then the off-diagonal element incluences three columns, i.e col1, col2, col3
+         for (i = 1; i <= _N-2; i++)
+         {
+           if (i == _pos_omega) // col2
+
+           {
+             X_bar[2+(_pos_omega-1)*5] = LPi_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[2+(_pos_omega-1)*5]);
+             X[3+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve(U[3+(_pos_omega-1)*3]-LLambda1_transp*XO[1]);
+             X_bar[3+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[3+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[3+(_pos_omega-1)*3] - LLambda0_transp*XO[1]);
+             X_bar[4+(_pos_omega-1)*5] = LPi_diag_transp[_pos_omega].template triangularView<Upper>().solve(U_bar[4+(_pos_omega-1)*5]);
+           }
+           else // standard
+
+           {
+             X_bar[2+(i-1)*5] = LPi_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[2+(i-1)*5]);
+             X[3+(i-1)*3] = LOmicron_diag_transp[i].template triangularView<Upper>().solve(U[3+(i-1)*3]);
+             X_bar[3+(i-1)*5] = LRho_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[3+(i-1)*5] - LSigma_offDiag_transp[i-1]*X[3+(i-1)*3]);
+             X_bar[4+(i-1)*5] = LPi_diag_transp[i].template triangularView<Upper>().solve(U_bar[4+(i-1)*5]);
+           }
+
+           if (i == _pos_omega) // col3
+
+           {
+             X[4+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve( U[4+(_pos_omega-1)*3] - LLambda1_transp*XO[2]);
+             X_bar[5+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[5+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[4+(_pos_omega-1)*3] - LLambda0_transp*XO[2]);
+             X[5+(_pos_omega-1)*3] = LOmicron_diag_transp[_pos_omega+1].template triangularView<Upper>().solve(U[5+(_pos_omega-1)*3]);
+             X_bar[6+(_pos_omega-1)*5] = LRho_diag_transp[_pos_omega].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-1)*5] - LSigma_offDiag_transp[_pos_omega]*X[5+(_pos_omega-1)*3]);
+           }
+           else if(i == _pos_omega-1) // col1
+
+           {
+             X[4+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega-1].template triangularView<Upper>().solve( U[4+(_pos_omega-2)*3] );
+             X_bar[5+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-2].template triangularView<Upper>().solve(U_bar[5+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-2]*X[4+(_pos_omega-2)*3]);
+             X[5+(_pos_omega-2)*3] = LOmicron_diag_transp[_pos_omega].template triangularView<Upper>().solve(U[5+(_pos_omega-2)*3] - LLambda1_transp*XO[0]);
+             X_bar[6+(_pos_omega-2)*5] = LRho_diag_transp[_pos_omega-1].template triangularView<Upper>().solve(U_bar[6+(_pos_omega-2)*5] - LSigma_offDiag_transp[_pos_omega-1]*X[5+(_pos_omega-2)*3] - LLambda0_transp*XO[0]);
+           }
+           else // if the off-diag element in P*z<h has no influence
+
+           {
+             X[4+(i-1)*3] = LOmicron_diag_transp[i].template triangularView<Upper>().solve( U[4+(i-1)*3] );
+             X_bar[5+(i-1)*5] = LRho_diag_transp[i-1].template triangularView<Upper>().solve(U_bar[5+(i-1)*5] - LSigma_offDiag_transp[i-1]*X[4+(i-1)*3]);
+             X[5+(i-1)*3] = LOmicron_diag_transp[i+1].template triangularView<Upper>().solve(U[5+(i-1)*3]);
+             X_bar[6+(i-1)*5] = LRho_diag_transp[i].template triangularView<Upper>().solve(U_bar[6+(i-1)*5] - LSigma_offDiag_transp[i]*X[5+(i-1)*3]);
+           }
+         }
+}
+
+         // compute last two columns
+         if (_pos_omega == _N)
+         {
+           X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
+           X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
+           X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
+           X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
+
+           X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3] );
+           X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
+           X[5+(_N-2)*3] = LOmicron_diag_transp[_N].template triangularView<Upper>().solve(U[5+(_N-2)*3]);
+           X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5] - LSigma_offDiag_transp[_N-1]*X[5+(_N-2)*3]);
+         }
+         else if(_pos_omega == _N-1) // compute col2 and col3
+
+         {
+           X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
+           X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3] - LLambda1_transp*XO[1]);
+           X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3] - LLambda0_transp*XO[1]);
+           X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
+
+           X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3] - LLambda1_transp*XO[2]);
+           X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3] - LLambda0_transp*XO[2]);
+           X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
+         }
+         else // standard, no influence by off-diag element in P
+
+         {
+           X_bar[2+(_N-2)*5] = LPi_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[2+(_N-2)*5]);
+           X[3+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve(U[3+(_N-2)*3]);
+           X_bar[3+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[3+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[3+(_N-2)*3]);
+           X_bar[4+(_N-2)*5] = LPi_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[4+(_N-2)*5]);
+
+           X[4+(_N-2)*3] = LOmicron_diag_transp[_N-1].template triangularView<Upper>().solve( U[4+(_N-2)*3]);
+           X_bar[5+(_N-2)*5] = LRho_diag_transp[_N-2].template triangularView<Upper>().solve(U_bar[5+(_N-2)*5] - LSigma_offDiag_transp[_N-2]*X[4+(_N-2)*3]);
+           X_bar[6+(_N-2)*5] = LRho_diag_transp[_N-1].template triangularView<Upper>().solve(U_bar[6+(_N-2)*5]);
+         }
+
+         /*
+          cout << "X[0]" << endl << X[0] << endl << endl;
+          cout << "X_bar[0]" << endl << X_bar[0] << endl << endl;
+          cout << "X[1]" << endl << X[1] << endl << endl;
+          cout << "X_bar[1]" << endl << X_bar[1] << endl << endl;
+          cout << "X[2]" << endl << X[2] << endl << endl;
+          for (int i=1; i<= _N-2; i++)
+          {
+          cout << "X_bar[" << 2+(i-1)*5 << "]" << endl << X_bar[2+(i-1)*5] << endl << endl ;
+          cout << "X_bar[" << 3+(i-1)*5 << "]" << endl << X_bar[3+(i-1)*5] << endl << endl ;
+          cout << "X[" << 3+(i-1)*3 << "]" << endl << X[3+(i-1)*3] << endl << endl;
+          cout << "X_bar[" << 4+(i-1)*5 << "]" << endl << X_bar[4+(i-1)*5] << endl << endl;
+
+          cout << "X_bar[" << 5+(i-1)*5 << "]" << endl << X_bar[5+(i-1)*5] << endl << endl ;
+          cout << "X[" << 4+(i-1)*3 << "]" << endl << X[4+(i-1)*3] << endl << endl ;
+          cout << "X_bar[" << 6+(i-1)*5 << "]" << endl << X_bar[6+(i-1)*5] << endl << endl ;
+          cout << "X[" << 5+(i-1)*3 << "]" << endl << X[5+(i-1)*3] << endl << endl ;
+          }
+          cout << "X_bar[2+(_N-2)*5]" << endl << X_bar[2+(_N-2)*5] << endl << endl ;
+          cout << "X_bar[3+(_N-2)*5]" << endl << X_bar[3+(_N-2)*5] << endl << endl ;
+          cout << "X[3+(_N-2)*3]" << endl << X[3+(_N-2)*3] << endl << endl;
+          cout << "X_bar[4+(_N-2)*5]" << endl << X_bar[4+(_N-2)*5] << endl << endl;
+
+          cout << "X_bar[5+(_N-2)*5]" << endl << X_bar[5+(_N-2)*5] << endl << endl ;
+          cout << "X[4+(_N-2)*3]" << endl << X[4+(_N-2)*3] << endl << endl ;
+          cout << "X_bar[6+(_N-2)*5]" << endl << X_bar[6+(_N-2)*5] << endl << endl ;
+          if (_pos_omega == _N)
+          {
+          cout << "X[5+(_N-2)*3]" << endl << X[5+(_N-2)*3] << endl << endl ;
+          }
+          else
+          {
+          cout << "XO[0]" << endl << XO[0] << endl << endl;
+          cout << "XO[1]" << endl << XO[1] << endl << endl;
+          cout << "XO[2]" << endl << XO[2] << endl << endl;
+          }
+          */
+
+         // 3. Compute Y = C*X
+         // compute first three Y separately
+         Y[0][0] = -Bm*X[0] + X_bar[0];
+
+         Y[0][1] = -Bm*X[1];
+         Y[1][1] = -B*X[1] + X_bar[1];
+
+         // compute rest by filling Y column by column; done for 2 neighboring rows
+         // we fill Y column by column, treating the first two columns specially
+#pragma omp parallel num_threads(2)
+{ 
+	int i;
+	#pragma omp for
+        for (i=1; i <= _N-1; i++)
+         {
+           Y[0][2*(i-1)+2] = X_bar[2+(i-1)*5];
+           Y[1][2*(i-1)+2] = X_bar[3+(i-1)*5];
+           Y[2][2*(i-1)+2] = -Am_tilde*X_bar[2+(i-1)*5] - Bm_bar*X_bar[3+(i-1)*5] - Bm*X[3+(i-1)*3] + X_bar[4+(i-1)*5];
+
+           Y[0][2*(i-1)+3] = X_bar[5+(i-1)*5];
+           Y[1][2*(i-1)+3] = -Bm_bar*X_bar[5+(i-1)*5] - Bm*X[4+(i-1)*3];
+           Y[2][2*(i-1)+3] = -A_bar*X_bar[5+(i-1)*5] - B*X[4+(i-1)*3] + X_bar[6+(i-1)*5];
+         }
+}
+
+         /*
+          cout << "Y[0][0]" << endl << Y[0][0] << endl << endl;
+          cout << "Y[0][1]" << endl << Y[0][1] << endl << endl;
+          cout << "Y[1][1]" << endl << Y[1][1] << endl << endl;
+          for (int i=1; i <= _N-1; i++)
+          {
+          cout << "Y[0][2*(i-1)+2]" << endl << Y[0][2*(i-1)+2] << endl << endl;
+          cout << "Y[1][2*(i-1)+2]" << endl << Y[1][2*(i-1)+2] << endl << endl;
+          cout << "Y[2][2*(i-1)+2]" << endl << Y[2][2*(i-1)+2] << endl << endl;
+
+          cout << "Y[0][2*(i-1)+3]" << endl << Y[0][2*(i-1)+3] << endl << endl;
+          cout << "Y[1][2*(i-1)+3]" << endl << Y[1][2*(i-1)+3] << endl << endl;
+          cout << "Y[2][2*(i-1)+3]" << endl << Y[2][2*(i-1)+3] << endl << endl;
+          }
+          */
+       }
 
 // beta = r_C + C*(Phi\r_d_bar), where r_d_bar = -r_H - P'*(lambda.*r_P./t - r_T./t);
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
@@ -1527,7 +1334,11 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     Matrix<Type, _N * (_m + _n + _n) + _m, 1> tmp2;
     tmp2.template segment<_m> (0)
         = LOmicron_diag[0].matrixLLT().triangularView<Lower> ().solve(r_d_bar.template segment<_m> (0));
-    for (int i = 1; i <= _N - 1; i++)
+#pragma omp parallel num_threads(2) 
+{
+	int i;
+	#pragma omp for
+	for (i = 1; i <= _N - 1; i++)
     {
       tmp2.template segment<_n> (_m + (i - 1) * offset)
           = LPi_diag[i - 1].matrixLLT().triangularView<Lower> ().solve(
@@ -1553,6 +1364,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
                                                                                                                      * offset
                                                                                                                  + _n));
     }
+}
     if (_pos_omega == _N)
     {
       tmp2.template segment<_n> (_m + (_N - 1) * offset)
@@ -1629,12 +1441,18 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
           tmp1.template segment<_n>(_m+(i-1)*offset+_n) = LRho_diag_transp[i-1].template triangularView<Upper>().solve(tmp2.template segment<_n>(_m+(i-1)*offset+_n) - LSigma_offDiag_transp[i-1]*tmp1.template segment<_m>(_m+(i-1)*offset+_n+_n));
         }
         // the missing block is computed after the last block is computed
-        for (int i = _pos_omega+1; i <= _N-1; i++)
+#pragma omp parallel num_threads(2)
+{
+	int i;
+	#pragma omp for
+		for (i = _pos_omega+1; i <= _N-1; i++)
         {
           tmp1.template segment<_n>(_m+(i-1)*offset) = LPi_diag_transp[i-1].template triangularView<Upper>().solve(tmp2.template segment<_n>(_m+(i-1)*offset));
           tmp1.template segment<_m>(_m+(i-1)*offset+_n+_n) = LOmicron_diag_transp[i].template triangularView<Upper>().solve(tmp2.template segment<_m>(_m+(i-1)*offset+_n+_n));
           tmp1.template segment<_n>(_m+(i-1)*offset+_n) = LRho_diag_transp[i-1].template triangularView<Upper>().solve(tmp2.template segment<_n>(_m+(i-1)*offset+_n) - LSigma_offDiag_transp[i-1]*tmp1.template segment<_m>(_m+(i-1)*offset+_n+_n));
         }
+}
+
         // last block
         if (_pos_omega == _N)
         {
@@ -1704,8 +1522,12 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     L_offDiag_transp[1][1] = L_diag[1].matrixLLT().triangularView<Lower> ().solve(Y[0][3]);
     L_offDiag[1][1] = L_offDiag_transp[1][1].transpose();
 
+// #pragma omp parallel num_threads(2)
+{ 
+	int i;
+	// #pragma omp for ordered
     // cases in the middle
-    for (int i = 1; i <= 2 * _N - 4; i++)
+    for (i = 1; i <= 2 * _N - 4; i++)
     {
       L_diag[i + 1].compute(
                             Y[2][i + 1] - L_offDiag[1][i - 1] * L_offDiag_transp[1][i - 1] - L_offDiag[0][i]
@@ -1720,6 +1542,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
       L_offDiag_transp[1][i + 1] = L_diag[i + 1].matrixLLT().triangularView<Lower> ().solve(Y[0][i + 3]);
       L_offDiag[1][i + 1] = L_offDiag_transp[1][i + 1].transpose();
     }
+}
 
     // special treatment in the end, i.e. i = 2*_N-3
     L_diag[2 * _N - 2].compute(
@@ -1742,7 +1565,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 // ------------ function computes L*L'*dnu = -beta ---------------------
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
   void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compDnu()
-  {
+{
     // 1) first, solve for delta: L*delta = -beta
     Matrix<Type, 2 * _N * _n, 1> delta;
 
@@ -1754,8 +1577,12 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
                                                                -beta.template segment<_n> (_n) - L_offDiag[0][0]
                                                                    * delta.template segment<_n> (0));
 
+// #pragma omp parallel num_threads(2)
+{ 
+	int i;
+	// #pragma omp for
     // remaining cases are regular
-    for (int i = 1; i <= 2 * _N - 2; i++)
+    for (i = 1; i <= 2 * _N - 2; i++)
       delta.template segment<_n> (_n + i * _n)
           = L_diag[i + 1].matrixLLT().triangularView<Lower> ().solve(
                                                                      -beta.template segment<_n> (_n + i * _n)
@@ -1763,17 +1590,24 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
                                                                              * delta.template segment<_n> ((i - 1) * _n)
                                                                          - L_offDiag[0][i]
                                                                              * delta.template segment<_n> (i * _n));
+}
+
 
     // 2) now, solve for L'*Dnu = delta
     dnu.template segment<_n> (2 * _n * _N - _n)
         = L_diag_transp[2 * _N - 1].template triangularView<Upper> ().solve(delta.template segment<_n>(2*_n*_N - _n) );
         dnu.template segment<_n>(2*_n*_N - _n - _n) = L_diag_transp[2*_N-2].template triangularView<Upper>().solve( delta.template segment<_n>(2*_n*_N - _n - _n) - L_offDiag_transp[0][2*_N-2]*dnu.template segment<_n>(2*_n*_N - _n) );
 
+// #pragma omp parallel num_threads(2)
+{
+	int i;
+	// #pragma omp for
         //remaining cases are regular
-        for (int i=1; i<=2*_N-2; i++)
+        for (i=1; i<=2*_N-2; i++)
         dnu.template segment<_n>(2*_n*_N-(i+2)*_n) = L_diag_transp[2*_N-(i+2)].template triangularView<Upper>().solve( delta.template segment<_n>(2*_n*_N-(i+2)*_n) - L_offDiag_transp[0][2*_N-(i+2)]*dnu.template segment<_n>(2*_n*_N-(i+1)*_n) - L_offDiag_transp[1][2*_N-(i+2)]*dnu.template segment<_n>(2*_n*_N-i*_n) );
         //cout << "dnu" << endl << dnu << endl << endl;
-      }
+}
+}
 
     // ------------ function computes Phi*dz = -r_d_bar - C'*dnu ---------------------
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
@@ -1978,7 +1812,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 // ------------ function looks for step length (predictor and final) alpha --------
 // need lambda and slack stay positive for the step size
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
-  void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compAlpha()
+  void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compAlpha_affine()
   {
     alpha = 1;
     double alpha_tmp;
@@ -1998,6 +1832,76 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     // cout << "alpha: " << alpha << endl << endl;
   }
 
+
+// ------------ function looks for step length (predictor and final) alpha --------
+// need lambda and slack stay positive for the step size
+template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
+void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compAlpha_corrector()
+{
+	double gamma_f = 0.001;	// heuristic choice,  0 < gamma_f << 1
+	double alpha_primal_max = 1;	// for slack
+	double alpha_dual_max = 1;		// for lambda
+	int idx_primal = 0;	// stores position where alpha_primal_max would touch border for slack
+	int idx_dual = 0;	// stores position where alpha_dual_max would touch border for lambda
+	double f_primal;
+	double f_dual;
+	double alpha_primal;
+	double alpha_dual;
+	double mu_plus;
+	
+	// 1. compute alpha_primal_max and alpha_dual_max
+    double alpha_tmp;
+    for (int i = 0; i <= _N * (_nSt + _nInp) + _nF_xTheta - 1; i++)
+    {
+		if (dslack[i] < 0)
+		{
+	    	alpha_tmp = -slack[i] / dslack[i];
+			if (alpha_tmp < alpha_primal_max)
+			{
+				alpha_primal_max = alpha_tmp;
+				idx_primal = i;
+			}
+		}
+	
+    	if (dlambda[i] < 0)
+    	{
+        	alpha_tmp = -lambda[i] / dlambda[i];
+			if (alpha_tmp < alpha_dual_max)
+			{
+				alpha_dual_max = alpha_tmp;
+				idx_dual = i;
+			}
+    	}
+	}
+		
+	// 2. compute mu_plus
+	mu_plus = (lambda + alpha_dual_max*dlambda).dot(slack + alpha_primal_max*dslack) / (_N * (_nInp + _nSt) + _nF_xTheta);
+	
+	// 3. compute f_primal and f_dual
+	if (idx_primal != idx_dual)		// avoid division by zero
+	{
+		f_primal = (gamma_f*mu_plus / (lambda[idx_primal]+alpha_dual_max*dlambda[idx_primal]) - slack[idx_primal]) / (alpha_primal_max*dslack[idx_primal]);
+		f_dual = (gamma_f*mu_plus / (slack[idx_dual]+alpha_primal_max*dslack[idx_dual]) - lambda[idx_dual]) / (alpha_dual_max*dlambda[idx_dual]);
+		alpha_primal = (1-gamma_f) > f_primal ? (1-gamma_f) : f_primal;	// take max()
+		alpha_primal = alpha_primal * alpha_primal_max;
+		alpha_dual = (1-gamma_f) > f_dual ? (1-gamma_f) : f_dual;		// take max()
+		alpha_dual = alpha_dual * alpha_dual_max;
+		alpha = alpha_primal < alpha_dual ? alpha_primal : alpha_dual;	// take min()
+	}
+	else
+	{
+		alpha = alpha_primal_max < alpha_dual_max ? alpha_primal_max : alpha_dual_max;
+		alpha = damp * alpha;
+	}
+	// cout << "alpha: " << alpha << endl;
+}
+
+
+
+
+
+
+
 // ------------ function computes cost vectors q_tilde_vec, q_bar_vec, r_vec --------
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
   void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compRQ()
@@ -2012,8 +1916,8 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 
     /*
      for (int i = 0; i <= _N-1; i++)
-     cout << "u_star[" << i << "]" << endl << u_star[i] << endl << endl;
-     */
+     	cout << "u_star[" << i << "]" << endl << u_star[i] << endl << endl;
+    */
 
     // compute the vectors q_bar_vec[]; q_tilde_vec[]; r_vec[]
     q_tilde_vec[0] = -2 * Q_tilde * x_star[0];
@@ -2038,5 +1942,38 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
      }
      */
   }
+
+
+
+// ------------ function computes denominators in feasibilityCheck --------
+template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
+void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compDenomFeasCheck()
+{
+	// norm of cost-vector
+	double normGSq = normGSq + (r_vec[0]+2*S_transp*(*x_hat)).squaredNorm();
+	normGSq = normGSq + q_tilde_vec[0].squaredNorm();
+	for (int i=1; i<= _N-1; i++)
+		normGSq = normGSq + r_vec[i].squaredNorm() + q_tilde_vec[i].squaredNorm() + q_bar_vec[i].squaredNorm();
+	denomDualFeas = (sqrt(normGSq)+1);	// denominator in feas check
+	// cout << "denomDualFeas: " << denomDualFeas << endl;
+	
+	// norm of inequality constraint vector
+	double normHSq = (fu[0] - Fu_bar[0]*(*x_hat)).squaredNorm() + fx[0].squaredNorm();
+	for (int i=1; i<= _N-1; i++)
+		normHSq = normHSq + fu[i].squaredNorm() + fx[i].squaredNorm();
+	normHSq = normHSq + f_xTheta.squaredNorm();	
+	// cout << setprecision(30) << "normHSq: " << normHSq << endl;
+	
+	// norm of equality constraint vector
+	double normBSq = ((Am_tilde+Bm_bar)*(*x_hat)+tm_tilde).squaredNorm() + (A_bar*(*x_hat)+s).squaredNorm();
+	normBSq = normBSq + (_N-1)*(tm_tilde.squaredNorm() + s.squaredNorm());
+	// cout << setprecision(30) << "normBSq: " << normBSq << endl;
+	
+	denomPrimalFeas = sqrt(normHSq + normBSq)+1;	// denominator in feas check
+	denomPrimalFeas = denomPrimalFeas*denomPrimalFeas;
+	// cout << setprecision(30) << "denomPrimalFeas: " << denomPrimalFeas << endl;
+	
+	// cout << "denomDualFeas: " << denomDualFeas << " | denomPrimalFeas: " << denomPrimalFeas << endl;
+}
 
 #endif

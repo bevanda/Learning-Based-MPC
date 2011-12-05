@@ -42,10 +42,10 @@
 \renewcommand{\thefootnote}{\fnsymbol{footnote}}
 
 \section*{Introduction}
-This report introduces the \texttt{LBmpcTP} template class which implements the primal-dual infeasible interior point method (\textbf{PD IIPM}) based on Mehrotra's predictor-corrector algorithm \citep{Mehrotra1992PDIPM}. Our solver is tailored to  learning-based model predictive control (LBMPC) \citep{Aswani2011LBMPC} for the special case where the costs are quadratic and all involved dynamics are linear.\\
+This report introduces the \texttt{LBmpcTP} template class which implements the primal-dual infeasible interior point method (\textbf{PD IIPM}) based on Mehrotra's predictor-corrector algorithm \citep{Mehrotra1992PDIPM}. Our solver is tailored to  learning-based model predictive control (LBMPC) \citep{Aswani2011LBMPC} for the special case where the costs are quadratic and the involved dynamics affine.\\
 
 \noindent
-The report is structured as follows: First, LBMPC for the case where all dynamics are linear is introduced. Second, the interface to the \texttt{LBmpcTP} class is presented. In the third section, advanced parameters for configuration and fine-tuning are described.
+The report is structured as follows: First, LBMPC for the case where all dynamics are affine and quadratic cost is introduced. Second, the interface to the \texttt{LBmpcTP} class is presented. In the third section, advanced parameters for configuration and fine-tuning are described.
 
 \section{The Learning-Based MPC model}
 We consider a special case of LBMPC \citep{Aswani2011LBMPC}, in which all dynamics are linear and the cost quadratic. Furthermore, we consider the situation where the feasible sets are convex polyhedron. \\
@@ -67,7 +67,7 @@ This instance of LBMPC is given by the following optimization problem:
 \end{align}
 
 \noindent
-We assume that the conditions given in table \ref{tab: matrix assumptions} hold. \\
+We assume that the conditions given in Table \ref{tab: matrix assumptions} hold. \\
 
 \begin{table}[!htdp]
 \caption{We make the following assumptions for \eqref{eq: LBMPC}.}
@@ -76,8 +76,8 @@ We assume that the conditions given in table \ref{tab: matrix assumptions} hold.
  $\tilde{Q}\in\mathbb{R}^{n\times n}$ & positive definite\\ \hline
  $\tilde{Q}_f\in\mathbb{R}^{n\times n}$ & positive definite\\ \hline
  $R\in\mathbb{R}^{m\times m}$ & positive semidefinite \\ \hline
- $F_{\bar{x},i}\in\mathbb{R}^{\texttt{\_nSt}\times n}$ & full rank \\ \hline
- $F_{\check{u},i}\in\mathbb{R}^{\texttt{\_nInp}\times m}$ & full rank \\ \hline
+ $F_{\bar{x},i}\in\mathbb{R}^{\texttt{\_nSt}\times n}\quad \forall i$ & full rank \\ \hline
+ $F_{\check{u},i}\in\mathbb{R}^{\texttt{\_nInp}\times m}\quad \forall i$ & full rank \\ \hline
  $F_\theta\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times m}$ & full rank \\ \hline
  $K\in\mathbb{R}^{m\times n}$ & $A+BK$ Schur \\ \hline
 \end{tabular}
@@ -100,11 +100,11 @@ where $z$ is the stacked vector:
 
 \begin{equation*}
 	z = \begin{pmatrix}	
-		c[m]^T & \bar{x}[m+1]^T & \tilde{x}[m+1]^T & \cdots & c[m+N-1]^T & \bar{x}[m+N]^T & \tilde{x}[m+N]^T & \theta^T	\end{pmatrix}^T
+		c[m]^T & \tilde{x}[m+1]^T & \bar{x}[m+1]^T & \cdots & c[m+N-1]^T & \tilde{x}[m+N]^T & \bar{x}[m+N]^T & \theta^T	\end{pmatrix}^T
 \end{equation*}
 
 \noindent
-It can be shown that the above QP is convex. Furthermore, we assume that Slater's condition \citep[Ch. 2]{Borrelli2011Book} holds. Hence, the KKT-conditions for optimality are necessary and sufficient and state that for every optimal $z_{opt}$ there exists vectors $\lambda_{opt}, \nu_{opt}$ and $t_{opt}$ such that at the optimal point $(z,\lambda,\nu,t)=(z_{opt},\lambda_{opt},\nu_{opt},t_{opt})$ the following equations are satisfied \citep{Nocedal2000NumOpt}:
+It can be shown that the above QP is convex. Furthermore, we assume that Slater's condition \citep[Ch. 2]{Borrelli2011Book} holds. Hence, the KKT-conditions for optimality are necessary and sufficient and state that for every optimal $z_\text{opt}$ there exists vectors $\lambda_\text{opt}, \nu_\text{opt}$ and $t_\text{opt}$ such that at the optimal point $(z,\lambda,\nu,t)=(z_\text{opt},\lambda_\text{opt},\nu_\text{opt},t_\text{opt})$ the following equations are satisfied \citep{Nocedal2000NumOpt}:
 \begin{equation}
 \label{eq: KKT}
 	\mathcal{F}(z,\lambda,\nu,t) \triangleq 
@@ -132,8 +132,8 @@ where $m_P$ is the number of inequality equations, i.e. the number of rows in th
 The \texttt{LBmpcTP} template class is typically called in two seperate steps:
 
 \begin{enumerate}
-	\item Definition of matrices $A,\ B,\ s,\ \tilde{Q},\ \tilde{Q}_f,\ R,\ K,\ \{F_{\bar{x},i}\}_i,\ \{f_{\bar{x},i}\}_i,\ \{F_{\check{u},i}\}_i,\ \{f_{\check{u},i}\}_i,\ F_{x\theta},\ F_\theta,\ f_{x\theta}$, scalars $n_{iter},\ \epsilon_{reg},\ \epsilon_H,\ \epsilon_C,\ \epsilon_P,\ \epsilon_\mu$ and \texttt{fileName} for binary file in MATLAB file \texttt{Init.m}. The matrices and scalars are written to a binary file, whose name is specified by \texttt{fileName} (by default \texttt{ConstrParam.bin}). The complete list of variables to be specified can be found in table \ref{tab: parameters Init.m}.
-	\item A C++-file (e.g. \texttt{mainLBmpcTP.cpp}) then reads the binary file \texttt{ConstrParam.bin}.  \texttt{mainLBmpcTP.cpp} is the main function file and performs two tasks:
+	\item Definition of matrices $A,\ B,\ s,\ \tilde{Q},\ \tilde{Q}_f,\ R,\ K,\ \{F_{\bar{x},i}\}_{i=1}^N,\ \{f_{\bar{x},i}\}_{i=1}^N,\ \{F_{\check{u},i}\}_{i=0}^{N-1},\ \{f_{\check{u},i}\}_{i=0}^{N-1},\ F_{x\theta},\ F_\theta,$ $f_{x\theta}$, scalars $n_\text{iter},\ \epsilon_\text{reg},\ \epsilon_\text{primal},\ \epsilon_\text{dual},\ \epsilon_\mu$ and \texttt{fileName} for binary file in MATLAB file \texttt{Init.m}. The matrices and scalars are written to a binary file, whose name is specified by \texttt{fileName} (by default \texttt{ConstrParam.bin}). The complete list of variables to be specified can be found in table \ref{tab: parameters Init.m}.
+	\item The main C++-file (e.g. \texttt{mainLBmpcTP.cpp}) instantiates an object and calls the solver routine, i.e.:
 	\begin{enumerate}
 		\item It calls the constructor of the template class in \texttt{LBmpcTP.h} and instantiates an object of this template class, e.g. \texttt{myObj}. For example: \\
 		\texttt{LBmpcTP<double, \_n, \_m, \_N, \_nSt, \_nInp, \_nF\_xTheta, \_pos\_omega> myObj( fileName, verbose)}
@@ -144,7 +144,7 @@ The \texttt{LBmpcTP} template class is typically called in two seperate steps:
 \end{enumerate}
 
 \noindent
-The files can be compiled using the gcc-compiler and the following command: \newline
+One possibility to compile the files is to use the gcc-compiler: \newline
 \texttt{g++ -I /usr/local/include/eigen3/ -O3 mainLBmpcTP.cpp -o mainLBmpcTP}. \\
 
 
@@ -154,7 +154,7 @@ In the following sections, both files and the variables are described in more de
 In this MATLAB-file, the parameters required for the instantiation of the \texttt{LBmpcTP} object are defined. More specifically, \texttt{Init.m} consists of two parts:
 \begin{itemize}
 	\item User has to manually specify the parameters given in table \ref{tab: parameters Init.m}.
-	\item A binary file (default: \texttt{ConstrParam.bin}) with the parameters in table \ref{tab: parameters Init.m} is created automatically by calling the MATLAB script \texttt{writeParam.m}.
+	\item \texttt{Init.m} writes those parameters to a binary file (default: \texttt{ConstrParam.bin}) by calling the MATLAB script \texttt{writeParam.m}.
 \end{itemize}
 In appendix \ref{app: Init.m}, a typical implementation of the \texttt{Init.m} file is shown. \\
 
@@ -168,7 +168,7 @@ In appendix \ref{app: Init.m}, a typical implementation of the \texttt{Init.m} f
  \texttt{m} $\in\mathbb{N}$ & number of inputs & \\ \hline
  \texttt{n} $\in\mathbb{N}$ & number of states & \\ \hline \hline
  
- \texttt{fileName} & name of binary file that stores the matrices and scalars defined below. & \\ \hline \hline
+ \texttt{fileName} & name of binary file that stores the matrices and scalars below. & \\ \hline \hline
  
  \texttt{A} $\in\mathbb{R}^{n\times n}$ & linear dynamics matrix: $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
  \texttt{B} $\in\mathbb{R}^{n\times m}$ & input-state dynamics matrix: $\bar{x}^+ = A\bar{x}+B\check{u}+s$ & \\ \hline
@@ -179,20 +179,18 @@ In appendix \ref{app: Init.m}, a typical implementation of the \texttt{Init.m} f
  \texttt{Q\_tilde\_f} $\in\mathbb{R}^{n\times n}$ & p.d. weight matrix for final state & \\ \hline
  \texttt{R} $\in\mathbb{R}^{m\times m}$ & p.s.d. weight matrix on input & \\ \hline
  \texttt{Fx\{$i$\}} $\in\mathbb{R}^{\texttt{\_nSt}\times n}$ & $F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}$, full-rank, $i=1,\ldots,N$ & \\ \hline
- \texttt{fx\{$i$\}} $\in\mathbb{R}^{\texttt{\_nSt}}$ & $F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}$ & \\ \hline
+ \texttt{fx\{$i$\}} $\in\mathbb{R}^{\texttt{\_nSt}}$ & $F_{\bar{x},i}\bar{x}[m+i|m] \leq f_{\bar{x},i}$, $i=1,\ldots,N$ & \\ \hline
  \texttt{Fu\{$i$\}} $\in\mathbb{R}^{\texttt{\_nInp}\times m}$ & $F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}$, full-rank, $i=0,\ldots,N-1$ & \\ \hline
- \texttt{fu\{$i$\}} $\in\mathbb{R}^{\texttt{\_nInp}}$ & $F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}$ & \\ \hline
- \texttt{F\_xTheta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times n}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline
- \texttt{F\_theta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times m}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$, full-rank & \\ \hline
- \texttt{f\_xTheta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline \hline
+ \texttt{fu\{$i$\}} $\in\mathbb{R}^{\texttt{\_nInp}}$ & $F_{\check{u},i}\check{u}[m+i|m] \leq f_{\check{u},i}$, $i=0,\ldots,N-1$ & \\ \hline
+ \texttt{F\_xTheta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times n}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$, $j\in\{1,\ldots,N\}$ & \\ \hline
+ \texttt{F\_theta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}\times m}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$, full-rank, $j\in\{1,\ldots,N\}$ & \\ \hline
+ \texttt{f\_xTheta} $\in\mathbb{R}^{\texttt{\_nF\_xTheta}}$ & $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$, $j\in\{1,\ldots,N\}$ & \\ \hline \hline
 
- \texttt{n\_iter} $\in\mathbb{N}$ & max. number of Newton steps to solve \eqref{eq: reformulation} & $[50,200]$ \\ \hline
- \texttt{reg} $\in\mathbb{R}$  & regularization coefficient to render Matrix $H$ in \eqref{eq: reformulation} positive definite & $[0,0.1]$, depends on $H$ \\ \hline
- \texttt{resNorm\_H}  $\in\mathbb{R}$& $\epsilon_H$, necessary stopping criteria for $\|r_H\|$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
- \texttt{resNorm\_C} $\in\mathbb{R}$ & $\epsilon_C$, necessary stopping criteria for $\|r_C\|$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
- \texttt{resNorm\_P} $\in\mathbb{R}$ & $\epsilon_P$, necessary stopping criteria for $\|r_P\|$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
- \texttt{muNorm} $\in\mathbb{R}$ & $\epsilon_\mu$, necessary stopping criteria for $\mu$, \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
-
+ \texttt{n\_iter} $\in\mathbb{N}$ & max. number of Newton steps to solve \eqref{eq: reformulation} & $100$ \\ \hline
+ \texttt{reg} $\in\mathbb{R}$  & regularization coefficient to render Matrix $H$ \eqref{eq: reformulation} positive definite & $[0,0.1]$, depends on $H$ \\ \hline
+ \texttt{eps\_primal}  $\in\mathbb{R}$& $\epsilon_\text{primal}$, necessary stopping criteria, see \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
+ \texttt{eps\_dual} $\in\mathbb{R}$ & $\epsilon_\text{dual}$, necessary stopping criteria, see \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
+ \texttt{eps\_mu} $\in\mathbb{R}$ & $\epsilon_\mu$, necessary stopping criteria, see \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
 \end{tabular}
 \end{center}
 \label{tab: parameters Init.m}
@@ -211,7 +209,7 @@ Remarks:
 This file contains the main control routine which interacts with the \texttt{LBmpcTP} template class. An example file is provided in appendix \ref{app: mainLBmpcTP.cpp}. In the following, we outline the typical steps in \texttt{mainLBmpcTP.cpp}:
 
 \begin{enumerate}
-	\item \textbf{SPECIFY parameters:} \texttt{\_N}, \texttt{\_m}, \texttt{\_n}, \texttt{\_nSt}, \texttt{\_nInp}, \texttt{\_nF\_xTheta}, \texttt{\_pos\_omega} (see table \ref{tab: instantiateLBpmcTP}).
+	\item \textbf{SPECIFY parameters:} \texttt{\_N}, \texttt{\_m}, \texttt{\_n}, \texttt{\_nSt}, \texttt{\_nInp}, \texttt{\_nF\_xTheta}, \texttt{\_pos\_omega} (see Table \ref{tab: instantiateLBpmcTP}).
 	
 		\begin{table}[!htdp]
 		\caption{The following template parameters are required to instantiate a \texttt{LBmpcTP}-object.}
@@ -227,7 +225,7 @@ This file contains the main control routine which interacts with the \texttt{LBm
  			\texttt{\_nSt} & number of state constraints (constant over the horizon) & \\ \hline
  			\texttt{\_nInp} & number of input constraints (constant over the horizon) & \\ \hline
 	 		\texttt{\_nF\_xTheta} & number of constraints involving $\theta$ in \eqref{eq: LBMPC} & \\ \hline
- 			\texttt{\_pos\_Omega} & index $j$ in $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline 
+ 			\texttt{\_pos\_Omega} & index $j\in\{1,\ldots,N\}$ in $F_{x\theta}\bar{x}[m+j|m] + F_\theta \theta \leq f_{x\theta}$ & \\ \hline 
 		\end{tabular}
 		\end{center}
 		\label{tab: instantiateLBpmcTP}
@@ -241,7 +239,7 @@ This file contains the main control routine which interacts with the \texttt{LBm
 	\texttt{LBmpcTP<double,\_n,\_m,\_N,\_nSt,\_nInp,\_nF\_xTheta,\_pos\_omega> myObj(fileName,verbose);}
 	
 	\item Update the variables needed for step()-function: \texttt{Lm}, \texttt{Mm}, \texttt{tm},  \texttt{x\_hat}, \texttt{x\_star[\_N]}  (table 
-\ref{tab: oracleParameters}). Note: these values are  not provided in this framework.
+\ref{tab: oracleParameters}). Note: these values are  not provided by this class.
 	
 	\begin{table}[!htdp]
 	\caption{These arguments must be updated before each \texttt{step()}-call.}
@@ -262,7 +260,7 @@ This file contains the main control routine which interacts with the \texttt{LBm
 	
 	\item Call the step-function to solve the optimization problem: \\
 	\texttt{status = myObj.step( Lm, Mm, tm, x\_hat, x\_star );} \\
-	The meaning of the status-flag are given in table \ref{tab: error code}
+	The meaning of the status-flag are given in Table \ref{tab: error code}
 	
 	\begin{table}[!htdp]
 	\caption{The meaning of the status-flags returned by \texttt{step()}-function.}
@@ -271,12 +269,11 @@ This file contains the main control routine which interacts with the \texttt{LBm
 	{
 	 \bf status flag} & meaning  \\ \hline\hline
 	 0 & success \\
-	 1 & too many iterations, stopping criterion $\|r_H\| \leq \epsilon_H$ not satisfied\\
-	 2 & too many iterations, stopping criterion $\|r_C\| \leq \epsilon_C$ not satisfied \\
-	 3 & too many iterations, stopping criterion $\|r_P\| \leq \epsilon_P$ not satisfied \\
-	 4 & too many iterations, stopping criterion $\mu \leq \epsilon_\mu$ not satisfied \\
-	 5 & \texttt{nan} \\
-	 6 & other error \\ \hline
+	 1 & problem (possibly) primal infeasible\\
+	 2 & problem (possibly) dual infeasible \\
+	 3 & stopping criterion $\mu \leq \epsilon_\mu$ not satisfied \\
+	 4 & \texttt{nan} \\
+	 5 & other error \\ \hline
 	\end{tabular}
 	\end{center}
 	\label{tab: error code}
@@ -292,11 +289,11 @@ It should be noticed that the parameters in the MATLAB file \texttt{Init.m} and 
 
 
 \subsection{C++ template class: \texttt{LBmpcTP.h}}
-This section gives a rough overview of what happens inside the \texttt{LBmpcTP} class. Access to the class is granted through two methods, the constructor and the \texttt{step(.)} method. Details on the underlying mathematics can be found in \citep{Mehrotra1992PDIPM, Potra2000IPM, Rao98IMP2MPC, Nocedal2000NumOpt}. The constructor initializes some of the private variables as discussed in the previous sections. The \texttt{step(.)}-method performs the following tasks:
+This section gives a rough overview of what happens inside the \texttt{LBmpcTP} class. Basic access to the class is granted through two methods (constructor and \texttt{step(.)} method) as well as the public member variable \texttt{u\_opt}. Details on the underlying mathematics can be found in \citep{Mehrotra1992PDIPM, Potra2000IPM, Rao98IMP2MPC, Nocedal2000NumOpt}. The constructor initializes some of the private variables as discussed in the previous sections. The \texttt{step(.)}-method performs the following tasks:
 \begin{itemize}
 	\item We recursively compute the sequence $\{  u^\star[m+i|m]  \}_i$ from the given desired state sequence $\{ x^\star[m+i|m] \}_i$ by solving 
 	\begin{equation*}
-			x^\star [m+i|m] = (A+L_m)x^\star[m+i-1|m] + (B+M_m)u^\star[m+i-1|m] + (s+t_m)
+			x^\star [m+i|m] = (A+L_m)x^\star[m+i-1|m] + (B+M_m)u^\star[m+i-1|m] + (s+t_m),\quad x^\star[m|m]=\hat{x}
 	\end{equation*}
 	and taking the least-squared solution (SVD).
 	\item Cast \eqref{eq: LBMPC} into \eqref{eq: reformulation}.
@@ -304,7 +301,7 @@ This section gives a rough overview of what happens inside the \texttt{LBmpcTP} 
 \end{itemize}
 
 
-\section{Tuning}
+\section{Advanced Topics}
 Some of the parameters given in Tab. \ref{tab: parameters Init.m} can be used to tweak the \texttt{LBmpcTP} template class if the algorithm does not work as desired:
 \begin{itemize}
 	\item The problem cannot be solved with the default parameters. It either does not converge (number of iterations exceeds \texttt{num\_iter}) or the code returns \texttt{nan}.
@@ -323,12 +320,11 @@ Tab. \ref{tab: tuning parameters} lists the tuning parameters from Tab. \ref{tab
 {
 	\bf tuning variable} & influence & typical range/value \\ \hline\hline
 
-  \texttt{n\_iter} & Can be used to limit the number of Newton iterations or for early termination to  obtain an inaccurate solution of \eqref{eq: reformulation}. This can be useful if the computational time is limited & $[50,200]$ \\ \hline
+  \texttt{n\_iter} & Can be used to limit the number of Newton iterations or for early termination to  obtain an inaccurate solution of \eqref{eq: reformulation}. This can be useful if the computational time is limited & $100$ \\ \hline
  \texttt{reg} & regularization coefficient to render Matrix $H$ in \eqref{eq: reformulation} positive definite, see \eqref{eq: regularization}  & $[0,0.1]$, depends on $H$ \\ \hline
- \texttt{resNorm\_H} & $\epsilon_H$, necessary stopping criteria for $\|r_H\|$, see \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
- \texttt{resNorm\_C} & $\epsilon_C$,necessary stopping criteria for $\|r_C\|$, see \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
- \texttt{resNorm\_P} & $\epsilon_P$,necessary stopping criteria for $\|r_P\|$, see \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
- \texttt{muNorm} & $\epsilon_\mu$, necessary stopping criteria for $\mu$, see \eqref{eq: stoppingCriteria} & $0.01$ \\ \hline
+ \texttt{eps\_primal} & $\epsilon_\text{primal}$, necessary stopping criteria, see \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
+ \texttt{eps\_dual} & $\epsilon_\text{dual}$, necessary stopping criteria, see \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
+ \texttt{eps\_mu} & $\epsilon_\mu$, necessary stopping criteria on $\mu$, see \eqref{eq: stoppingCriteria} & $0.1$ \\ \hline
 \end{tabular}
 \end{center}
 \label{tab: tuning parameters}
@@ -341,44 +337,63 @@ Note that in order to use (and compile) the \texttt{LBmpcTP} template library, t
 \noindent
 Furthermore, some compilers provide the option to generate optimized executable codes. For example, the gcc compiler allows the user to add the \texttt{-O3} option which  reduces the size of the executable file and increases the performance of the generated code: \\
 \noindent
-\texttt{g++ -I /usr/local/include/eigen3/ -O3 mainLBmpcTP.cpp -o mainLBmpcTP}
+\texttt{g++ -I /usr/local/include/eigen3/ -O3 mainLBmpcTP.cpp -o mainLBmpcTP} \\
+
+\noindent
+Also, it is advised to use the latest compiler for compatibility and performance reasons. This class is tested to work with gcc versions 4.2 and 4.6.
 
 \subsection{Stopping Criteria and Regularization}
-This section addresses how and when the iterations are terminated. In this Algorithm, a simple stopping criteria suggested in \citep{Jorgensen2006, Krueth2008, Boyd2004ConvOpt} is used. It consists of the following four conditions:
+This section addresses how and when the iterations are terminated. Our algorithms uses a heuristic stopping criterion adapted from \citep{Gertz2003OOQP, VanderbreiLOQO} and consists of the following three conditions:
 \begin{align}
 \label{eq: stoppingCriteria}
-	\|r_H\| &\leq \epsilon_H \\
-	\|r_C\| &\leq \epsilon_C	\nonumber \\
-	\|r_P\| &\leq \epsilon_P	\nonumber  \\
+	\frac{\| \begin{pmatrix}   r_C^T & r_P^T  \end{pmatrix}^T \|}{ \| \begin{pmatrix} h^T & b^T \end{pmatrix}^T \|+1    } &\leq \epsilon_\text{primal} \\
+	\frac{\|r_H\|}{\|g\|+1} &\leq \epsilon_\text{dual}	\nonumber  \\
 	\mu &\leq \epsilon_\mu \nonumber 
 \end{align}
-Our algorithm terminates if all four conditions are satisfied. It should be mentioned in this place that the smaller we choose the various $\epsilon$ to be, the badly conditioned our problem becomes. A forteriori, this is true for $\epsilon_\mu$. Because the matrix $H$ in \eqref{eq: LBMPC} is not strictly convex, numerical issues arise as we try to push the residuals \eqref{eq: KKT} towards zero: the normal equation becomes badly conditioned, posing challenges when computing the Cholesky decomposition numerically. For that reason, we have introduced a regularization parameter $\epsilon_{reg}$ (\texttt{reg}) that regularizes our problem to:
+Our algorithm terminates successfully if and only if all three conditions are satisfied. It should be mentioned at this place that the smaller we choose the various $\epsilon$ to be, the ill conditioned our problem becomes. A forteriori, this is true for $\epsilon_\mu$. Because the matrix $H$ in \eqref{eq: LBMPC} is not strictly convex, numerical issues arise as we try to push the residuals \eqref{eq: KKT} towards zero: the normal equation becomes badly conditioned, posing challenges when computing the Cholesky decomposition numerically. For that reason, we have introduced a regularization parameter $\epsilon_{reg}$ (\texttt{reg}) that regularizes our problem to:
 \begin{equation}
 \label{eq: regularization}
-	H_{reg} = H + \epsilon_{reg}\mathbb{I},
+	H_\text{reg} = H + \epsilon_\text{reg}\mathbb{I},
 \end{equation}
-where $\mathbb{I}$ is the identity matrix.
+where $\mathbb{I}$ is the identity matrix. The problem remains ill-conditioned but experience shows that this is not a big issue for many practical problems \citep{Wright1997StabAugSystemFact, Wright1995StabilityLinEqSolversIPM}.
 
 \subsection{Troubleshooting}
-In this section, some common errors are described. Possible sources for these errors are given and solutions are proposed.
+In this section, some common errors are described. Possible sources for these errors are given and solutions are proposed. We assume that the posed problem has a solution, i.e. that it is primal and dual feasible.
 \begin{enumerate}	
-	\item \textbf{Many Newton steps ($\gtrapprox 200$) are required to solve \eqref{eq: reformulation}.} \\
+	\item \textbf{We only want to approximately solve \eqref{eq: reformulation}.} \\
 		\emph{Solutions:}
 			\begin{itemize}				
-				\item Many Newton steps with tiny step sizes are perfomed. Since this is waste of computational time, the number of Newton iterations can be upperbounded by choosing a smaller \texttt{n\_iter}. Depending on the problem setup, numbers as few as $10$ iterations might be enough to produce satisfying results.
+				\item This can be achieved by bounding the permitted number of Newton iterations by choosing \texttt{n\_iter} small. Depending on the problem setup, numbers as few as $3$ iterations are enough to produce satisfying results.
 			\end{itemize}
 	
 	\item \textbf{Obtained result is a \texttt{nan}-vector (not a number).} \\
 		\emph{Solutions:}
 		\begin{itemize}
-			\item This problem typically shows up after the residuals \eqref{eq: KKT} have become small, especially when $z_{opt}$ lies on some face of the feasible set. Even though positive definiteness (and hence the existence of Cholesky decomposition) is theoretically guaranteed, this might not be true from a numerical point of view. Indeed, a \texttt{nan} often suggests that some of the eigenvalues numerically approach zero, ending up dividing by zero, leading to \texttt{nan}. To solve this, the cost in \eqref{eq: reformulation} is regularized according to \eqref{eq: regularization}. Thus, choosing a larger \texttt{reg} usually avoids this problem, but may return inferior results. Alternatively, we may want to increase the different $\epsilon$ in \eqref{eq: stoppingCriteria}.
+			\item This problem typically shows up as we approach the optimal solution, where the residuals \eqref{eq: KKT} become small. At each step, we solve the following linear equation
+\begin{equation*}
+	Y\Delta\nu = -\beta
+\end{equation*}			
+using a sparse Cholesky decomposition.	Even though positive definiteness of $Y$ is theoretically guaranteed, this is not true from a numerical point of view. Indeed, a \texttt{nan} often suggests that some eigenvalues of $Y$ numerically approach zero when computing the Cholesky decomposition. Hence we end up dividing by zero when doing forward-backward substitution, leading to \texttt{nan}. To solve this, the cost matrix $H$ in \eqref{eq: reformulation} is regularized according to \eqref{eq: regularization}. Thus, choosing a larger \texttt{reg} usually avoids this problem, but may return inferior results. Alternatively, we may want to increase the different $\epsilon$ in \eqref{eq: stoppingCriteria}, which is not recommended though.
 		\end{itemize}
 \end{enumerate}
 
 \subsection{Additional Remarks}
 \begin{itemize}
 	\item So far, the algorithm only works for a minimum prediction horizon of $3$.
-	\item There are more parameters in the \texttt{LBmpcTP.h} file which can be used to improve the performance of the solver, such as how to choose the regularization and how to initialize the starting points $(z^0,\lambda^0,\nu^0,t^0)$. However, it usually suffices to tune  the parameters given in Table \eqref{tab: tuning parameters}.
+	\item There are more parameters and class methods in \texttt{LBmpcTP.h} that can be tuned to improve the performance of the solver. These include
+	\begin{itemize}
+		\item How to implement the regularization in class method \texttt{compPhi()}.
+		\item Initialization of starting point $(z^0,\lambda^0,\nu^0,t^0)$ using a different heuristic in \texttt{compInitPoints()}.
+		\item How to choose the final step size: 
+		\begin{enumerate}
+			\item Use Mehrotra's heuristic as it is done in  class method \texttt{compAlpha\_corrector()} and choose the parameter $0<\texttt{gamma\_f}\ll 1$.
+			\item Do it using method \texttt{compAlpha\_affine()} and some predefined damping factor $0<\texttt{damp}\ll 1$
+		\end{enumerate}
+		\item Use another kind of stopping criterion.
+		\item Use another heuristic to detect primal and dual infeasibility.
+	\end{itemize}		
+ However, it usually suffices to tune  the parameters given in Table \eqref{tab: tuning parameters}.
+ 
 	\item If the prediction horizon $N\geq50$, then some variable definitions in the class file have to be changed. More precisely, the size of some preallocated arrays of the \texttt{LLT}-class must be increased to: \texttt{L\_diag[2*\_N]}, \texttt{LOmicron\_diag[\_N+1]}, \texttt{LPi\_diag[\_N]}, \texttt{LRho\_diag[\_N]}.
 	
 	\item When an \texttt{LBmpcTP} object is instantiated, the class variable \texttt{z} is initialized. Between the time steps, \texttt{z} can take  the role of "warm start". However, when the \texttt{LBmpcTP} is instantiated, it set as the $0$-vector. If a priori information is available, then a more suitable \texttt{z} can be chosen.
@@ -386,16 +401,20 @@ In this section, some common errors are described. Possible sources for these er
 
 
 
-%\newpage
-%\section{Example Files}
-%\subsection{\texttt{Init.m}} \label{app: Init.m}
-%\lstset{language=Matlab}
-%\lstinputlisting{Code/Init.m}
+\newpage
+\section{Example Files}
+\subsection{\texttt{Init.m}} \label{app: Init.m}
+\lstset{language=Matlab}
+\lstinputlisting{Init.m}
 
-%\newpage
-%\subsection{ \texttt{mainLBmpcTP.cpp}} \label{app: mainLBmpcTP.cpp}
-%\lstset{language=C}
-%\lstinputlisting{Code/mainLBmpcTP.cpp}
+\subsection{\texttt{writeParam.m}} \label{app: writeParam.m}
+\lstset{language=Matlab}
+\lstinputlisting{Init.m}
+
+\newpage
+\subsection{ \texttt{mainLBmpcTP.cpp}} \label{app: mainLBmpcTP.cpp}
+\lstset{language=C}
+\lstinputlisting{mainLBmpcTP.cpp}
 
 
 
