@@ -1,4 +1,4 @@
-%% Init.m
+% Init.m
 % Writes relevant data to binary file.
 % author: Xiaojing ZHANG
 % date: November 10, 2011
@@ -9,7 +9,7 @@ clear all;
 format('short');
 
 %% MPC parameters:
-N = 4;      % MPC horizon
+N = 10;      % MPC horizon
 m = 2;      % # input
 n = 5;      % # states
 
@@ -18,12 +18,12 @@ fileName = 'ConstrParam.bin';
 
 %% Parameters for constructor
 
-n_iter = 200; % maximum number of Newton iterations
+n_iter = 100; % maximum number of Newton iterations
 reg = 1e-3;  % regularization Term
-resNorm_H = 0.1;
-resNorm_C = 0.1;
-resNorm_P = 0.1;
-muNorm = 0.1;
+eps = 0.1;
+eps_primal = eps;
+eps_dual = eps;
+eps_mu = eps;
 
 %% System dynamic parameters
 

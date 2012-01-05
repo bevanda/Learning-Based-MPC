@@ -153,11 +153,11 @@ private:
     // !!!!!!!! Variables to represent Phi = L_Phi*L_Phi'
     // !!!!!!!! need explicitly: double, Dynamic, array-length, e.g. horizon = 50
     LLT<Matrix<double, Dynamic, Dynamic> , Lower> LOmicron_diag[Nhoriz + 1]; //*** [horizon +1]
-    Matrix<double, _m, _m> LOmicron_diag_transp[_N + 1];
+    Matrix<Type, _m, _m> LOmicron_diag_transp[_N + 1];
     LLT<Matrix<double, Dynamic, Dynamic> , Lower> LPi_diag[Nhoriz]; // ***** [horizon]
-    Matrix<double, _n, _n> LPi_diag_transp[_N];
+    Matrix<Type, _n, _n> LPi_diag_transp[_N];
     LLT<Matrix<double, Dynamic, Dynamic> , Lower> LRho_diag[Nhoriz]; // ***** [horizon]
-    Matrix<double, _n, _n> LRho_diag_transp[_N];
+    Matrix<Type, _n, _n> LRho_diag_transp[_N];
     Matrix<Type, _m, _n> LSigma_offDiag[_N]; // last element used only if _pos_omega == _N
     Matrix<Type, _n, _m> LSigma_offDiag_transp[_N]; // last element used only if _pos_omega == _N
     Matrix<Type, _m, _n> LLambda0; // used for LLT decomposition if _pos_omega != _N
@@ -1881,8 +1881,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compDenomFeasCheck()
 {
 	// norm of cost-vector
-	double normGSq = normGSq + (r_vec[0]+2*S_transp*(*x_hat)).squaredNorm();
-	normGSq = normGSq + q_tilde_vec[0].squaredNorm();
+	double normGSq =  q_tilde_vec[0].squaredNorm() + (r_vec[0]+2*S_transp*(*x_hat)).squaredNorm();
 	for (int i=1; i<= _N-1; i++)
 		normGSq = normGSq + r_vec[i].squaredNorm() + q_tilde_vec[i].squaredNorm() + q_bar_vec[i].squaredNorm();
 	denomDualFeas = (sqrt(normGSq)+1);	// denominator in feas check
