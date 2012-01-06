@@ -4,10 +4,9 @@ fid = fopen(fileName,'w');
 
 fwrite(fid, n_iter, 'int');             % int n_iter_arg
 fwrite(fid, reg, 'double');      % regularization term in PhaseI
-fwrite(fid, resNorm_H, 'double');      % residuum norm on r_H
-fwrite(fid, resNorm_C, 'double');      % residuum norm on r_C
-fwrite(fid, resNorm_P, 'double');      % residuum norm on r_P
-fwrite(fid, muNorm, 'double');          % residuum norm on gap
+fwrite(fid, eps_primal, 'double');      % residuum norm on r_H
+fwrite(fid, eps_dual, 'double');      % residuum norm on r_C
+fwrite(fid, eps_mu, 'double');          % residuum norm on gap
 
 fwrite(fid, A, 'double');               % Matrix<Type, _n, _n> &A_arg
 fwrite(fid, B, 'double');               % Matrix<Type, _n, _m> &B_arg
