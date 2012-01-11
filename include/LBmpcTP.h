@@ -1849,10 +1849,12 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     // compute the vectors u_star
     // "ColPivHouseholderQRPreconditioner" is more accurate, "HouseholderQRPreconditioner" is faster
     JacobiSVD<MatrixXd, HouseholderQRPreconditioner> svd(Bm, ComputeThinU | ComputeThinV); // computes SVD of Bm
-    u_star[0] = svd.solve(x_star[0] - Am_tilde * (*x_hat) - tm_tilde);
+    // u_star[0] = svd.solve(x_star[0] - Am_tilde * (*x_hat) - tm_tilde);
+	u_star[0] = svd.solve(x_star[0] - Am_tilde * (x_star[0]) - tm_tilde);
 
     for (int i = 1; i <= _N - 1; i++)
-      u_star[i] = svd.solve(x_star[i] - Am_tilde * x_star[i - 1] - tm_tilde);
+		u_star[i] = svd.solve(x_star[i] - Am_tilde * x_star[i] - tm_tilde);
+      // u_star[i] = svd.solve(x_star[i] - Am_tilde * x_star[i - 1] - tm_tilde);
 
     /*
      for (int i = 0; i <= _N-1; i++)
