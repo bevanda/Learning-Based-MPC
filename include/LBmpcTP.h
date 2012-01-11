@@ -477,7 +477,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
             cerr << "problem primal infeasible" << endl;
           return 1;
         }
-        else if (term_primal > eps_dual)
+        else if (term_dual > eps_dual)
         {
           if (verbose)
             cerr << "problem dual infeasible " << endl;
