@@ -11,6 +11,7 @@ b) new termination condition
 c) indicates (possible) infeasibility
 d) not parallized version
 e) Y is regularized as well with Y + reg_Y * I
+f) changed cost function in compRQ() as suggested by Anil 
 */
 
 
