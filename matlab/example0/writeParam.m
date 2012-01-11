@@ -3,7 +3,8 @@
 fid = fopen(fileName,'w');
 
 fwrite(fid, n_iter, 'int');             % int n_iter_arg
-fwrite(fid, reg, 'double');      % regularization term in PhaseI
+fwrite(fid, reg, 'double');      % regularization term for Phi
+fwrite(fid, reg_Y, 'double');       % regularization term for Y
 fwrite(fid, eps_primal, 'double');      % residuum norm on r_H
 fwrite(fid, eps_dual, 'double');      % residuum norm on r_C
 fwrite(fid, eps_mu, 'double');          % residuum norm on gap

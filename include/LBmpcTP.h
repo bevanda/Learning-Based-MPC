@@ -10,6 +10,7 @@ a) adaptive step-length
 b) new termination condition
 c) indicates (possible) infeasibility
 d) not parallized version
+e) Y is regularized as well with Y + reg_Y * I
 */
 
 
@@ -49,7 +50,7 @@ using namespace std;
  _pos_omega: (x_bar[.+_pos_omega] , theta) \in Omega
  */
 
-const int Nhoriz = 60;
+const int Nhoriz = 60;	// max prediction horizon
 
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
   class LBmpcTP
@@ -63,7 +64,8 @@ private:
     double eps_dual;
     double eps_mu;
     double damp;
-    double reg; // regularization term
+    double reg; // regularization term for Phi
+	double reg_Y;	// regularization term for Y
     double compTime; // stores computational time
     bool verbose; // if set, program will print status updates
 	double denomPrimalFeas;	// denominator in feas check
@@ -265,6 +267,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     // read
     fin.read((char *)&n_iter, sizeof(int));
     fin.read((char *)&reg, sizeof(double));
+	fin.read((char *)&reg_Y, sizeof(double));
     fin.read((char *)&eps_primal, sizeof(double));
     fin.read((char *)&eps_dual, sizeof(double));
     fin.read((char *)&eps_mu, sizeof(double));
@@ -370,6 +373,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
      // test output
      cout << "n_iter: " << n_iter << endl << endl;
      cout << "reg: " << reg << endl << endl;
+	 cout << "reg_Y: " << reg_Y << endl << endl;
      cout << "eps_primal: " << eps_primal << endl << endl;
      cout << "eps_dual: " << eps_dual << endl << endl;
      cout << "eps_mu: " << eps_mu << endl << endl;
@@ -402,6 +406,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
      cout << "f_xTheta: " << endl << f_xTheta << endl << endl;
      cout << "K:" << endl << K << endl << endl;
      */
+
   }
 
 // step function returns optimal input
@@ -926,6 +931,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compY()
  {
+	
    // computation of Y is done in three steps: Y = C * X
    // 1. L*U = C'
    // 2. L'*X = U --> L*L'*X = Phi*X = C', i.e. X = Phi_tilde * C'
@@ -1184,11 +1190,12 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compY()
           */
 
          // 3. Compute Y = C*X
+		// includes regularization with parameter Y_reg
          // compute first three Y separately
-         Y[0][0] = -Bm*X[0] + X_bar[0];
+	 	 Y[0][0] = -Bm*X[0] + X_bar[0] + reg_Y*eye;
 
          Y[0][1] = -Bm*X[1];
-         Y[1][1] = -B*X[1] + X_bar[1];
+         Y[1][1] = -B*X[1] + X_bar[1] + reg_Y*eye;
 
          // compute rest by filling Y column by column; done for 2 neighboring rows
          // we fill Y column by column, treating the first two columns specially
@@ -1196,11 +1203,11 @@ void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compY()
          {
            Y[0][2*(i-1)+2] = X_bar[2+(i-1)*5];
            Y[1][2*(i-1)+2] = X_bar[3+(i-1)*5];
-           Y[2][2*(i-1)+2] = -Am_tilde*X_bar[2+(i-1)*5] - Bm_bar*X_bar[3+(i-1)*5] - Bm*X[3+(i-1)*3] + X_bar[4+(i-1)*5];
+           Y[2][2*(i-1)+2] = -Am_tilde*X_bar[2+(i-1)*5] - Bm_bar*X_bar[3+(i-1)*5] - Bm*X[3+(i-1)*3] + X_bar[4+(i-1)*5] + reg_Y*eye;
 
            Y[0][2*(i-1)+3] = X_bar[5+(i-1)*5];
            Y[1][2*(i-1)+3] = -Bm_bar*X_bar[5+(i-1)*5] - Bm*X[4+(i-1)*3];
-           Y[2][2*(i-1)+3] = -A_bar*X_bar[5+(i-1)*5] - B*X[4+(i-1)*3] + X_bar[6+(i-1)*5];
+           Y[2][2*(i-1)+3] = -A_bar*X_bar[5+(i-1)*5] - B*X[4+(i-1)*3] + X_bar[6+(i-1)*5] + reg_Y*eye;
          }
 
          /*

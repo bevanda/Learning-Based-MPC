@@ -9,7 +9,7 @@ clear all;
 format('short');
 
 %% MPC parameters:
-N = 10;      % MPC horizon
+N = 4;      % MPC horizon
 m = 2;      % # input
 n = 5;      % # states
 
@@ -19,7 +19,8 @@ fileName = 'ConstrParam.bin';
 %% Parameters for constructor
 
 n_iter = 100; % maximum number of Newton iterations
-reg = 1e-3;  % regularization Term
+reg = 1e-3;  % regularization term for Phi
+reg_Y = 1e-8;   % regularization term for Y, larger values violate equality constraints
 eps = 0.1;
 eps_primal = eps;
 eps_dual = eps;
