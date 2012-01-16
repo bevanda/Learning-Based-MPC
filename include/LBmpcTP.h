@@ -533,7 +533,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
         {
           if (verbose)
           	cout << "NAN detected during iteration number " << itNewton << endl;
-          return 5;
+          return 4;
         }
       }
       z = z + alpha * dz;
