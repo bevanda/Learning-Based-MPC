@@ -14,7 +14,7 @@ function [...
     uncertainty_block] = design_params(p,m)
 
 % Define parameters of MPC procedure
-N = 60; % MPC horizon
+N = 15; % MPC horizon
 
 weights_select = 0; % 0 = ball catching, 1 = testing, 2 = learning demo (back & forth)
 
