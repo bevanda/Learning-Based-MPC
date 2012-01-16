@@ -13,7 +13,7 @@ if strcmp(getenv('USER'), 'bouffard') == 0
     dual_ekf_fname = 'dual_ekf.dat';
     
     % added by George
-    % quad_bin_fname = 'quad.bin';
+%     quad_bin_fname = 'quad.bin';
 else
     % Stuff for Pat only
     clear all;
@@ -394,7 +394,8 @@ beta_max(7) = beta_max(7)*0.1; % only allow 1/10 the correction to this paramete
 %% Parameters for constructor
 
 n_iter = 200; % maximum number of Newton iterations
-reg = 1e-2;  % regularization Term
+reg = 1e-2;  % regularization Term for Phi
+reg_Y = 1e-3;   % new regularization Term for Y
 eps_primal = 0.1;
 eps_dual = 0.1;
 eps_mu = 0.1;
@@ -408,6 +409,7 @@ writeParam(...
     quad_bin_fname, ...
     n_iter, ...
     reg, ...
+    reg_Y, ...
     eps_primal, ...
     eps_dual, ...
     eps_mu, ...

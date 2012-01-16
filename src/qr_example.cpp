@@ -38,7 +38,7 @@ int main(int argc, const char* argv[])
 
 	// add some noise
 	// srand ( 23 );
- 	const int steps = 1500;	// number of simulations steps
+ 	const int steps = 500;	// number of simulations steps
 	// Matrix<double, _n, steps> noise;
 	// noise.setRandom();
 	// cout << "noise: " << noise << endl;
@@ -94,7 +94,7 @@ cout << endl << endl;
   Mm.setZero();
 
   tm.setZero();
-  x_hat << 0, 0, 0, 0, 0, 0, 0, 0, -2, 0;
+  x_hat << 0, 0, 0, 0, 0, 0, 0, 0, -3, 0;
 
   for (int i = 0; i <= _N - 1; i++)
   {
@@ -128,7 +128,7 @@ double timeTmp;			// ditto
 	
 	if (!status)
     {
-      u_opt = myObj.u_opt;  
+      	u_opt = myObj.u_opt;  
        cout << " u_opt: " << u_opt.transpose();
        cout << " | x_hat: " << x_hat.transpose();
        cout << endl << endl;

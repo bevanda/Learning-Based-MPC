@@ -22,8 +22,8 @@ make
 
 == Example from documentation ==
 cd lbmpc
-bin/example0 matlab/example0/ConstrParam.bin
+build/bin/example0 matlab/example0/ConstrParam.bin
 
 == Quadrotor example ==
 cd lbmpc
-bin/qr_example matlab/qr_example/quad.bin
+build/bin/qr_example matlab/qr_example/quad.bin

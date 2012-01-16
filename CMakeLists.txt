@@ -20,6 +20,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_executable(example0 src/example0.cpp)
 add_executable(qr_example src/qr_example.cpp)
-target_link_libraries(qr_example rt)
+#target_link_libraries(qr_example rt)
 
 include(cmake/log_cmake_variables.cmake)
