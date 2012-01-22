@@ -1,0 +1,29 @@
+= Compiling examples =
+
+cd lbmpc
+mkdir build
+cd build
+cmake ..
+make
+
+= Creating data files =
+
+== Example from documentation ==
+(in MATLAB):
+>> cd lbmpc/matlab/example0
+>> Init
+
+== Quadrotor example ==
+(in MATLAB):
+>> cd lbmpc/matlab/qr_example
+>> Init
+
+= How to run examples =
+
+== Example from documentation ==
+cd lbmpc
+build/bin/example0 matlab/example0/ConstrParam.bin
+
+== Quadrotor example ==
+cd lbmpc
+build/bin/qr_example matlab/qr_example/quad.bin
