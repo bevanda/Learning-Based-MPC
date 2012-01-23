@@ -370,43 +370,44 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     A_bar = A + B * K;
     A_bar_transp = A_bar.transpose();
 
-    /*
-     // test output
-     cout << "n_iter: " << n_iter << endl << endl;
-     cout << "reg: " << reg << endl << endl;
-	 cout << "reg_Y: " << reg_Y << endl << endl;
-     cout << "eps_primal: " << eps_primal << endl << endl;
-     cout << "eps_dual: " << eps_dual << endl << endl;
-     cout << "eps_mu: " << eps_mu << endl << endl;
+    if (verbose)
+    {
+      // test output
+      cout << "n_iter: " << n_iter << endl << endl;
+      cout << "reg: " << reg << endl << endl;
+      cout << "reg_Y: " << reg_Y << endl << endl;
+      cout << "eps_primal: " << eps_primal << endl << endl;
+      cout << "eps_dual: " << eps_dual << endl << endl;
+      cout << "eps_mu: " << eps_mu << endl << endl;
 
-     cout << "A: " << endl << A << endl << endl;
-     cout << "B: " << endl << B << endl << endl;
-     cout << "s:" << endl << s << endl << endl;
-     cout << "Q_tilde: " << endl << Q_tilde << endl << endl;
-     cout << "Q_tilde_f: " << endl << Q_tilde_f << endl << endl;
-     cout << "R: " << endl << R << endl << endl;
+      cout << "A: " << endl << A << endl << endl;
+      cout << "B: " << endl << B << endl << endl;
+      cout << "s:" << endl << s << endl << endl;
+      cout << "Q_tilde: " << endl << Q_tilde << endl << endl;
+      cout << "Q_tilde_f: " << endl << Q_tilde_f << endl << endl;
+      cout << "R: " << endl << R << endl << endl;
 
-     for (int i = 0; i<= _N-1; i++)
-     {
-     cout << "Fx[" << i << "]: " << endl << Fx[i] << endl << endl;
-     }
-     for (int i = 0; i <= _N-1; i++)
-     {
-     cout << "fx[" << i << "]: " << endl << fx[i] << endl << endl;
-     }
-     for (int i = 0; i <= _N-1; i++)
-     {
-     cout << "Fu[" << i << "]: " << endl << Fu[0] << endl << endl;
-     }
-     for (int i = 0; i <= _N-1; i++)
-     {
-     cout << "fu[" << i << "]: " << endl << fu[i] << endl << endl;
-     }
-     cout << "F_xTheta: " << endl << F_xTheta << endl << endl;
-     cout << "F_theta: " << endl << F_theta << endl << endl;
-     cout << "f_xTheta: " << endl << f_xTheta << endl << endl;
-     cout << "K:" << endl << K << endl << endl;
-     */
+      for (int i = 0; i <= _N - 1; i++)
+      {
+        cout << "Fx[" << i << "]: " << endl << Fx[i] << endl << endl;
+      }
+      for (int i = 0; i <= _N - 1; i++)
+      {
+        cout << "fx[" << i << "]: " << endl << fx[i] << endl << endl;
+      }
+      for (int i = 0; i <= _N - 1; i++)
+      {
+        cout << "Fu[" << i << "]: " << endl << Fu[0] << endl << endl;
+      }
+      for (int i = 0; i <= _N - 1; i++)
+      {
+        cout << "fu[" << i << "]: " << endl << fu[i] << endl << endl;
+      }
+      cout << "F_xTheta: " << endl << F_xTheta << endl << endl;
+      cout << "F_theta: " << endl << F_theta << endl << endl;
+      cout << "f_xTheta: " << endl << f_xTheta << endl << endl;
+      cout << "K:" << endl << K << endl << endl;
+    }
 
   }
 
@@ -434,7 +435,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     Bm_bar_transp = Bm_bar.transpose();
 
     //update z from previous z, which was assumed to be optimal or created during instantiation of object
-    z.template segment<(_N - 1) * (_m + _n + _n)> (0) = z.template segment<(_N - 1) * (_m + _n + _n)> (offset);
+    //z.template segment<(_N - 1) * (_m + _n + _n)> (0) = z.template segment<(_N - 1) * (_m + _n + _n)> (offset);
     // ONLY TEMPORARILY
     // z << -2 ,    3  ,   3  ,   1 ,   -2 ,    2 ,   -3 ,    0  ,  -1  ,   0  ,   5 ,    3  ,   5  ,  -3  ,   0  ,  -4  ,   3  ,   1  ,   4  ,   5  ,   4 ,   -1,
     // -5  ,   0  ,  -3 ,   -3  ,  -2  ,  -4  ,   2  ,   2   ,  0  ,  -2  ,   3  ,   1 ,    5  ,   4  ,  -1  ,   0   , -2   ,  1  ,   3  ,   2 ,   -4   ,  3,
@@ -1853,7 +1854,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
   {
     // compute the vectors u_star
     // "ColPivHouseholderQRPreconditioner" is more accurate, "HouseholderQRPreconditioner" is faster
-    JacobiSVD<MatrixXd, HouseholderQRPreconditioner> svd(Bm, ComputeThinU | ComputeThinV); // computes SVD of Bm
+  JacobiSVD<MatrixXd, HouseholderQRPreconditioner> svd(Bm, ComputeThinU | ComputeThinV); // computes SVD of Bm
     // u_star[0] = svd.solve(x_star[0] - Am_tilde * (*x_hat) - tm_tilde);
 	u_star[0] = svd.solve(x_star[0] - Am_tilde * (x_star[0]) - tm_tilde);
 
