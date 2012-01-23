@@ -394,16 +394,16 @@ beta_max(7) = beta_max(7)*0.1; % only allow 1/10 the correction to this paramete
 %% Parameters for constructor
 
 n_iter = 200; % maximum number of Newton iterations
-reg = 1e-2;  % regularization Term for Phi
-reg_Y = 1e-3;   % new regularization Term for Y
-eps_primal = 0.1;
-eps_dual = 0.1;
-eps_mu = 0.1;
+reg = 1e-8;  % regularization Term for Phi
+reg_Y = 1e-8;   % new regularization Term for Y
+eps_primal = 1e-8; %0.1;
+eps_dual = 1e-8; %0.1;
+eps_mu = 1e-8; %0.1;
 
 %% Write quad.dat and quad.mat
 s = d_0;
 Q_tilde = Q;
-Q_tilde_f = Q;
+Q_tilde_f = P;
 writeParam(...
     N, ...
     quad_bin_fname, ...
