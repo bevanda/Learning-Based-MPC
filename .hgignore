@@ -4,3 +4,4 @@ build/*
 .cproject
 .project
 .settings/*
+*.orig
