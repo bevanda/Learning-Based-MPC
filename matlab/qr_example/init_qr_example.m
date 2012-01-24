@@ -85,8 +85,8 @@ length_Fg = length(h_g);
 %% State constraints:
 % Points that after (A+B*K_t) get to (F_x,h_x) \ominus (F_g,h_g)
 [F_x_g, h_x_g] = double(polytope(F_x, h_x) - polytope(F_g, h_g));
-Fx{1} = F_x_g;
-fx{1} = h_x_g;
+Fx{1} = F_x;
+fx{1} = h_x;
 for i=2:N
     Fx{i} = F_x;
     fx{i} = h_x;
@@ -159,9 +159,9 @@ disp('Terminal set polytope:');
 term_poly
 
 % x-theta constraints:
-F_xTheta = F_w(:, 1:n);
-F_theta = F_w(:,n+1:n+m);
-f_xTheta = h_w;
+F_xTheta = F_w_N(:, 1:n);
+F_theta = F_w_N(:,n+1:n+m);
+f_xTheta = h_w_N;
 
 %%
 %==========================================================================
@@ -393,7 +393,7 @@ beta_max(7) = beta_max(7)*0.1; % only allow 1/10 the correction to this paramete
 
 %% Parameters for constructor
 
-n_iter = 200; % maximum number of Newton iterations
+n_iter = 200; % maximum number of Newton iterationshg
 reg = 1e-8;  % regularization Term for Phi
 reg_Y = 1e-8;   % new regularization Term for Y
 eps_primal = 1e-8; %0.1;
