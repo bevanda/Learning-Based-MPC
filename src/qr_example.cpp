@@ -14,16 +14,13 @@
 // #include <sys/time.h> 
 #include <sys/time.h>
 
-
-
 using namespace Eigen;
 using namespace std;
-
 
 int main(int argc, const char* argv[])
 {
   // ------ SPECIFY parameters -------
-	// only works for _N <= 243, other George cannot execute main file: 
+  // only works for _N <= 243, other George cannot execute main file:
   const int _N = 15; // MPC horizon
   const int _m = 3; // #input
   const int _n = 10; // #states
@@ -36,14 +33,14 @@ int main(int argc, const char* argv[])
   bool verbose = 0; // '0' if it should shut up
   int status; // stores status code
 
-	// add some noise
-	// srand ( 23 );
- 	const int steps = 500;	// number of simulations steps
-	// Matrix<double, _n, steps> noise;
-	// noise.setRandom();
-	// cout << "noise: " << noise << endl;
-	// noise = 0*0.05*noise;
-	
+  // add some noise
+  // srand ( 23 );
+  const int steps = 500; // number of simulations steps
+  // Matrix<double, _n, steps> noise;
+  // noise.setRandom();
+  // cout << "noise: " << noise << endl;
+  // noise = 0*0.05*noise;
+
   if (argc == 1)
   {
     filename = default_fileName;
@@ -55,10 +52,10 @@ int main(int argc, const char* argv[])
   else
   {
     cerr << "Usage: " << argv[0] << " [path-to-ConstrParam.bin]" << endl;
-    return 1;  
+    return 1;
   }
 
-cout << endl << endl;
+  cout << endl << endl;
 #ifdef EIGEN_VECTORIZE
   cout << "EIGEN_VECTORIZE set!" << endl;
 #else
@@ -88,69 +85,84 @@ cout << endl << endl;
   Matrix<double, _n, 1> x_hat; // n x 1, state estimate
   Matrix<double, _n, 1> x_star[_N]; // n x 1, [_N], tracking
   Matrix<double, _m, 1> u_opt; // m x 1, optimal input is saved there
- 
+
   // -------- they are updated at each time step ------------
   Lm.setZero();
   Mm.setZero();
 
   tm.setZero();
-  x_hat << 0, 0, 0, 0, 0, 0, 0, 0, -3, 0;
+  x_hat << 0, 0, 0, 0, 0, 0, 0, 0, -2, 0;
+
+  double zcmd = -2.0;
 
   for (int i = 0; i <= _N - 1; i++)
   {
     x_star[i].setZero();
-    x_star[i][8] = -2.0;
+    x_star[i][8] = -1.0;
   }
-int numIter = 0;
+  int numIter = 0;
 
-struct timeval start;	// added by George
-struct timeval end;		// ditto
-double elapsedTime = 0;	// ditto
-double timeTmp;			// ditto
+  struct timeval start; // added by George
+  struct timeval end; // ditto
+  double elapsedTime = 0; // ditto
+  double timeTmp; // ditto
 
   for (int j = 0; j < steps; j++)
   {
-	// timespec start_rt;	// linux
+
+    // change alt. setpoint after awhile:
+    if (j == 750)
+    {
+      for (int i = 0; i <= _N - 1; i++)
+      {
+        x_star[i].setZero();
+        x_star[i][0] = 1.0;
+        x_star[i][8] = -3.0;
+      }
+    }
+    // timespec start_rt;	// linux
     // timespec end_rt;		// linux
     // clock_gettime(CLOCK_REALTIME, &start_rt);	// linux
-	gettimeofday(&start, NULL);		// George's Mac
-	status = myObj.step(Lm, Mm, tm, x_hat, x_star);
-	gettimeofday(&end, NULL);		// George's Mac
-	timeTmp =   (end.tv_sec*1000 + end.tv_usec/1000) - (start.tv_sec*1000 + start.tv_usec/1000);	// George's Mac
-	elapsedTime += timeTmp;		// George's Mac
-	
-	// clock_gettime(CLOCK_REALTIME, &end_rt);		// linux
-    // double duration = (end_rt.tv_sec - start_rt.tv_sec) + 1e-9*(end_rt.tv_nsec - start_rt.tv_nsec);	// linux
-	// cout << "step: " << j ; 
-	// cout << " status: " << status;
-	// cout << " iter: " << myObj.n_iter_last;
-	numIter = numIter + myObj.n_iter_last;
-	
-	if (!status)
-    {
-      	u_opt = myObj.u_opt;  
-       cout << " u_opt: " << u_opt.transpose();
-       cout << " | x_hat: " << x_hat.transpose();
-       cout << endl << endl;
-    } else
-    {
-		cerr << "error code: " << status << " at step: " << j << endl;
-		cerr << "starting position was: " << x_hat.transpose() << endl;
-		cout << "most optimal u_opt: " << myObj.u_opt << endl;
-		// return 1;
-		u_opt.setZero();
-    }
-	
-    // x_hat = A * x_hat + B * u_opt + s + noise.col(j);
-	x_hat = A * x_hat + B * u_opt + s;
-  }
-  
+    gettimeofday(&start, NULL); // George's Mac
+    status = myObj.step(Lm, Mm, tm, x_hat, x_star);
+    gettimeofday(&end, NULL); // George's Mac
+    timeTmp = (end.tv_sec * 1000 + end.tv_usec / 1000) - (start.tv_sec * 1000 + start.tv_usec / 1000); // George's Mac
+    elapsedTime += timeTmp; // George's Mac
 
-cout << endl << endl;
-cout << "STAT: " << endl;
-cout << "number of Newton iterations: " << numIter << endl;
-cout << "time elapsed: " << elapsedTime << " [ms]"<< endl;
-cout << "average: " << elapsedTime/numIter << " [ms/step]" << endl;  
+    // clock_gettime(CLOCK_REALTIME, &end_rt);		// linux
+    // double duration = (end_rt.tv_sec - start_rt.tv_sec) + 1e-9*(end_rt.tv_nsec - start_rt.tv_nsec);	// linux
+    // cout << "step: " << j ;
+    // cout << " status: " << status;
+    // cout << " iter: " << myObj.n_iter_last;
+    numIter = numIter + myObj.n_iter_last;
+
+    if (!status)
+    {
+      u_opt = myObj.u_opt;
+      cout << j;
+      cout << " iter: " << myObj.n_iter_last;
+      cout << " u_opt: " << u_opt.transpose();
+      cout << " | x_hat: " << x_hat.transpose();
+      cout << endl << endl;
+    }
+    else
+    {
+      cerr << "error code: " << status << " at step: " << j << endl;
+      cerr << "starting position was: " << x_hat.transpose() << endl;
+      cout << "most optimal u_opt: " << myObj.u_opt << endl;
+      // return 1;
+      u_opt.setZero();
+    }
+
+    // x_hat = A * x_hat + B * u_opt + s + noise.col(j);
+    x_hat = A * x_hat + B * u_opt + s;
+  }
+
+  cout << endl << endl;
+  cout << "STAT: " << endl;
+  cout << "number of Newton iterations: " << numIter << endl;
+  cout << "time elapsed: " << elapsedTime << " [ms]" << endl;
+  cout << "average: " << elapsedTime / numIter << " [ms/step]" << endl;
   return 0;
 }
 
