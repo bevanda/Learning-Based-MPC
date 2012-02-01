@@ -26,7 +26,7 @@ int main(int argc, const char* argv[])
   const int _n = 10; // #states
   const int _nSt = 20; // # state constraints
   const int _nInp = 6; // # state constraints
-  const int _nF_xTheta = 72; // # Omega constraints
+  const int _nF_xTheta = 36; // # Omega constraints
   const int _pos_omega = 1; // <= _N
   const string default_fileName = "ConstrParam.bin";
   string filename;
@@ -35,10 +35,10 @@ int main(int argc, const char* argv[])
 
   // add some noise
   // srand ( 23 );
-  const int steps = 500; // number of simulations steps
+  const int steps = 1000; // number of simulations steps
   // Matrix<double, _n, steps> noise;
   // noise.setRandom();
-  // cout << "noise: " << noise << endl;
+  // cout << "noise: " << noise << endl; 
   // noise = 0*0.05*noise;
 
   if (argc == 1)
@@ -92,13 +92,15 @@ int main(int argc, const char* argv[])
 
   tm.setZero();
   x_hat << 0, 0, 0, 0, 0, 0, 0, 0, -2, 0;
-
+	// x_hat << 0,0,0,0,0,0,0,0,-1,0;
   double zcmd = -2.0;
 
   for (int i = 0; i <= _N - 1; i++)
   {
     x_star[i].setZero();
     x_star[i][8] = -1.0;
+	// x_star[i][0] = 1.0;
+    // x_star[i][8] = -3.0;
   }
   int numIter = 0;
 
@@ -135,9 +137,10 @@ int main(int argc, const char* argv[])
     // cout << " status: " << status;
     // cout << " iter: " << myObj.n_iter_last;
     numIter = numIter + myObj.n_iter_last;
-
+ 
     if (!status)
     {
+		cout << setprecision(8);
       u_opt = myObj.u_opt;
       cout << j;
       cout << " iter: " << myObj.n_iter_last;
@@ -149,9 +152,10 @@ int main(int argc, const char* argv[])
     {
       cerr << "error code: " << status << " at step: " << j << endl;
       cerr << "starting position was: " << x_hat.transpose() << endl;
-      cout << "most optimal u_opt: " << myObj.u_opt << endl;
+      cout << "most optimal u_opt: " << myObj.u_opt.transpose() << endl;
       // return 1;
       u_opt.setZero();
+	return 1;
     }
 
     // x_hat = A * x_hat + B * u_opt + s + noise.col(j);

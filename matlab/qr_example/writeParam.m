@@ -61,3 +61,5 @@ fwrite(fid, f_xTheta, 'double');        % Matrix<Type, _nF_xTheta, 1> &f_xTheta_
 fwrite(fid, K, 'double');               % Matrix<Type, _m, _n> &K_arg
 
 fclose(fid);
+
+disp(['Parameters written to: ' fname_bin])

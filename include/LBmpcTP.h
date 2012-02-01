@@ -245,7 +245,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     n_iter_last(0)
   {
     // first starting z can be modified
-	z.setConstant(0);
+	z.setConstant(1);
     nu.setConstant(1); // any nu good to initialize
     lambda.setConstant(1);	// strictly positive
     slack.setConstant(1);	// strictly positive
@@ -435,7 +435,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     Bm_bar_transp = Bm_bar.transpose();
 
     //update z from previous z, which was assumed to be optimal or created during instantiation of object
-    //z.template segment<(_N - 1) * (_m + _n + _n)> (0) = z.template segment<(_N - 1) * (_m + _n + _n)> (offset);
+    z.template segment<(_N - 1) * (_m + _n + _n)> (0) = z.template segment<(_N - 1) * (_m + _n + _n)> (offset);
     // ONLY TEMPORARILY
     // z << -2 ,    3  ,   3  ,   1 ,   -2 ,    2 ,   -3 ,    0  ,  -1  ,   0  ,   5 ,    3  ,   5  ,  -3  ,   0  ,  -4  ,   3  ,   1  ,   4  ,   5  ,   4 ,   -1,
     // -5  ,   0  ,  -3 ,   -3  ,  -2  ,  -4  ,   2  ,   2   ,  0  ,  -2  ,   3  ,   1 ,    5  ,   4  ,  -1  ,   0   , -2   ,  1  ,   3  ,   2 ,   -4   ,  3,
@@ -2091,7 +2091,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
 void LBmpcTP<Type, _n, _m, _N, _nSt, _nInp, _nF_xTheta, _pos_omega>::compAlpha_corrector()
 {
-	double gamma_f = 0.01;	// heuristic choice,  0 < gamma_f << 1
+	double gamma_f = 0.001;	// heuristic choice,  0 < gamma_f << 1
 	double alpha_primal_max = 1;	// for slack
 	double alpha_dual_max = 1;		// for lambda
 	int idx_primal = -1;	// stores position where alpha_primal_max would touch border for slack
