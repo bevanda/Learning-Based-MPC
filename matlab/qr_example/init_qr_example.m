@@ -405,6 +405,8 @@ eps_primal = 1e-6; %0.1;
 eps_dual = 1e-6; %0.1;
 eps_mu = 1e-6; %0.1;
 
+disp(['F_xTheta # of rows: ' num2str(size(F_xTheta,1))]);
+
 %% Write quad.dat and quad.mat
 s = d_0;
 Q_tilde = Q;
