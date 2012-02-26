@@ -256,6 +256,15 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     // slack.setRandom(); slack = 100*slack;
 	// z.setRandom(); z = 100*z;
 
+    cout << "Reading " << fileName << endl;
+    cout << "_n = " << _n << endl;
+    cout << "_m = " << _m << endl;
+    cout << "_N = " << _N << endl;
+    cout << "_nSt = " << _nSt << endl;
+    cout << "_nInp = " << _nInp << endl;
+    cout << "_nF_xTheta = " << _nF_xTheta << endl;
+    cout << "_pos_omega = " << _pos_omega << endl;
+
     // -------------- read from binary file -----------------
     ifstream fin; // Definition input file object
     fin.open(fileName, ios::binary); //	open file
