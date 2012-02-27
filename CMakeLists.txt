@@ -18,16 +18,12 @@ FIND_PACKAGE(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_executable(example0 src/example0.cpp)
-add_executable(qr_example src/qr_example.cpp)
-
-
-#add_definitions(-DN_MPC_STEPS=15)
-#add_executable(qr_example_decoupled_N15 src/qr_example_decoupled.cpp)
-#target_link_libraries(qr_example_decoupled_N15 rt)
-
 add_definitions(-DMAX_PREDICTION_HORIZON=$ENV{N_MPC_STEPS})
 add_definitions(-DN_MPC_STEPS=$ENV{N_MPC_STEPS})
+
+add_executable(example0 src/example0.cpp)
+add_executable(qr_example_N$ENV{N_MPC_STEPS} src/qr_example.cpp)
+
 add_executable(qr_example_decoupled_N$ENV{N_MPC_STEPS} src/qr_example_decoupled.cpp)
 target_link_libraries(qr_example_decoupled_N$ENV{N_MPC_STEPS} rt)
 

@@ -21,7 +21,7 @@ int main(int argc, const char* argv[])
 {
   // ------ SPECIFY parameters -------
   // only works for _N <= 243, other George cannot execute main file:
-  const int _N = 15; // MPC horizon
+  const int _N = N_MPC_STEPS; // MPC horizon
   const int _m = 3; // #input
   const int _n = 10; // #states
   const int _nSt = 20; // # state constraints
@@ -113,15 +113,15 @@ int main(int argc, const char* argv[])
   {
 
     // change alt. setpoint after awhile:
-    if (j == 750)
-    {
-      for (int i = 0; i <= _N - 1; i++)
-      {
-        x_star[i].setZero();
-        x_star[i][0] = 1.0;
-        x_star[i][8] = -3.0;
-      }
-    }
+//    if (j == 750)
+//    {
+//      for (int i = 0; i <= _N - 1; i++)
+//      {
+//        x_star[i].setZero();
+//        x_star[i][0] = 1.0;
+//        x_star[i][8] = -3.0;
+//      }
+//    }
     // timespec start_rt;	// linux
     // timespec end_rt;		// linux
     // clock_gettime(CLOCK_REALTIME, &start_rt);	// linux
@@ -167,6 +167,8 @@ int main(int argc, const char* argv[])
   cout << "number of Newton iterations: " << numIter << endl;
   cout << "time elapsed: " << elapsedTime << " [ms]" << endl;
   cout << "average: " << elapsedTime / numIter << " [ms/step]" << endl;
+  cout << (steps / elapsedTime) << " steps/ms, " << (elapsedTime / steps) << " ms/step" << endl;
+
   return 0;
 }
 

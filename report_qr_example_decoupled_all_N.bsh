@@ -1,6 +1,15 @@
 #!/bin/bash
 cd build
+
+echo "Coupled:"
 for N in 5 10 15 30 60 120 240
 do
-    echo ${N} $(cat qr_example_decoupled_N${N}.out | grep "steps/s")
+    echo ${N} $(cat qr_example_N${N}.out | grep -v "\[ms/step\]" | grep "ms/step")
+done
+
+echo
+echo "Decoupled:"
+for N in 5 10 15 30 60 120 240
+do
+    echo ${N} $(cat qr_example_decoupled_N${N}.out | grep "ms/step")
 done

@@ -202,14 +202,18 @@ int main(int argc, const char* argv[])
 
   for (int j = 0; j < steps; j++)
   {
-    clock_gettime(CLOCK_REALTIME, &start_rt); // linux
+    //clock_gettime(CLOCK_REALTIME, &start_rt); // linux
+    gettimeofday(&start, NULL); // George's Mac
 
     lbmpc_x.step();
     lbmpc_y.step();
     lbmpc_z.step();
-    clock_gettime(CLOCK_REALTIME, &end_rt); // linux
-    duration = (end_rt.tv_sec - start_rt.tv_sec) + 1e-9 * (end_rt.tv_nsec - start_rt.tv_nsec); // linux
+    //clock_gettime(CLOCK_REALTIME, &end_rt); // linux
+    gettimeofday(&end, NULL); // George's Mac
+    //duration = (end_rt.tv_sec - start_rt.tv_sec) + 1e-9 * (end_rt.tv_nsec - start_rt.tv_nsec); // linux
+    duration = (end.tv_sec * 1000 + end.tv_usec / 1000) - (start.tv_sec * 1000 + start.tv_usec / 1000);
     elapsedTime += duration;
+
 
     lbmpc_x.get_x_hat(x_hatx);
     lbmpc_y.get_x_hat(x_haty);
@@ -221,12 +225,12 @@ int main(int argc, const char* argv[])
     cout << "X: x = " << x_hatx.transpose() << " u_opt = " << u_optx << " iter = " << lbmpc_x.get_niter_last() << endl;
     cout << "Y: x = " << x_haty.transpose() << " u_opt = " << u_opty << " iter = " << lbmpc_y.get_niter_last() << endl;
     cout << "Z: x = " << x_hatz.transpose() << " u_opt = " << u_optz << " iter = " << lbmpc_z.get_niter_last() << endl;
-    cout << "dur = " << duration << " [s]" << endl;
+    cout << "dur = " << duration << " [ms]" << endl;
     // x_hat = A * x_hat + B * u_opt + s + noise.col(j);
   }
   cout << endl;
-  cout << "Finished " << steps << " steps in " << elapsedTime << " seconds" << endl;
-  cout << (steps / elapsedTime) << " steps/s, " << (elapsedTime / steps) << " s/step" << endl;
+  cout << "Finished " << steps << " steps in " << elapsedTime << " ms" << endl;
+  cout << (steps / elapsedTime) << " steps/ms, " << (elapsedTime / steps) << " ms/step" << endl;
 
   return 0;
 }
