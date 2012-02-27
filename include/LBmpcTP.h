@@ -51,7 +51,7 @@ using namespace std;
  _pos_omega: (x_bar[.+_pos_omega] , theta) \in Omega
  */
 
-const int Nhoriz = 60;	// max prediction horizon
+const int Nhoriz = MAX_PREDICTION_HORIZON;	// max prediction horizon
 
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>
   class LBmpcTP

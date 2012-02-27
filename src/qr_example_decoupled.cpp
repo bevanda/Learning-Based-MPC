@@ -148,7 +148,7 @@ template<int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_o
 int main(int argc, const char* argv[])
 {
 
-  const int _N = 15;
+  const int _N = N_MPC_STEPS;
   const int nxy = 4;
   const int m = 1;
   const int nz = 2;

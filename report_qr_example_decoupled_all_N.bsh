@@ -1,0 +1,6 @@
+#!/bin/bash
+cd build
+for N in 5 10 15 30 60 120 240
+do
+    echo ${N} $(cat qr_example_decoupled_N${N}.out | grep "steps/s")
+done

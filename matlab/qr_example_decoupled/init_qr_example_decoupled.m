@@ -29,9 +29,20 @@ else
     quad_bin_fname = 'quad_xy.bin';
 end
 
-N = 15; % MPC horizon
+N_values = [5 10 15 30 60 120 240];
 
-quad_bin_fname = 'quad_xy.bin';
-define_system_xy;
-init2; % most calcs are done here
-init3; % write out to file(s)
+for N=N_values
+    %N = 5; % MPC horizon
+
+    %% X,Y axes
+    quad_bin_fname = ['quad_xy_N' num2str(N) '.bin'];
+    define_system_xy;
+    init2; % most calcs are done here
+    init3; % write out to file(s)
+
+    %% Z axis
+    quad_bin_fname = ['quad_z_N' num2str(N) '.bin'];
+    define_system_z;
+    init2; % most calcs are done here
+    init3; % write out to file(s)
+end
