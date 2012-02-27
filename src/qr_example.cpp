@@ -25,7 +25,7 @@ int main(int argc, const char* argv[])
   const int _m = 3; // #input
   const int _n = 10; // #states
   const int _nSt = 20; // # state constraints
-  const int _nInp = 6; // # state constraints
+  const int _nInp = 6; // # input constraints
   const int _nF_xTheta = 36; // # Omega constraints
   const int _pos_omega = 1; // <= _N
   const string default_fileName = "ConstrParam.bin";

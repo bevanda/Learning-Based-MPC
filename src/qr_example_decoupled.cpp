@@ -96,13 +96,6 @@ template<int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_o
       // x_hat << 0,0,0,0,0,0,0,0,-1,0;
       double zcmd = -2.0;
 
-      for (int i = 0; i <= _N - 1; i++)
-      {
-        x_star[i].setZero();
-        x_star[i][0] = -1.0;
-        // x_star[i][0] = 1.0;
-        // x_star[i][8] = -3.0;
-      }
     }
 
     void step()
@@ -119,6 +112,19 @@ template<int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_o
         cerr << "starting position was: " << x_hat.transpose() << endl;
         cout << "most optimal u_opt: " << myObj->u_opt.transpose() << endl;
 
+      }
+    }
+
+    void set_x_hat(const Matrix<double, _n, 1>& x_hat_set)
+    {
+      x_hat = x_hat_set;
+    }
+
+    void set_x_star(const Matrix<double, _n, 1>& x_star_set)
+    {
+      for (int i = 0; i <= _N - 1; i++)
+      {
+        x_star[i] = x_star_set;
       }
     }
 
@@ -145,9 +151,10 @@ int main(int argc, const char* argv[])
   const int _N = 15;
   const int nxy = 4;
   const int m = 1;
-  const int nz = 4;
+  const int nz = 2;
   int numIter = 0;
-  const int nF_xTheta_xy = 14;
+  const int nF_xTheta_xy = 14; // need to manually input this from Matlab output
+  const int nF_xTheta_z = 8; // need to manually input this from Matlab output
 
   struct timeval start; // added by George
   struct timeval end; // ditto
@@ -155,16 +162,36 @@ int main(int argc, const char* argv[])
   double timeTmp; // ditto
   LBMPCAxis<nxy, m, _N, nxy * 2, m * 2, nF_xTheta_xy, 1> lbmpc_x(argv[1]);
   LBMPCAxis<nxy, m, _N, nxy * 2, m * 2, nF_xTheta_xy, 1> lbmpc_y(argv[1]);
-  //LBMPCAxis<_N, nz, m, nz * 2, m * 2, nF_xTheta_xy, 1> lbmpc_z;
+  LBMPCAxis<nz, m, _N, nz * 2, m * 2, nF_xTheta_z, 1> lbmpc_z(argv[2]);
 
-  Matrix<double, nxy, 1> x_hatx;
-  Matrix<double, nxy, 1> x_haty;
-  Matrix<double, nxy * 2, 1> x_hat;
+  Matrix<double, nxy, 1> x_hatx, x_starx;
+  Matrix<double, nxy, 1> x_haty, x_stary;
+  Matrix<double, nz, 1> x_hatz, x_starz;
 
-  Matrix<double, m, 1> u_optx, u_opty;
+  // Initial condition:
+  x_hatx << 0, 0, 0, 0;
+  x_haty << 0, 0, 0, 0;
+  x_hatz << -2, 0;
+
+  // Desired state:
+  x_starx << 0, 0, 0, 0;
+  x_stary << 0, 0, 0, 0;
+  x_starz << -1, 0;
+
+  lbmpc_x.set_x_hat(x_hatx);
+  lbmpc_y.set_x_hat(x_haty);
+  lbmpc_z.set_x_hat(x_hatz);
+  lbmpc_x.set_x_star(x_starx);
+  lbmpc_y.set_x_star(x_stary);
+  lbmpc_z.set_x_star(x_starz);
+
+  //Matrix<double, nxy * 2, 1> x_hat;
+
+  Matrix<double, m, 1> u_optx, u_opty, u_optz;
 
   lbmpc_x.get_x_hat(x_hatx);
   lbmpc_y.get_x_hat(x_haty);
+  lbmpc_z.get_x_hat(x_hatz);
 
   cout << "x_hatx = " << x_hatx.transpose() << endl;
   cout << "x_haty = " << x_haty.transpose() << endl;
@@ -179,23 +206,27 @@ int main(int argc, const char* argv[])
 
     lbmpc_x.step();
     lbmpc_y.step();
+    lbmpc_z.step();
     clock_gettime(CLOCK_REALTIME, &end_rt); // linux
     duration = (end_rt.tv_sec - start_rt.tv_sec) + 1e-9 * (end_rt.tv_nsec - start_rt.tv_nsec); // linux
     elapsedTime += duration;
 
     lbmpc_x.get_x_hat(x_hatx);
     lbmpc_y.get_x_hat(x_haty);
+    lbmpc_z.get_x_hat(x_hatz);
     lbmpc_x.get_u_opt(u_optx);
     lbmpc_y.get_u_opt(u_opty);
+    lbmpc_z.get_u_opt(u_optz);
     cout << "j = " << j << endl;
     cout << "X: x = " << x_hatx.transpose() << " u_opt = " << u_optx << " iter = " << lbmpc_x.get_niter_last() << endl;
     cout << "Y: x = " << x_haty.transpose() << " u_opt = " << u_opty << " iter = " << lbmpc_y.get_niter_last() << endl;
+    cout << "Z: x = " << x_hatz.transpose() << " u_opt = " << u_optz << " iter = " << lbmpc_z.get_niter_last() << endl;
     cout << "dur = " << duration << " [s]" << endl;
     // x_hat = A * x_hat + B * u_opt + s + noise.col(j);
   }
   cout << endl;
   cout << "Finished " << steps << " steps in " << elapsedTime << " seconds" << endl;
-  cout << (steps/elapsedTime) << " steps/s, " << (elapsedTime/steps) << " s/step" << endl;
+  cout << (steps / elapsedTime) << " steps/s, " << (elapsedTime / steps) << " s/step" << endl;
 
   return 0;
 }
