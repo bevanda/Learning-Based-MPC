@@ -27,9 +27,6 @@ template<int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_o
     Matrix<double, _n, _n> A;
     Matrix<double, _n, _m> B;
     Matrix<double, _n, 1> s;
-    Matrix<double, _n, _n> Lm; // n x n
-    Matrix<double, _n, _m> Mm; // n x m
-    Matrix<double, _n, 1> tm; // n x 1
     Matrix<double, _n, 1> x_hat; // n x 1, state estimate
     Matrix<double, _n, 1> x_star[_N]; // n x 1, [_N], tracking
     Matrix<double, _m, 1> u_opt; // m x 1, optimal input is saved there
@@ -54,6 +51,9 @@ template<int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_o
     // cout << "noise: " << noise << endl;
     // noise = 0*0.05*noise;
   public:
+    Matrix<double, _n, _n> Lm; // n x n
+    Matrix<double, _n, _m> Mm; // n x m
+    Matrix<double, _n, 1> tm; // n x 1
     LBMPCAxis(string filename)
     {
 
@@ -186,6 +186,21 @@ int main(int argc, const char* argv[])
   lbmpc_z.set_x_star(x_starz);
 
   //Matrix<double, nxy * 2, 1> x_hat;
+
+  // Use some small constant values to have a nonzero oracle update...
+  lbmpc_x.Lm(3, 2) = lbmpc_x.Lm(3, 3) = 0.01;
+  lbmpc_y.Lm(3, 2) = lbmpc_y.Lm(3, 3) = 0.01;
+
+
+  lbmpc_x.Mm(3,0) = 0.001;
+  lbmpc_y.Mm(3,0) = 0.001;
+  lbmpc_z.Mm(3,0) = 1e-5;
+
+  lbmpc_x.tm[1] = lbmpc_x.tm[3] = 1e-3;
+  lbmpc_y.tm[1] = lbmpc_y.tm[3] = 1e-3;
+  lbmpc_z.tm[0] = 1e-5;
+  lbmpc_z.tm[1] = lbmpc_z.Mm(3,0) * 80;
+
 
   Matrix<double, m, 1> u_optx, u_opty, u_optz;
 

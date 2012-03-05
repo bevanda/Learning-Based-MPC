@@ -87,19 +87,27 @@ int main(int argc, const char* argv[])
   Matrix<double, _m, 1> u_opt; // m x 1, optimal input is saved there
 
   // -------- they are updated at each time step ------------
-  Lm.setZero();
-  Mm.setZero();
 
+  // Use some small constant values to have a nonzero oracle update...
+  Lm.setZero();
+  Lm(3, 2) = Lm(3, 3) = Lm(7, 6) = Lm(7, 7) = 0.01;
+  Mm.setZero();
+  Mm(3,0) = Mm(7,1) = 0.001;
+  Mm(9,2) = 1e-5;
   tm.setZero();
+  tm[1] = tm[3] = tm[5] = tm[7] = 1e-3;
+  tm[8] = 1e-5;
+  tm[9] = Mm(9,2) * 80;
+
   x_hat << 0, 0, 0, 0, 0, 0, 0, 0, -2, 0;
-	// x_hat << 0,0,0,0,0,0,0,0,-1,0;
+  // x_hat << 0,0,0,0,0,0,0,0,-1,0;
   double zcmd = -2.0;
 
   for (int i = 0; i <= _N - 1; i++)
   {
     x_star[i].setZero();
     x_star[i][8] = -1.0;
-	// x_star[i][0] = 1.0;
+    // x_star[i][0] = 1.0;
     // x_star[i][8] = -3.0;
   }
   int numIter = 0;
@@ -113,15 +121,15 @@ int main(int argc, const char* argv[])
   {
 
     // change alt. setpoint after awhile:
-//    if (j == 750)
-//    {
-//      for (int i = 0; i <= _N - 1; i++)
-//      {
-//        x_star[i].setZero();
-//        x_star[i][0] = 1.0;
-//        x_star[i][8] = -3.0;
-//      }
-//    }
+    //    if (j == 750)
+    //    {
+    //      for (int i = 0; i <= _N - 1; i++)
+    //      {
+    //        x_star[i].setZero();
+    //        x_star[i][0] = 1.0;
+    //        x_star[i][8] = -3.0;
+    //      }
+    //    }
     // timespec start_rt;	// linux
     // timespec end_rt;		// linux
     // clock_gettime(CLOCK_REALTIME, &start_rt);	// linux
@@ -137,10 +145,10 @@ int main(int argc, const char* argv[])
     // cout << " status: " << status;
     // cout << " iter: " << myObj.n_iter_last;
     numIter = numIter + myObj.n_iter_last;
- 
+
     if (!status)
     {
-		cout << setprecision(8);
+      cout << setprecision(8);
       u_opt = myObj.u_opt;
       cout << j;
       cout << " iter: " << myObj.n_iter_last;
@@ -155,7 +163,7 @@ int main(int argc, const char* argv[])
       cout << "most optimal u_opt: " << myObj.u_opt.transpose() << endl;
       // return 1;
       u_opt.setZero();
-	return 1;
+      return 1;
     }
 
     // x_hat = A * x_hat + B * u_opt + s + noise.col(j);
