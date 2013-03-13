@@ -212,6 +212,9 @@ public:
 
     Matrix<Type, _m, 1> u_opt;
     int n_iter_last; // number of iterations in previous step
+    double term_primal_last; // last value of term_primal seen
+    double term_dual_last; // last value of term_dual seen
+    double term_mu_last; // last value of term_mu seen
     //~LBmpcTP();	// destructor
 
     void get_A(Matrix<Type, _n, _n>& Aout)
@@ -444,252 +447,10 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
     Bm_bar_transp = Bm_bar.transpose();
 
     //update z from previous z, which was assumed to be optimal or created during instantiation of object
-    z.template segment<(_N - 1) * (_m + _n + _n)> (0) = z.template segment<(_N - 1) * (_m + _n + _n)> (offset);
-    // ONLY TEMPORARILY
-    // z << -2 ,    3  ,   3  ,   1 ,   -2 ,    2 ,   -3 ,    0  ,  -1  ,   0  ,   5 ,    3  ,   5  ,  -3  ,   0  ,  -4  ,   3  ,   1  ,   4  ,   5  ,   4 ,   -1,
-    // -5  ,   0  ,  -3 ,   -3  ,  -2  ,  -4  ,   2  ,   2   ,  0  ,  -2  ,   3  ,   1 ,    5  ,   4  ,  -1  ,   0   , -2   ,  1  ,   3  ,   2 ,   -4   ,  3,
-    // -5   , -1   ,  2   ,  3  ,  -1   ,  2;
-    // srand ( time(NULL) );
-    // z.setRandom();
-    // z = 100*z;
+    //z.template segment<(_N - 1) * (_m + _n + _n)> (0) = z.template segment<(_N - 1) * (_m + _n + _n)> (offset);
+
     compRQ(); // compute u_star, x_star -> cost matrices
-
-	
 	compDenomFeasCheck();	// computes norm of vectors g, h, b in cost and constraints
-
-	// use those numbers as test
-	/*
-		    z << -2,
-					     3,
-					     3,
-					     1,
-					    -2,
-					     2,
-					    -3,
-					     0,
-					    -1,
-					     0,
-					     5,
-					     3,
-					     5,
-					    -3,
-					     0,
-					    -4,
-					     3,
-					     1,
-					     4,
-					     5,
-					     4,
-					    -1,
-					    -5,
-					     0,
-					    -3,
-					    -3,
-					    -2,
-					    -4,
-					     2,
-					     2,
-					     0,
-					    -2,
-					     3,
-					     1,
-					     5,
-					     4,
-					    -1,
-					     0,
-					    -2,
-					     1,
-					     3,
-					     2,
-					    -4,
-					     3,
-					    -5,
-					    -1,
-					     2,
-					     3,
-					    -1,
-						2;
-		
-	nu << 25,	// any nu good to initialize
-		    33,
-		    29,
-		   -18,
-		     3,
-		   -41,
-		   -39,
-		   -36,
-		    18,
-		     0,
-		   -31,
-		     0,
-		   -35,
-		   -45,
-		    35,
-		     6,
-		    43,
-		    20,
-		     8,
-		    32,
-		    38,
-		    49,
-		   -50,
-		    37,
-		    11,
-		    49,
-		     3,
-		    -2,
-		    30,
-		   -27,
-		     0,
-		    40,
-		     7,
-		    35,
-		    24,
-		     9,
-		   -25,
-		    17,
-		   -42,
-			13; 
-		
-		    lambda << 66,	// strictly positive
-		    69,
-		    65,
-		    96,
-		    22,
-		    72,
-		    25,
-		    13,
-		    62,
-		    46,
-		    47,
-		    67,
-		    78,
-		    36,
-		    67,
-		    43,
-		    85,
-		    84,
-		    27,
-		    62,
-		    59,
-		    55,
-		    88,
-		    27,
-		    33,
-		    13,
-		    95,
-		    66,
-		    49,
-		    65,
-		    55,
-		    66,
-		    55,
-		    73,
-		    53,
-		   100,
-		    23,
-		    12,
-		    12,
-		     7,
-		    41,
-		    46,
-		    38,
-		    77,
-		    64,
-		    78,
-		    94,
-		    98,
-		    20,
-		    15,
-		    71,
-		    10,
-		    54,
-		    54,
-		    87,
-		    49,
-		    40,
-		    68,
-		    75,
-		    53,
-		    36,
-		    16,
-		    60,
-		    27,
-		     5,
-		    76;	
-
-    slack << 67,	// strictly positive
-        	    74,
-        	    90,
-        	    99,
-        	    78,
-        	    59,
-        	    94,
-        	    59,
-        	     3,
-        	    13,
-        	    87,
-        	    49,
-        	    85,
-        	    22,
-        	    56,
-        	    64,
-        	     4,
-        	    62,
-        	    37,
-        	     6,
-        	    50,
-        	    20,
-        	    13,
-        	    22,
-        	    16,
-        	    20,
-        	     5,
-        	    65,
-        	    29,
-        	    55,
-        	    71,
-        	    51,
-        	    55,
-        	    46,
-        	    13,
-        	    50,
-        	    86,
-        	    88,
-        	    28,
-        	    22,
-        	    57,
-        	    65,
-        	    43,
-        	    22,
-        	    96,
-        	     9,
-        	    12,
-        	    15,
-        	    18,
-        	    63,
-        	    58,
-        	     6,
-        	    94,
-        	    74,
-        	    75,
-        	     7,
-        	    87,
-        	    94,
-        	    99,
-        	    87,
-        	    80,
-        	    52,
-        	    19,
-        	    41,
-        	    14,
-        	     4;	
-    */
-	// cout << "size of nu: " << nu.size() << endl;
-	// cout << "size of lambda: " << lambda.size() << endl;
-	// cout << "size of slack: " << slack.size() << endl;
-	
-
 	compInitPoints(); // computes more suitable initial points, also for infeasible start
 	
     int itNewton = 0;
@@ -748,7 +509,10 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 			cout << "term_primal: " << term_primal << endl;
 			cout << "term_dual: " << term_dual << endl;
 			cout << "mu_pd: " << mu_pd << endl;
-          return 5;
+                        term_primal_last = sqrt(term_primal);
+                        term_dual_last = term_dual;
+                        term_mu_last = mu_pd;
+                        return 5;
         break;
       }
 
@@ -903,6 +667,9 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
 
 	u_opt = K * (*x_hat) + z.template segment<_m> (0);
     n_iter_last = itNewton;
+    term_primal_last = sqrt(term_primal);
+    term_dual_last = term_dual;
+    term_mu_last = mu_pd;
     return 0;
   }
 
@@ -1001,7 +768,7 @@ template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta
           + z.template segment<_n> ((i - 1) * offset + _m + _n + _n + _m) - tm_tilde;
       r_C.template segment<_n> (2 * _n * i + _n) = -A_bar * z.template segment<_n> ((i - 1) * offset + _m + _n) - B
           * z.template segment<_m> ((i - 1) * offset + _m + _n + _n) + z.template segment<_n> (
-                                                                                               (i - 1) * offset + _m
+                                                                                                                       (i - 1) * offset + _m
                                                                                                    + _n + _n + _m + _n)
           - s;
     }

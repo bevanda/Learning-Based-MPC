@@ -4,6 +4,7 @@ cd lbmpc
 mkdir build
 cd build
 cmake ..
+export N_MPC_STEPS=15 # or whatever..
 make
 
 = Creating data files =
