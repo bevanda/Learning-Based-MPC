@@ -1,3 +1,27 @@
+LBmpcIPM:
+=========
+
+LBmpcIPM is a solver written in C++ to solve optimization problems that arise in Learning-Based Model Predictive Control (LBMPC)
+
+Licensing:
+----------
+The software is licensed under the BSD license.
+
+
+Libraries:
+----------
+LBmpcIPM requires the EIGEN3 library to carry out matrix operations.
+
+
+Motivation:
+-----------
+
+
+
+Features:
+---------
+LBmpcIPM is written in C++ using templates. Therefore, it is referred to LBmpcTP in the codes.
+
 = Compiling examples =
 
 cd lbmpc
