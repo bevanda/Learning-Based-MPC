@@ -6,7 +6,7 @@ This is an implementation of Learning-Based Model Predictive Control (LBMPC) tha
 Prerequisites
 =============
 * LBmpcIPM
-* [Eigen3](eigen.tuxfamily.org/)
+* [Eigen3](http://eigen.tuxfamily.org/)
 * [CMake](http://www.cmake.org/)
 
 Compiling examples
