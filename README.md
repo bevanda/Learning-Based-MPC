@@ -1,11 +1,17 @@
 lbmpc_ipm
 ===========
 
-This is an implementation of Learning-Based Model Predictive Control (LBMPC) that uses the sparse LBmpcIPM solver. LBmpcIPM is a free solver written in C++ under the BSD license.
+This is an implementation of Learning-Based Model Predictive Control (LBMPC) that uses the LBmpcIPM solver. LBmpcIPM is a sparse primal-dual infeasible start interior point method implementation based on Mehrotra's predictor-corrector scheme. This open-source solver is written in C++ and freely available under the BSD licence. The solver is tailored towards QP-LBMPC, and is provided to enable the rapid implementation of LBMPC on other platforms. Another salient feature is that its solving times scales linearly in the prediction horizon.
+
+Aside from the implementation, this repository also contains the source code of LBmpcIPM  and a short documentation on how to use the solver. Further details on the implementation can be found [here](http://control.ee.ethz.ch/index.cgi?page=publications&action=details&id=4168)
+
 
 Prerequisites
 =============
-* LBmpcIPM
+
+Prior to compiling and running the simulations, make sure the following apps are at hand:
+
+* LBmpcIPM (class file of solver)
 * [Eigen3](http://eigen.tuxfamily.org/)
 * [CMake](http://www.cmake.org/)
 
