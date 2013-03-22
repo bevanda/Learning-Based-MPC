@@ -7,7 +7,7 @@ Prerequisites
 =============
 * LBmpcIPM
 * [Eigen3](eigen.tuxfamily.org/)
-* CMake
+* [CMake](http://www.cmake.org/)
 
 Compiling examples
 ==================
@@ -48,3 +48,5 @@ Quadrotor example
 -----------------
 	cd lbmpc_ipm
 	build/bin/qr_example matlab/qr_example/quad.bin
+	
+[Back to home](https://bitbucket.org/lbmpc/lbmpc.bitbucket.org/wiki/Home)
