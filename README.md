@@ -9,9 +9,9 @@ Aside from the implementation, this repository also contains the source code of 
 Prerequisites
 =============
 
-Prior to compiling and running the simulations, make sure the following apps are at hand:
+Prior to compiling and running the simulations, make sure the following applications and libraries are available on the computer:
 
-* LBmpcIPM (class file of solver)
+* LBmpcTP.h (template class file of LBmpcIPM)
 * [Eigen3](http://eigen.tuxfamily.org/)
 * [CMake](http://www.cmake.org/)
 
