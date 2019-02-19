@@ -48,6 +48,8 @@
 // #include <sys/time.h> 
 #include <sys/time.h>
 
+#define N_MPC_STEPS 5 //horizon
+
 using namespace Eigen;
 using namespace std;
 

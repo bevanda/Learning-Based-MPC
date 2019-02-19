@@ -74,6 +74,8 @@ f) changed cost function in compRQ() as suggested by Anil
 using namespace Eigen;
 using namespace std;
 
+#define MAX_PREDICTION_HORIZON 10
+
 /* --------- input parameters for template -----------
  Type:		double or float as matrix elements
  _n:			dimension of state
@@ -84,7 +86,6 @@ using namespace std;
  _nF_xTheta:	number of constraints of F_xTheta*x[m+N]+F_theta*theta <= f_xTheta
  _pos_omega: (x_bar[.+_pos_omega] , theta) \in Omega
  */
-
 const int Nhoriz = MAX_PREDICTION_HORIZON;	// max prediction horizon
 
 template<class Type, int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>

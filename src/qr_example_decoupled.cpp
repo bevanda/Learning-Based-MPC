@@ -51,6 +51,8 @@
 using namespace Eigen;
 using namespace std;
 
+#define N_MPC_STEPS 10 //horizon
+
 const int steps = 1000; // number of simulations steps
 
 template<int _n, int _m, int _N, int _nSt, int _nInp, int _nF_xTheta, int _pos_omega>

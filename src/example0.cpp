@@ -58,7 +58,7 @@ int main()
 	const int _nInp = 4;	// # state constraints
 	const int _nF_xTheta = 10;	// # Omega constraints
 	const int _pos_omega = 1;	// <= _N
-	const char fileName[] = "ConstrParam.bin";
+	const char fileName[] = "matlab/example0/ConstrParam.bin";
 	bool verbose = 1;	// '0' if it should shut up
 	int status;		// stores status code
 	int iterations = 1;
