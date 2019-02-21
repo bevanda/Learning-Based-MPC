@@ -53,6 +53,6 @@ Example from documentation
 Quadrotor example
 -----------------
 	cd lbmpc_ipm
-	build/bin/qr_example matlab/qr_example/quad.bin
+	build/bin/qr_example matlab/qr_example_N/quad_N5.bin
 	
 [Back to home](https://bitbucket.org/lbmpc/lbmpc.bitbucket.org/wiki/Home)
