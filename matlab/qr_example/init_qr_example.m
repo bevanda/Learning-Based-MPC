@@ -7,7 +7,7 @@ clear all
 
 if strcmp(getenv('USER'), 'bouffard') == 0
     % Stuff for Anil only
-    mpt_path = 'C:\Program Files\MATLAB\R2009b\toolbox\mpt';
+    mpt_path = 'C:\Program Files\MATLAB\R2016a\toolbox\mpt';
     disp('Adding MPT toolbox to MATLAB path...');
     addpath(genpath(mpt_path));
     
