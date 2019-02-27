@@ -1,5 +1,5 @@
 clear;
-BEGIN_ACADO; %start ACADO
+    BEGIN_ACADO; %start ACADO
     acadoSet('problemname', 'mgcm');
     acadoSet('results_to_file',false);       % don't write results to file
     %% Initial setting of the model
@@ -16,11 +16,11 @@ BEGIN_ACADO; %start ACADO
     f.add(dot(x2) == B*(-1*x2^3-1*x2^2-1*x2-x1-u));
 
     %% Initial setting of the optimisation problem
-    N = 15; %prediction horizon
+    N = 100; %prediction horizon
     sampling_time = 0.2;
     
     Q = 1e2*eye(3); 
-    Q(1,1) = 1e2; 
+    Q(1,1) = 1e1; 
     h = {u x1 x2}; 
     r = [0,0,0];
     
@@ -40,13 +40,13 @@ BEGIN_ACADO; %start ACADO
     process = acado.Process(dynamicSystem, 'INT_RK45');
     
     %% Setting up MPC controller
-    Duration = 10;
-    
+    Duration = 10; %length of simulation
+    P = 5; %maximal number of SQP iterations 
     algo = acado.RealTimeAlgorithm(ocp, sampling_time);
     
-    algo.set( 'DISCRETIZATION_TYPE',         'MULTIPLE_SHOOTING' );
-    algo.set( 'MAX_NUM_ITERATIONS',          5                 );
-    algo.set( 'INFEASIBLE_QP_HANDLING',      'YES'             );
+    algo.set( 'DISCRETIZATION_TYPE', 'MULTIPLE_SHOOTING' );
+    algo.set( 'MAX_NUM_ITERATIONS', P );
+    algo.set( 'INFEASIBLE_QP_HANDLING', 'YES' );
     
 %     algo.set('KKT_TOLERANCE', 1e-5);
 %     algo.set('INTEGRATOR_TYPE', 'INT_RK45') 
@@ -71,5 +71,3 @@ BEGIN_ACADO; %start ACADO
                      % Run this file to get your results. You can
                      % run the file problemname_ACADO.m as many
                      % times as you want without having to compile again.
-%% Run
-out = mgcm_RUN();

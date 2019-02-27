@@ -1,3 +1,5 @@
+%% Run
+out = mgcm_RUN();
 
 u = out.STATES(:,1);
 x1 = out.STATES(:,2);
