@@ -14,11 +14,16 @@ wn=sqrt(1000); % resonant frequency
 ksi=1/sqrt(2); % damping coefficient
 beta=1; % constant >0
 x2_c=0; % pressure constant
-
+%% Constraints
+mflow_min=0; mflow_max=1;
+prise_min=1.1875; prise_max=2.1875;
+throttle_min=0.1547; throttle_max=2.1547;
+throttle_rate_min=-20; throttle_rate_max=20;
+u_min=0.1547;u_max=2.1547;
 %% Continous time state-space model of the Moore-Greitzer compressor model
 
 f1 = x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
-f2 = (x1+1-x3*sqrt(x2))/beta; % pressure rise rate
+f2 = (x1+1-x3*sqrt(x2))/(beta^2); % pressure rise rate
 f3 = x4; % throttle opening rate
 f4 = -wn^2*x3-2*ksi*wn*x4+wn^2*u; % throttle opening acceleration
 
@@ -63,10 +68,10 @@ pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles at ~ p=[0.75, 0.78, 0.98, 0.99]
 
-p=[0.99, 0.98, 0.78, 0.75];
+p=[0.99, 0.98, 0.78, 0.75]; % desired poles of the open-loop system, while still being stable close to existing ones
 [K,prec,message] = place(Ad,Bd,p); %nominal feedback matrix
 K
-% K=[3.0741 -2.0957 -0.1197 0.0090]; %nominal feedback matrix from the LBMPC paper
+% K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
 AK = Ad-Bd*K;
 e = eig(AK)
 xkk = (AK)*xk;
