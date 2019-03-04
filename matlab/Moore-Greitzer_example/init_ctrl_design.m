@@ -11,7 +11,7 @@ syms u ... % control input
     xk4 ...
     ;
 wn=sqrt(1000); % resonant frequency
-ksi=1/sqrt(2); % damping coefficient
+zeta=1/sqrt(2); % damping coefficient
 beta=1; % constant >0
 x2_c=0; % pressure constant
 %% Constraints
@@ -25,7 +25,7 @@ u_min=0.1547;u_max=2.1547;
 f1 = x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
 f2 = (x1+1-x3*sqrt(x2))/(beta^2); % pressure rise rate
 f3 = x4; % throttle opening rate
-f4 = -wn^2*x3-2*ksi*wn*x4+wn^2*u; % throttle opening acceleration
+f4 = -wn^2*x3-2*zeta*wn*x4+wn^2*u; % throttle opening acceleration
 
 %% Linearisation around the equilibrium [0.5 1.6875 1.1547 0]'
 
@@ -62,9 +62,9 @@ Bd = Ts*B
 Cd = eye(4);
 Dd = D;
 e = eig(Ad)
-figure;
-sys = idss(Ad,Bd,Cd,Dd,'Ts',0.01);
-pzmap(sys);
+% figure;
+% sys = idss(Ad,Bd,Cd,Dd,'Ts',0.01);
+% pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles at ~ p=[0.75, 0.78, 0.98, 0.99]
 
@@ -75,6 +75,6 @@ K
 AK = Ad-Bd*K;
 e = eig(AK)
 xkk = (AK)*xk;
-figure;
-sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
-pzmap(sys);
+% figure;
+% sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
+% pzmap(sys);
