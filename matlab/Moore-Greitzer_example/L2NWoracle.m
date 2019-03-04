@@ -8,16 +8,27 @@ function [g] = L2NWoracle(ksi,X,Y,kernel,bandwidth,lambda)
 if nargin < 4, kernel = []; end
 if nargin < 5, bandwidth = []; end
 if nargin < 6, lambda = []; end
-if isempty(kernel), kernel = 'Epanechnikov'; end
+if isempty(kernel), kernel = 'Gaussian'; end
 if isempty(bandwidth), bandwidth = 0.5; end 
 if isempty(lambda),lambda = 0.001; end
+d = numel(ksi);
+n = size(X,2);
 %% Defeining CITE 3D kernel
 
-if strcmp(kernel,'Epanechnikov'), kernel = @(x,mu,bandwidth) (3/4)*(1-((x - mu)/bandwidth).^2).*(abs((x - mu)/bandwidth) );
+if strcmp(kernel,'Epanechnikov'), kernel = @(x,mu,bandwidth) (3/4)^d*(1-((x - mu)/bandwidth).^2).*(abs((x - mu)/bandwidth));
+elseif strcmp(kernel,'Gaussian'), kernel = @(x,mu,bandwidth) exp(-((norm(x - mu).^2)/bandwidth));
 end
 %% Tuning function setup
-kval = arrayfun(@(xi) kernel(xi,ksi,bandwidth),X,'UniformOutput', false);
-cell2mat(kval(1))
-% 'repmat(yt,[1 nbins])' stacking yt for every data point
-g = sum(kval.*Y)./(lambda+sum(kval));
+
+kval = zeros(1,n);
+for i=1:n
+    kval(i) = exp(-((norm(X(:,i) - ksi).^2)/bandwidth));
+end
+skval = sum(kval);
+weight = kval/(lambda + skval);
+g=0;
+for i=1:n
+    out = weight(i)*Y(:,i);
+    g = g + out;
+end
 end
