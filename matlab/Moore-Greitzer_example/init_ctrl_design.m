@@ -39,11 +39,11 @@ x3 = 1.1547;
 x4 = 0;
 init_cond = [x1-0.35, x2-0.4, x3, 0];  % init condition
 % print the matrices in the cmd line
-A = eval(A)
-B = eval(B)
+A = eval(A);
+B = eval(B);
 % C = [A(1, :); A(2,:)] % choose f1 and f2 as outputs 
 C = eye(4);
-D = zeros(4,1)
+D = zeros(4,1);
 
 % Visualise the poles and zeros of the continuous system
 [b,a]=ss2tf(A,B,C,D);
@@ -56,12 +56,12 @@ sys = tf([b(1,:)],[a]);
 %% Euler discretisation
 
 Ts = 0.01; % sampling time
-xk=[xk1,xk2,xk3,xk4]'
-Ad = eye(4)+A*Ts
-Bd = Ts*B
+xk=[xk1,xk2,xk3,xk4]';
+Ad = eye(4)+A*Ts;
+Bd = Ts*B;
 Cd = eye(4);
 Dd = D;
-e = eig(Ad)
+e = eig(Ad);
 % figure;
 % sys = idss(Ad,Bd,Cd,Dd,'Ts',0.01);
 % pzmap(sys);
@@ -70,7 +70,6 @@ e = eig(Ad)
 
 p=[0.99, 0.98, 0.78, 0.75]; % desired poles of the open-loop system, while still being stable close to existing ones
 [K,prec,message] = place(Ad,Bd,p); %nominal feedback matrix
-K
 % K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
 AK = Ad-Bd*K;
 e = eig(AK)
@@ -78,3 +77,6 @@ xkk = (AK)*xk;
 % figure;
 % sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
 % pzmap(sys);
+%% Init for data in simulink
+X =[0 0 0];
+Y=[0 0 0 0];
