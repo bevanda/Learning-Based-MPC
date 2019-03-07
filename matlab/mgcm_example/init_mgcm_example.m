@@ -1,61 +1,34 @@
-%==========================================================================
-% Configuration for MPT toolbox
-%==========================================================================
-clc
-close all
-clear all
+clear all;
+%clc;
+close all;
 
-if strcmp(getenv('USER'), 'bouffard') == 0
-    % Stuff for Anil only
-    mpt_path = 'C:\Program Files\MATLAB\R2016a\toolbox\mpt';
-    disp('Adding MPT toolbox to MATLAB path...');
-    addpath(genpath(mpt_path));
-    
-    %% Misc configuration
-    quad_dat_fname = 'quad.dat';
-    quad_dat_fname = 'quad.mat';
-    dual_ekf_fname = 'dual_ekf.dat';
-    
-    % added by George
-    
-	% quad_bin_fname = 'quad.bin';
-else
-    % Stuff for Pat only
-    clear all;
-    %clc;
-    close all;
-    
-    %% Misc configuration
-    quad_bin_fname = 'quad.bin';
-end
+%% Misc configuration
+mgcm_bin_fname = 'mgcm.bin';
 
-N_values = [5 10 15 30 ...
+N_values = [5 10 15 30 ... % horizons for which to calculate the discriminating kernel
     % 60 120 240 ...
     ];
 
 for N=N_values
-    quad_bin_fname = ['quad_N' num2str(N) '.bin'];
+    mgcm_bin_fname = ['mgcm_N' num2str(N) '.bin'];
     %% Get system definition:
-    add_alt_dynamics = 1;
-    [A,B,C,d_0] = define_system(add_alt_dynamics);
+    [A,B,C,d_0] = define_system();
     % Count number of states n, number of inputs m, number of outputs o:
     n = size(A,1);
     m = size(B,2);
     o = size(C,1);
-    q = 5; % number of outputs (for dual EKF purposes .. should o also be set to 4?)
-
-
-    %% Get design parameters:
+    q = 4; % number of outputs (for dual EKF purposes .. should o also be set to 4?)
+        %% Get design parameters:
     [Q, R, ...
-        dlqr_controlweight, maxadm_controlweight, ...
-        max_x, max_y, max_vx, max_vy, ...
-        max_z, min_z, max_vz, ...
-        max_pitch_cmd, max_roll_cmd, ...
-        max_thrust_cmd, min_thrust_cmd, ...
-        max_pitch, max_pitch_rate, max_roll, max_roll_rate, ...
-        state_uncert, ...
-        enable_learning, ALPHA, MU_factor, ...
-        uncertainty_block] = design_params(n, m);
+    dlqr_controlweight, maxadm_controlweight, ...
+    mflow_max, mflow_min, ...
+    prise_max, prise_min, ...
+    throttle_max, throttle_min, ...
+    throttle_rate_max, throttle_rate_min, ...
+    u_min, u_max, ...
+    state_uncert, ...
+    enable_learning, ALPHA, MU_factor, ...
+    uncertainty_block] = design_params(n, m);
     %==========================================================================
 
     %%
@@ -64,10 +37,11 @@ for N=N_values
 
     %==========================================================================
     % Define a nominal feedback policy K and corresponding terminal cost
-    % Feedback policy chosen using discrete time linear quadratic regulator.
+    % Feedback policy chosen using discrete time linear mgcmratic regulator.
     % This can be changed based on engineering preference:
     K = -dlqr(A, B, Q, dlqr_controlweight*R);
-
+    % K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
+    
     % Terminal cost chosen as solution to DARE
     P = dare(A+B*K, B, Q, dlqr_controlweight*R);
 
@@ -77,18 +51,16 @@ for N=N_values
     % state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
     %==========================================================================
 
-    temp0 = [max_pitch_cmd; max_roll_cmd; max_thrust_cmd];
-    temp01 = [max_pitch_cmd; max_roll_cmd; -min_thrust_cmd];
-    temp0 = temp0(1:m);
-    temp01 = temp01(1:m);
-    F_u = [eye(m); -eye(m)]; h_u = [temp0;temp01];
-    temp1 = [max_x; max_vx; max_pitch; max_pitch_rate; max_y; max_vy; max_roll; max_roll_rate; max_z; max_vz];
-    temp2 = [max_x; max_vx; max_pitch; max_pitch_rate; max_y; max_vy; max_roll; max_roll_rate; -min_z; max_vz];
-    F_x = [eye(n); -eye(n)]; h_x = [temp1;temp2];
+    temp0_max = u_max;
+    temp0_min = u_min;
+
+    F_u = [eye(m); -eye(m)]; h_u = [temp0_max;-temp0_min];
+    temp_max = [mflow_max; prise_max; throttle_max; throttle_rate_max];
+    temp_min = [mflow_min; prise_min; throttle_min; throttle_rate_min];
+    F_x = [eye(n); -eye(n)]; h_x = [temp_max;-temp_min];
     F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
 
     % count the length of the constraints on input, states, and uncertainty:
-
     length_Fu = length(h_u);
     length_Fx = length(h_x);
     length_Fg = length(h_g);
@@ -116,14 +88,13 @@ for N=N_values
     %==========================================================================
 
     M = [A - eye(n), B, zeros(n,o); ...
-        C, zeros(o,m), -eye(o)];
-    V = null(M);
-    LAMBDA = V(1:n,:);
-    PSI = V(n+1:n+m,:);
-    XI = V(n+m+1:n+m+o,:);
-
-    % Solutions of M*[x;u;y] = [-d;0] are of the form
-    % M\[-d;0] + V*theta, theta in R^m
+    C, zeros(o,m), -eye(o)]
+    V = null(M)
+    LAMBDA = V(1:n,:)
+    PSI = V(n+1:n+m,:)
+    XI = V(n+m+1:n+m+o,:)
+    %%
+    % Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
     V_0 = M\[-d_0; zeros(o,1)];
     LAMBDA_0 = V_0(1:n);
     PSI_0 = V_0(n+1:n+m);
@@ -413,13 +384,13 @@ for N=N_values
 
     disp(['F_xTheta # of rows: ' num2str(size(F_xTheta,1))]);
 
-    %% Write quad.dat and quad.mat
+    %% Write mgcm.dat and mgcm.mat
     s = d_0;
     Q_tilde = Q;
     Q_tilde_f = P;
     writeParam(...
         N, ...
-        quad_bin_fname, ...
+        mgcm_bin_fname, ...
         n_iter, ...
         reg, ...
         reg_Y, ...
@@ -439,352 +410,4 @@ for N=N_values
         f_xTheta, ...
         K ...
         )
-
 end
-%%
-
-% %% solve using CVX and IPM
-% pos_omega = 1;
-% damp = 0.999;
-% x_hat = [0 0 0 0 0 0 0 0 -1 0]';
-% % x_hat = [0 0 0 0 0 0 0 0 -2 0]';
-% Lm = zeros(n,n);
-% Mm = zeros(n,m);
-% tm = zeros(n,1);
-% tm_tilde = tm+s;
-% Bm = B + Mm;
-% Am_tilde = A + Lm;
-% 
-% % tracking sequence
-% x_star = {};
-% u_star = {};
-% for ii=1:N
-%    x_star{end+1} = [1 0 0 0 0 0 0 0 -3 0]'; 
-% %    x_star{end+1} = [0 0 0 0 0 0 0 0 -1 0]';
-%    u_star{end+1} = Bm\(x_star{ii}-Am_tilde*x_star{ii}-tm_tilde);
-% end
-% 
-% % compute cost vectors
-% for i=1:N
-%    r_vec{i} = -2*R*u_star{i};
-%    q_tilde_vec{i} = -2*Q_tilde*x_star{i};
-%    q_bar_vec{i} = K'*r_vec{i};
-% end
-% q_tilde_vec{N} = -2*Q_tilde_f*x_star{N};
-% 
-% % compute auxiliary variables
-% Bm_bar = Bm*K;
-% A_bar = A+B*K;
-% Q_bar = K'*R*K;
-% 
-% S = K'*R;
-% 
-% % build matrices
-% % build P
-% P = [Fu{1} zeros( size(Fu{1},1) , N*(m+n+n) )];
-% for ii=1:N-1
-%     P = [P
-%         zeros(size(Fx{ii},1),m+(ii-1)*(m+n+n)+n) Fx{ii} zeros(size(Fx{ii},1),(N-ii)*(m+n+n)+m)   
-%         zeros(size(Fu{ii+1},1),m+(ii-1)*(m+n+n)+n) Fu{ii+1}*K Fu{ii+1} zeros(size(Fu{ii+1},1),(N-ii)*(m+n+n))  ]; 
-% end
-% 
-% if (pos_omega == N)
-%     P = [P
-%         zeros(size(Fx{N},1),m+(N-1)*(m+n+n)+n) Fx{N} zeros(size(Fx{N},1),(N-N)*(m+n+n)+m)   
-%         zeros(size(F_xTheta,1),m+(N-1)*(m+n+n)+n) F_xTheta F_theta];
-% else
-%    P = [ P
-%        zeros(size(Fx{N},1),m+(N-1)*(m+n+n)+n) Fx{N} zeros(size(Fx{N},1),(N-N)*(m+n+n)+m)   
-%        zeros(size(F_xTheta,1),m+(pos_omega-1)*(m+n+n)+n) F_xTheta zeros(size(F_xTheta,1),m+(N-pos_omega-1)*(m+n+n)+n+n) F_theta ];
-%     
-% end
-% %
-% h = fu{1} - Fu{1}*K*x_hat;
-% 
-% for ii=1:N-1
-%    h = [h
-%         fx{ii}
-%         fu{ii+1}];
-% end
-% 
-% h = [h
-%     fx{N}
-%     f_xTheta];
-% 
-% 
-% % compute C, which is time varying
-% C = [-Bm eye(n,n) zeros(n,(N-1)*(m+n+n)+m+n)
-%     -B zeros(n,n) eye(n,n) zeros(n,(N-1)*(m+n+n)+m)];
-% for ii = 1 : N-1
-%    C = [C
-%        zeros(n,(ii-1)*(m+n+n)+m) -Am_tilde -Bm_bar -Bm eye(n,n) zeros(n,(N-ii-1)*(m+n+n)+m+n)  
-%        zeros(n,(ii-1)*(m+n+n)+m+n) -A_bar -B zeros(n,n) eye(n,n) zeros(n,(N-ii-1)*(m+n+n)+m)  
-%        ]; 
-% end
-%  
-% 
-% % build g - cost vector
-% g = r_vec{1}+2*S'*x_hat;
-% for i = 1 : N-1
-%     g = [g
-%         q_tilde_vec{i}
-%         q_bar_vec{i+1}
-%         r_vec{i+1}];
-% end
-% g = [g
-%     q_tilde_vec{N}
-%     zeros(n,1)
-%     zeros(m,1)];
-% 
-% % build H
-% H = [R zeros(m,N*(m+n+n))];
-% for ii = 1 : N-1
-%     H = [H
-%         zeros(n,m+(ii-1)*(m+n+n)) Q_tilde zeros(n,(N-ii)*(m+n+n)+n+m)
-%         zeros(n,m+n+(ii-1)*(m+n+n)) Q_bar S zeros(n,(N-ii)*(m+n+n))
-%         zeros(m,m+n+(ii-1)*(m+n+n)) S' R zeros(m,(N-ii)*(m+n+n))
-%     ];
-% end
-% 
-% H = [H
-%     zeros(n,m+(N-1)*(m+n+n)) Q_tilde_f zeros(n,(N-N)*(m+n+n)+n+m)
-%     zeros(n,m+N*(m+n+n))
-%     zeros(m,m+N*(m+n+n)) ];
-% 
-% 
-% b = [Am_tilde*x_hat + Bm_bar*x_hat + tm_tilde
-%     A_bar*x_hat + s];
-% for ii = 1 : N-1
-%    b = [b
-%        tm_tilde
-%        s];
-% end
-% 
-% %% solve with CVX
-% cvx_begin
-%     variable z_cvx(N*(m+n+n)+m)
-%     minimize( z_cvx'*H*z_cvx + g'*z_cvx )
-%     subject to
-%         C*z_cvx == b
-%         P*z_cvx <= h
-% cvx_end
-% 
-% %% solve with IPM
-% z = ones(length(z_cvx),1);
-% nu = ones(size(C',2),1);
-% lambda = ones(size(P',2),1);
-% t = ones(length(h),1);
-% 
-% numNewton = 0;
-% denomPrimalFeas = (norm([h;b],2)+1)^2;  % squared!!
-% denomDualFeas = norm(g,2)+1;
-% 
-% % vvvvvvvvvvvvvvvvvvvvvvv
-% % compute Initial Points for better start
-% r_H = -2*H*z - g - P'*lambda - C'*nu;
-% r_C = b - C*z;
-% r_P = -t + h - P*z;
-% r_T = -diag(t)*diag(lambda)*ones(length(t),1);
-% Phi = 2*H + P'* diag(1./t)*diag(lambda)*P + reg*eye(size(H));
-% L_Phi = chol(Phi,'lower');
-% r_d_bar = -r_H-P'*diag(1./t)*(diag(lambda)*r_P-r_T);
-% tmp2 = L_Phi\r_d_bar;
-% tmp1 = L_Phi'\tmp2;
-% beta = r_C + C*tmp1;
-% U = L_Phi\C'; 
-% X = (L_Phi')\U;
-% Y = C*X + reg_Y*eye(size(C,1));     % Y = C*inv(Phi)*C'
-% L = chol(Y,'lower');    %chol decomposition
-% delta = L\(-beta);
-% dnu = L'\(delta);   % dnu = Y\(-beta)
-% tmp = -r_d_bar - C'*dnu;
-% tmp1 = L_Phi\tmp;
-% dz = L_Phi'\tmp1;
-% dlambda = ( P*dz - r_P + r_T./lambda ) .* lambda ./ t;
-% dt = ( r_T - t.*dlambda ) ./ lambda;
-% t = max(abs(t+dt),1);
-% lambda = max(abs(lambda+dlambda),1);
-% % ^^^^^^^^^^^^^^^^^^^^^^^^
-% 
-% z_coll = nan(size(H,1),n_iter);
-% 
-% r_H = -2*H*z - g - P'*lambda - C'*nu;
-% r_C = b - C*z;
-% r_P = -t + h - P*z;
-% r_T = - t .* lambda;
-% mu = lambda'*t/size(P,1);
-% 
-% numPrimalFeas = norm([r_C ; r_P],2)^2;
-% numDualFeas = norm(r_H,2);
-% term_primal = numPrimalFeas / denomPrimalFeas;
-% term_dual = numDualFeas / denomDualFeas;
-% 
-% bool_outerloop = (term_primal > eps_primal*eps_primal) || (term_dual > eps_dual) || (mu>eps_mu);
-% 
-% 
-% while(bool_outerloop)
-% 
-%     numNewton = numNewton + 1;
-%     if (numNewton >100)
-%         disp('more than 100 Newton steps!');
-%         return;
-%     end
-%     
-%     Phi = 2*H + P'* diag(1./t)*diag(lambda)*P + reg*eye(size(H));
-% %     Phi = 2*H + P'* diag(1./t)*diag(lambda)*P;
-% %     mask = sqrt(sum(Phi.^2,1));
-% %     mask = reg_term*(mask < max(mask)/1e3);
-% %     Phi = Phi + diag(mask);
-%     if (numNewton == 3)
-% %         return
-%     end
-%     L_Phi = chol(Phi,'lower');
-%     U = L_Phi\C';
-%     X = (L_Phi')\U;
-%     Y = C*X + reg_Y*eye(size(C,1));     % Y = C*inv(Phi)*C'
-%     r_d_bar = -r_H-P'*diag(1./t)*(diag(lambda)*r_P-r_T);
-%     tmp2 = L_Phi\r_d_bar;
-%     tmp1 = L_Phi'\tmp2;
-%     beta = r_C + C*tmp1;
-%     L = chol(Y,'lower');    %chol decomposition
-%     delta = L\(-beta);
-%     dnu = L'\(delta);   % dnu = Y\(-beta)
-%     tmp = -r_d_bar - C'*dnu;
-%     tmp1 = L_Phi\tmp;
-%     dz = L_Phi'\tmp1;
-%     dlambda = ( P*dz - r_P + r_T./lambda ) .* lambda ./ t;
-%     dt = ( r_T - t.*dlambda ) ./ lambda;
-%     
-%     % compute alpha_p
-%     alpha_p = 1; 
-%     idx_lambda = find(dlambda<0); 
-%     if (~isempty(idx_lambda))
-%         alpha_p = min(alpha_p , min(-lambda(idx_lambda)./dlambda(idx_lambda)) );
-%     end
-%     idx_t = find(dt<0); 
-%     if (~isempty(idx_t))
-%         alpha_p = min(alpha_p , min(-t(idx_t)./dt(idx_t)) );
-%     end
-%     
-%     % compute predictor duality gap
-%     mu_p = (lambda+alpha_p*dlambda)'*(t+alpha_p*dt)/size(P,1);
-%     sigma = (mu_p / mu)^3;
-%     
-%     % solve new system with corrector
-%     r_T = r_T - dt .* dlambda + sigma*mu*ones(length(t),1);
-%     r_d_bar = -r_H-P'*diag(1./t)*(diag(lambda)*r_P-r_T);
-%     tmp2 = L_Phi\r_d_bar;
-%     tmp1 = L_Phi'\tmp2;
-%     beta = r_C + C*tmp1;
-%     delta = L\(-beta);
-%     dnu = L'\(delta);   % dnu = Y\(-beta)
-%     tmp = -r_d_bar - C'*dnu;
-%     tmp1 = L_Phi\tmp;
-%     dz = L_Phi'\tmp1;
-%     dlambda = ( P*dz - r_P + r_T./lambda ) .* lambda ./ t;
-%     dt = ( r_T - t.*dlambda ) ./ lambda;
-%     
-%     % compute alpha in corrector step, Wright PDIPM, 1997, p.205
-%     gamma_f = 0.01;
-%     f_pri = 1;
-%     f_dual = 1;
-%     idx_t_0 = 0;
-%     idx_lambda_0 = 0;
-%     
-%     % compute alpha_primal_max and alpha_dual_max
-%     alpha_dual_max = 1;
-%     idx_lambda = find(dlambda<0); 
-%     idx_lambda_0 =0;
-%     if (~isempty(idx_lambda))
-%         for jj = 1 : length(idx_lambda)
-%             alpha_tmp = -lambda(idx_lambda(jj))./dlambda(idx_lambda(jj));
-%             if (alpha_tmp < alpha_dual_max)
-%                 alpha_dual_max = alpha_tmp;
-%                 idx_lambda_0 = idx_lambda(jj);
-%             end
-%         end
-%     end
-%     
-%     alpha_primal_max = 1;
-%     idx_t = find(dt<0); 
-%     if (~isempty(idx_t))
-%         for jj = 1 : length(idx_t)
-%             alpha_tmp = -t(idx_t(jj))./dt(idx_t(jj));
-%             if alpha_tmp < alpha_primal_max
-%                 alpha_primal_max = alpha_tmp;
-%                 idx_t_0 = idx_t(jj);
-%             end
-%         end
-%     end
-%     
-%     mu_plus = (t+alpha_primal_max*dt)'*(lambda+alpha_dual_max*dlambda)/size(P,1);
-%     
-% %     idx_t_0 = find((t+alpha_primal_max*dt)==0);
-% %     idx_lambda_0 = find((lambda+alpha_dual_max*dlambda)==0);
-%     
-%     if (idx_t_0 ~= idx_lambda_0)
-%         if (idx_t_0~=0)
-%             f_pri = gamma_f*mu_plus / (lambda(idx_t_0)+alpha_dual_max*dlambda(idx_t_0)) - t(idx_t_0);
-%             f_pri = f_pri/( alpha_primal_max*dt(idx_t_0) );
-%         end
-%         if (idx_lambda_0 ~= 0)
-%             f_dual = gamma_f*mu_plus / (t(idx_lambda_0)+alpha_primal_max*dt(idx_lambda_0)) - lambda(idx_lambda_0);
-%             f_dual = f_dual/( alpha_dual_max*dlambda(idx_lambda_0) );
-%         end
-%         alpha_primal = max([1-gamma_f,f_pri])*alpha_primal_max;
-%         alpha_dual = max([1-gamma_f,f_dual])*alpha_dual_max;
-%         alpha = min([alpha_primal,alpha_dual]);
-%     else
-%         alpha = damp*min([alpha_primal_max,alpha_dual_max]);
-%         disp('used dampening to find corrector step size');
-%     end
-%     
-% %     if (numNewton==8)
-% %         disp('stopped')
-% %         return
-% %     end
-%     
-%     % update z, nu, lambda, t
-%     z = z + alpha*dz;
-%     nu = nu + alpha*dnu;
-%     lambda = lambda + alpha*dlambda;
-%     t = t + alpha*dt;
-%     
-% %     disp(['z after iteration: ' num2str(numNewton)]);
-%     z_coll(:,numNewton) = z;
-%     
-%     % compute residua
-%     r_H = -2*H*z - g - P'*lambda - C'*nu;
-%     r_C = b - C*z;
-%     r_P = -t + h - P*z;
-%     r_T = -t.*lambda;
-%     mu = lambda'*t/size(P,1);
-%     
-%     numPrimalFeas = norm([r_C ; r_P],2)^2;
-%     numDualFeas = norm(r_H,2);
-%     
-%     term_primal = numPrimalFeas / denomPrimalFeas;
-%     term_dual = numDualFeas / denomDualFeas;
-%     bool_outerloop = (term_primal > eps_primal*eps_primal) || (term_dual > eps_dual) || (mu>eps_mu);
-% %     return;
-% end
-% 
-% norm(z-z_cvx)
-% disp(['norm(z-z_cvx): ' num2str(norm(z-z_cvx))])
-% disp(['number of Newton steps our algo: ' num2str(numNewton)])
-% % disp(['number of Newton steps MSc-Thesis: ' num2str(k_stop)])
-% % disp(['infeasibility: ' num2str(sum(testPos<0))])
-% 
-% disp(['cvx_optval - (z*H*z + g*z):' num2str(cvx_optval - (z'*H*z + g'*z))])
-% disp(['relative error: ' num2str(norm(cvx_optval - (z'*H*z + g'*z)) / norm(cvx_optval))]);
-% 
-
-
-
-
-
-
-
-
-
-

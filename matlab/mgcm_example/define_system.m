@@ -1,25 +1,15 @@
-clear all; clc; close all;
-%% INIT CONTROLLER DESIGN
+function [A,B,C,d_0] = define_system()
+%% Moore-Greitzer Compressor Model
 syms u ... % control input
     x1 ... % mass flow
     x2 ... % pressure rise
     x3 ... % throttle opeining
     x4 ... % throttle opening rate
-    xk1 ...
-    xk2 ...
-    xk3 ...
-    xk4 ...
     ;
 wn=sqrt(1000); % resonant frequency
 zeta=1/sqrt(2); % damping coefficient
 beta=1; % constant >0
 x2_c=0; % pressure constant
-%% Constraints
-mflow_min=0; mflow_max=1;
-prise_min=1.1875; prise_max=2.1875;
-throttle_min=0.1547; throttle_max=2.1547;
-throttle_rate_min=-20; throttle_rate_max=20;
-u_min=0.1547;u_max=2.1547;
 %% Continous time state-space model of the Moore-Greitzer compressor model
 
 f1 = x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
@@ -39,8 +29,8 @@ x3 = 1.1547;
 x4 = 0;
 init_cond = [x1-0.35, x2-0.4, x3, 0];  % init condition
 % print the matrices in the cmd line
-A = eval(A)
-B = eval(B)
+A = eval(A);
+B = eval(B);
 % C = [A(1, :); A(2,:)] % choose f1 and f2 as outputs 
 C = eye(4);
 D = zeros(4,1);
@@ -56,7 +46,6 @@ sys = tf([b(1,:)],[a]);
 %% Euler discretisation
 
 Ts = 0.01; % sampling time
-xk=[xk1,xk2,xk3,xk4]';
 Ad = eye(4)+A*Ts;
 Bd = Ts*B;
 Cd = eye(4);
@@ -73,10 +62,23 @@ p=[0.99, 0.98, 0.78, 0.75]; % desired poles of the open-loop system, while still
 % K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
 AK = Ad-Bd*K;
 e = eig(AK)
-xkk = (AK)*xk;
 % figure;
 % sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
 % pzmap(sys);
-%% Init for data in simulink
-X =[0 0 0];
-Y=[0 0 0 0];
+
+
+
+%==========================================================================
+%% Define A, B, C of discrete time model:
+% x+ = Ax + Bu
+% y = Cx
+%
+%==========================================================================
+A = Ad;
+B = Bd;
+C = eye(4);
+%% Initial disturbance estimate
+d_0 = [0 0 0 0];
+
+end
+

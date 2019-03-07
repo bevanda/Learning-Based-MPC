@@ -40,7 +40,7 @@ BEGIN_ACADO;        %start ACADO
 
     
     %% Optimal Control Problem 
-    N = 15;
+    N = 25;
     Sampling_time = 0.1;
     
     ocp = acado.OCP(0.0,N*Sampling_time, 20);
@@ -74,7 +74,7 @@ BEGIN_ACADO;        %start ACADO
     
     algo = acado.RealTimeAlgorithm(ocp, Sampling_time);
     
-    algo.set( 'DISCRETIZATION_TYPE',         'MULTIPLE_SHOOTING' );
+    algo.set( 'DISCRETIZATION_TYPE',         'COLLOCATION' );
     algo.set( 'MAX_NUM_ITERATIONS',          5                );
     algo.set( 'INFEASIBLE_QP_HANDLING',      'YES'             );
     
