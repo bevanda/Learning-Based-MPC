@@ -39,8 +39,8 @@ x3 = 1.1547;
 x4 = 0;
 init_cond = [x1-0.35, x2-0.4, x3, 0];  % init condition
 % print the matrices in the cmd line
-A = eval(A)
-B = eval(B)
+A = eval(A);
+B = eval(B);
 % C = [A(1, :); A(2,:)] % choose f1 and f2 as outputs 
 C = eye(4);
 D = zeros(4,1);
@@ -72,7 +72,7 @@ p=[0.99, 0.98, 0.78, 0.75]; % desired poles of the open-loop system, while still
 [K,prec,message] = place(Ad,Bd,p); %nominal feedback matrix
 % K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
 AK = Ad-Bd*K;
-e = eig(AK)
+e = eig(AK);
 xkk = (AK)*xk;
 % figure;
 % sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);

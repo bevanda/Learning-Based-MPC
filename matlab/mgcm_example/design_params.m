@@ -8,7 +8,7 @@ function [...
     prise_max, prise_min, ...
     throttle_max, throttle_min, ...
     throttle_rate_max, throttle_rate_min, ...
-    u_min, u_max, ...
+    u_max, u_min, ...
     state_uncert, ...
     enable_learning, ALPHA, MU_factor, ...
     uncertainty_block] ...
@@ -28,38 +28,23 @@ function [...
         1 ... % control input for throttle openingng
         ]); % Cost on control
     R = R(1:m,1:m);
-    
+   
+    dlqr_controlweight = 8; % cost multiplier for 'baseline' feedback law ** maybe try 5
+    maxadm_controlweight = 100; % cost multiplier for generating LQR K that is
+    % used in terminal set computation
     mflow_min=0; mflow_max=1;
     prise_min=1.1875; prise_max=2.1875;
     throttle_min=0.1547; throttle_max=2.1547;
     throttle_rate_min=-20; throttle_rate_max=20;
     u_min=0.1547;u_max=2.1547;
     
-    dlqr_controlweight = 8; % cost multiplier for 'baseline' feedback law ** maybe try 5
-    maxadm_controlweight = 100; % cost multiplier for generating LQR K that is
-    % used in terminal set computation
-    max_x = 2; % [m]
-    max_y = 3; % [m]
-    max_vx = 10; % [m/s]
-    max_vy = 10; % [m/s]
-    max_z = 3; % [m]
-    max_vz = 5; % [m/s]
-    max_pitch_cmd = deg2rad(35); % [rad]
-    max_roll_cmd = deg2rad(35); % [rad]
-    max_thrust_cmd = 18; % N
-    min_thrust_cmd = 0; %N
-    max_pitch = pi/2; %pi/4; % [rad]
-    max_pitch_rate = 4*pi; % [rad/s]
-    max_roll = pi/2; %pi/4; % [rad]
-    max_roll_rate = 4*pi; % [rad/s]
-
 %% 
 % Uncertainty bound on x+ (use same for x and y axes)
 
 uncert = [...
-    0.01 ... % mass flow
+    0.1 ... % mass flow
     0.1 ... % pressure rise
-    0.01 ... % throttle opening
+    0.1 ... % throttle opening
     0.1 % throttle opening rate m
     ];
 state_uncert = uncert';

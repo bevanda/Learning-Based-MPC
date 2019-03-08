@@ -2,10 +2,10 @@ clear all;
 %clc;
 close all;
 
-%% Misc configuration
+%% Configuration
 mgcm_bin_fname = 'mgcm.bin';
 
-N_values = [5 10 15 30 ... % horizons for which to calculate the discriminating kernel
+N_values = [5 10 15 30 ... % horizons for which to calculate the discriminating kernel (maximum disturbance invarinat set)
     % 60 120 240 ...
     ];
 
@@ -17,48 +17,48 @@ for N=N_values
     n = size(A,1);
     m = size(B,2);
     o = size(C,1);
-    q = 4; % number of outputs (for dual EKF purposes .. should o also be set to 4?)
-        %% Get design parameters:
+    %% Get design parameters:
     [Q, R, ...
     dlqr_controlweight, maxadm_controlweight, ...
     mflow_max, mflow_min, ...
     prise_max, prise_min, ...
     throttle_max, throttle_min, ...
     throttle_rate_max, throttle_rate_min, ...
-    u_min, u_max, ...
+    u_max, u_min, ...
     state_uncert, ...
     enable_learning, ALPHA, MU_factor, ...
     uncertainty_block] = design_params(n, m);
     %==========================================================================
-
-    %%
+	%%
     % feedback policy K_t used for terminal set computations:
     K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
 
     %==========================================================================
     % Define a nominal feedback policy K and corresponding terminal cost
-    % Feedback policy chosen using discrete time linear mgcmratic regulator.
+    % Feedback policy chosen using discrete time linear quadratic regulator.
     % This can be changed based on engineering preference:
-    K = -dlqr(A, B, Q, dlqr_controlweight*R);
-    % K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
-    
+%     K = -dlqr(A, B, Q, dlqr_controlweight*R);
+
+    % 'baseline' stabilizing feedback law
+    K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
+%     Kt=K;
     % Terminal cost chosen as solution to DARE
     P = dare(A+B*K, B, Q, dlqr_controlweight*R);
-
     %%
     %==========================================================================
     % Define polytopic constraints on input F_u*x <= h_u and
     % state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
     %==========================================================================
 
-    temp0_max = u_max;
-    temp0_min = u_min;
+    u_max;
+    u_min;
 
-    F_u = [eye(m); -eye(m)]; h_u = [temp0_max;-temp0_min];
+    F_u = [eye(m); -eye(m)]; h_u = [u_max; -u_min];
     temp_max = [mflow_max; prise_max; throttle_max; throttle_rate_max];
     temp_min = [mflow_min; prise_min; throttle_min; throttle_rate_min];
-    F_x = [eye(n); -eye(n)]; h_x = [temp_max;-temp_min];
-    F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
+%     temp_min =[-mflow_max; -prise_max; -throttle_max; -throttle_rate_max];
+    F_x = [eye(n); -eye(n)]; h_x = [temp_max; -temp_min];
+    F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty Polyhedron
 
     % count the length of the constraints on input, states, and uncertainty:
     length_Fu = length(h_u);
@@ -68,6 +68,10 @@ for N=N_values
     %% State constraints:
     % Points that after (A+B*K_t) get to (F_x,h_x) \ominus (F_g,h_g)
     [F_x_g, h_x_g] = double(polytope(F_x, h_x) - polytope(F_g, h_g));
+%     tempPoly = Polyhedron(F_x, h_x) - Polyhedron(F_g, h_g);
+%     F_x_g = tempPoly.A; % Inequality description { x | H*[x; -1] <= 0 }
+%     h_x_g = tempPoly.b; % Inequality description { x | A*x <= b }
+    
     Fx{1} = F_x;
     fx{1} = h_x;
     for i=2:N
@@ -79,21 +83,18 @@ for N=N_values
        fu{i} = h_u;
     end
 
-
-
-
     %%
     %==========================================================================
     % Generate steady-state parameterization and their projection matrices
     %==========================================================================
 
     M = [A - eye(n), B, zeros(n,o); ...
-    C, zeros(o,m), -eye(o)]
-    V = null(M)
-    LAMBDA = V(1:n,:)
-    PSI = V(n+1:n+m,:)
-    XI = V(n+m+1:n+m+o,:)
-    %%
+    C, zeros(o,m), -eye(o)];
+    V = null(M);
+    LAMBDA = V(1:n,:);
+    PSI = V(n+1:n+m,:);
+    XI = V(n+m+1:n+m+o,:);
+
     % Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
     V_0 = M\[-d_0; zeros(o,1)];
     LAMBDA_0 = V_0(1:n);
@@ -108,7 +109,7 @@ for N=N_values
     %==========================================================================
     % Compute maximally invariant set
     %==========================================================================
-
+    
     disp('Computing and simplifying terminal set...');
     F_w = [F_x zeros(length_Fx, m);
         zeros(length_Fx, n) F_x*LAMBDA; ...
@@ -121,10 +122,7 @@ for N=N_values
         h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
         h_u - F_u*PSI_0; ...
         h_x_g - F_x_g*B*(PSI_0-K_t*LAMBDA_0)];
-
-
-
-
+    
     % Subtract out points due to disturbance (F_g,h_g)
     [F_w_N0, h_w_N0] = pdiff(F_w, h_w, ...
         [F_g zeros(length_Fg,m); ...
@@ -136,8 +134,11 @@ for N=N_values
     % Simplify the constraints
     term_poly = polytope(F_w_N0, h_w_N0);
     [F_w_N, h_w_N] = double(term_poly);
+%     term_poly = Polyhedron(F_w_N0, h_w_N0); 
+%     F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
+%     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
 
-    disp('Terminal set polytope:');
+    disp('Terminal set Polyhedron:');
     term_poly
 
     % x-theta constraints:
@@ -204,7 +205,7 @@ for N=N_values
 
     CONSTRAINT_COUNT = length(bineq);
     % disp('Removing redundant inequality constraints...');
-    % temp_tope = polytope(Aineq, bineq);
+    % temp_tope = Polyhedron(Aineq, bineq);
     % [Aineq, bineq] = double(temp_tope);
 
     %%
@@ -225,12 +226,15 @@ for N=N_values
     %==========================================================================
 
     disp('Generating uncertainty bounds...');
-    options = optimset('Display', 'off');
+    options = optimset('Display', 'final');
     uncertainty_upper_bounds = zeros(n, n + m + 1);
     uncertainty_lower_bounds = zeros(n, n + m + 1);
-
+    
     X_vertices = extreme(polytope(blkdiag(F_x, F_u), [h_x; h_u]));
     length_X_vertices = size(X_vertices,1);
+%     poly = Polyhedron(blkdiag(F_x, F_u), [h_x; h_u]);
+%     X_vertices = poly.extreme();
+%     length_X_vertices = size(X_vertices,1);
     X_vertices = [X_vertices ones(length_X_vertices,1)];
 
     for ind = 1:n
@@ -241,7 +245,9 @@ for N=N_values
             F_g_s = [1; -1]; h_g_s = [s_vec'*linprog(-s_vec, F_g, h_g); -s_vec'*linprog(s_vec, F_g, h_g, [], [], [], [], [], options)];
             F_delta_A = kron(F_g_s, X_vertices(:, logical(uncertainty_block(ind, :))));
             h_delta_A = repmat(h_g_s, length_X_vertices, 1);
-            [F_delta_A, h_delta_A] = double(polytope(F_delta_A, h_delta_A));
+            tempPol = Polyhedron(F_delta_A, h_delta_A);
+            F_delta_A = tempPol.A; 
+            h_delta_A = tempPol.b;
 
             for ind_j = 1:sub_block(ind)
                 s_vec = zeros(sub_block(ind),1); s_vec(ind_j) = 1;
@@ -259,119 +265,13 @@ for N=N_values
     % priors
     if enable_learning
         MU_VEC = [MU_factor*ones(1,n+m+1)]; % weight on prior model (0 = completely uncertain)
-        MU_VEC(13) = MU_VEC(13)*0.01;
+        MU_VEC(6) = MU_VEC(6)*0.01;
     else
         MU_VEC = [1e10*ones(1,n+m+1)]; % weight on prior model -- 'turn off' learning
     end
 
-    %%
-    % Dual EKF stuff
-    p = 12; % number of parameters being estimated
-    P2_0 = zeros(n,p); % initial cross-covariance
-    P3_0 = zeros(p,p); % initial parameter covariance
-    %XI = diag([1e-4 4e-4 1e-4 4e-4 1e-4])
-    %XI = 0.01*eye(q); % innovation noise covariance
+    %% L2NW estimator setup
 
-    Cekf = zeros(q, n);
-    % we observe x pos, pitch, y pos, roll, and z pos:
-    Cekf(1,1) = 1;
-    Cekf(2,3) = 1;
-    Cekf(3,5) = 1;
-    Cekf(4,7) = 1;
-    Cekf(5,9) = 1;
-    % EKF feedback gain... how to pick??
-    sys = ss(A, B, Cekf, 0, -1); % -1 indicates discrete time plant w/ unspec. sample time
-
-    %[kest,Kekf,Pkf] = kalman(sys,1*eye(m),XI);
-    %Kekf = steady_state_kf(A, Cekf, eye(n), eye(q));
-    %Kekf = place(A', Cekf', [0.25 0.25 0.25 0.25 0.25 0.4 0.4 0.4 0.4 0.4])';
-    %Kekf = place(A', Cekf', [0.5 0.5 0.5 0.5 0.5 0.8 0.8 0.8 0.8 0.8])';
-    %Kekf = zeros(n,q);
-    %Kekf = steady_state_kf(A, Cekf, 1e-2*eye(n), XI); % KF too gentle --> params too aggressive
-    %Kekf = steady_state_kf(A, Cekf, 1e2*eye(n), 10000*XI); % KF too gentle --> params too aggressive
-
-
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.6 0.8])';
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 0.9])'; % too fast - parameters unstable
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.7 0.8])'; % still too slow
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.75 0.85])'; % too fast - parameters unstable
-
-    % Unstable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.7 0.8])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.001]);
-
-    % Stable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 + 0.1i 0.8 - 0.1i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Stable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 + 0.4i 0.8 - 0.4i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Unstable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.9 + 0.1i 0.9 - 0.1i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Stable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.85 + 0.4i 0.85 - 0.4i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Unstable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.875 + 0.5i 0.875 - 0.5i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Stable:
-    Kekf_x = place(A(1:4,1:4)', Cekf(1:2,1:4)', [0.25 0.25 0.4 0.4])';
-    Kekf_y = Kekf_x;
-    Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.85 + 0.4i 0.85 - 0.4i])'; %
-    XI = diag([0.01 0.01 0.01 0.01 0.0075]);
-
-
-    Kekf = blkdiag(Kekf_x,Kekf_y,Kekf_z);
-
-    % Parameter bounds, ummm...
-    %foo = 0.2; % up to 20% error on A and B entries
-    %beta_min = zeros(p, 1);
-    nom_AB = [...
-        0.05*A(4,3) 0.05*A(4,4) 0.05*B(4,1) ... % x-axis
-        0.05*A(8,7) 0.05*A(8,8) 0.05*B(8,2) ... % y-axis
-        0.15*B(10,3) ... % z-axis (ground effect)
-        ]; %
-    %nom_AB = [A(4,3) A(4,4) B(4,1) A(8,7) A(8,8) B(8,2) 0.1*B(10,3)]; % ... but 5% on vert. B entries
-    beta_min = -abs([nom_AB zeros(1,5)])';
-    dT = 0.025; % timestep
-    max_lat_accel_noise = 1.0; % m/s^2
-    max_vert_accel_noise = 1.0*max_lat_accel_noise;
-    max_ang_accel_noise = 1.0; %rad/s^2
-    beta_min(8:end) = -[dT*max_lat_accel_noise dT*max_ang_accel_noise dT*max_lat_accel_noise dT*max_ang_accel_noise 0.5*dT^2*max_vert_accel_noise];
-    %beta_max = -beta_min;
-    %beta_min = -0.5*max_vert_accel_noise*dT^2;
-    beta_max = - beta_min;
-    P3_0 = diag(0.001*[...
-        2 4 2 ... % x (b1, b2, b3)
-        2 4 2 ... % y (b4, b5, b6)
-        10 ... % z (b7)
-        1e-3 ... % x pos b8
-        1e-3 ... % x angle b9
-        1e-3 ... % y pos b10
-        1e-3 ... % y angle b11
-        1e-3 ... % z pos b12
-        ]'.*beta_max);
-    P3_lambda = 0.1*P3_0; %1e-4*diag(beta_max);
-
-    beta_max(7) = beta_max(7)*0.1; % only allow 1/10 the correction to this parameter in the positive sense
-
-    % ground_effect_fudge1 = 10; % nominal
-    % %ground_effect_fudge1 = 100; % 'bad learning'
-    % ground_effect_fudge2 = 0.001;
-    % P3_0(7,7) = ground_effect_fudge1 * P3_0(7,7);
-    % P3_lambda(7,7) = ground_effect_fudge1 * P3_lambda(7,7);
-    % P3_0(12,12) = ground_effect_fudge2 * P3_0(12,12);
-    % P3_lambda(12,12) = ground_effect_fudge2 * P3_lambda(12,12);
-
-    % 'bad learning'
-    %P3_0(2,2) = 5*P3_0(2,2);
-    %P3_lambda(2,2) = 5*P3_lambda(2,2);
 
     %% Parameters for constructor
 

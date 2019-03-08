@@ -61,7 +61,7 @@ p=[0.99, 0.98, 0.78, 0.75]; % desired poles of the open-loop system, while still
 [K,prec,message] = place(Ad,Bd,p); %nominal feedback matrix
 % K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
 AK = Ad-Bd*K;
-e = eig(AK)
+e = eig(AK);
 % figure;
 % sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
 % pzmap(sys);
@@ -78,7 +78,7 @@ A = Ad;
 B = Bd;
 C = eye(4);
 %% Initial disturbance estimate
-d_0 = [0 0 0 0];
+d_0 = [0 0 0 0]';
 
 end
 
