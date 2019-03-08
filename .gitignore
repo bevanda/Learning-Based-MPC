@@ -1,5 +1,5 @@
 **/slprj
-*.slx
+*.slxc
 *.slc
 *.txt
 **/tbxmanager
@@ -8,3 +8,4 @@
 *.cpp
 *.mexa64
 **/build
+**/pathdef.m
