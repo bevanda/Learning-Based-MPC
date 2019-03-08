@@ -1,9 +1,10 @@
-*./slprj/
+**/slprj
 *.slx
 *.slc
 *.txt
-*./tbxmanager/
+**/tbxmanager
 *.fig
 *.bin
 *.cpp
 *.mexa64
+**/build
