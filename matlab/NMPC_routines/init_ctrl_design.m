@@ -31,7 +31,6 @@ f4 = -wn^2*x3-2*zeta*wn*x4+wn^2*u; % throttle opening acceleration
 
 A = jacobian([f1,f2, f3, f4], [x1, x2, x3, x4]);
 B = jacobian([f1,f2, f3, f4], [u]);
-
 % equilibrium params
 x1 = 0.5;
 x2 = 1.6875;
@@ -44,7 +43,8 @@ B = eval(B);
 % C = [A(1, :); A(2,:)] % choose f1 and f2 as outputs 
 C = eye(4);
 D = zeros(4,1);
-
+eig(A)
+Kc=-place(A,B,[-22.5,-21.5,-1.0,-0.1])
 % Visualise the poles and zeros of the continuous system
 [b,a]=ss2tf(A,B,C,D);
 sys = tf([b(1,:)],[a]);
@@ -74,8 +74,6 @@ p=[0.99, 0.98, 0.78, 0.75]; % desired poles of the open-loop system, while still
 AK = Ad-Bd*K;
 e = eig(AK);
 xkk = (AK)*xk;
-Q = eye(4); R=1;
-P = dare(AK,Bd,Q,R);
 % figure;
 % sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
 % pzmap(sys);
