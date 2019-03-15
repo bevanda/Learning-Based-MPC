@@ -5,7 +5,7 @@ function mgcm_nmpc
     close all;
 
     mpciterations = 100;
-    N             = 50;
+    N             = 3;
     T             = 0.01;
     tmeasure      = 0.0;
     xmeasure      = [0.150000000000000,1.28750000000000,1.15470000000000,0]; % init state measurement
@@ -18,13 +18,7 @@ function mgcm_nmpc
     rtol_ode_real = 1e-12;
     atol_ode_sim  = 1e-4;
     rtol_ode_sim  = 1e-4;
-
-%     K=[-3.0741 2.0957 0.1197 -0.0090]; % nominal feedback matrix
-%     Ad = [1.01125000000000,0.0100000000000000,0,0;...
-%         0.0100000000000000,0.995555557627778,-0.0129903810567666,0;...
-%         0,0,1,0.0100000000000000;...
-%         0,0,-10,0.552786404500042];
-%     Bd = [0;0;0;10];
+    
     nmpc(@runningcosts, @terminalcosts, @constraints, ...
          @terminalconstraints, @linearconstraints, @system_dt, ...
          mpciterations, N, T, tmeasure, xmeasure, u0, ...

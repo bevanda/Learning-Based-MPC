@@ -64,7 +64,7 @@ clear;
     P = 5; %maximal number of SQP iterations 
 %   algo = acado.RealTimeAlgorithm(ocp, sampling_time); % real-time algorithm
     algo = acado.OptimizationAlgorithm(ocp); 
-    algo.set( 'DISCRETIZATION_TYPE', 'SINGLE_SHOOTING' );
+    algo.set( 'DISCRETIZATION_TYPE', 'COLLOCATION' );
 %     algo.set( 'MAX_NUM_ITERATIONS', P);
 %     algo.set( 'INFEASIBLE_QP_HANDLING', 'YES' );
     

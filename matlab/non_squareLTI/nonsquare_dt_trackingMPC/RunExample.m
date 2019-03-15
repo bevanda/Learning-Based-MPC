@@ -1,6 +1,7 @@
-%% TRACKING REFERENCE MPC example
+%% TRACKING piecewise constant REFERENCE MPC example
 close all;
 clearvars;
+%% Calculate the invariant set for tracking using MPT ..................
 
 %% Parameters
 % Set the prediction horizon:
@@ -21,7 +22,7 @@ options = optimoptions('fmincon','Algorithm','sqp','Display','none');
 % Simulation time in seconds
 iterations = 90;
 % Optimization variable bounds (usually control) not constraints per say
-u_min=-0.3;u_max=0.3;
+u_min =-0.3; u_max= 0.3;
 LB = [ones(2*N,1)*u_min; ones(2,1)*(-inf)];
 UB = [ones(2*N,1)*u_max; ones(2,1)*(+inf)];
 % LB =[];
@@ -30,17 +31,18 @@ UB = [ones(2*N,1)*u_max; ones(2,1)*(+inf)];
 A = [1, 1; 0, 1];
 B = [0.0, 0.5; 1.0, 0.5];
 C = [1 0];
-n=size(A,1);
-m=size(B,2);
+n = size(A,1);
+m = size(B,2);
 o = size(C,1);
+
+% Mtheta = [1, 0, 0, 0; 0, 1, 1, -2]';
+% MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
 V = null(M);
-% Mtheta = [1, 0, 0, 0; 0, 1, 1, -2]';
 Mtheta = V;
 LAMBDA = Mtheta(1:2,1:2);
 PSI = Mtheta(3:4,1:2);
-MN = [Mtheta; 1, 0];
 
 Q = diag([1,1]);
 R = Q;
@@ -48,45 +50,44 @@ R = Q;
 T = 100*P;
 %% Cost Calculation
 % Start simulation
-
 xHistory = x;
 art_refHistory = [theta0_1d; theta0_1d];
 true_refHistory = [0.0;0.0];
 % J=costFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,xs,N,reshape(opt_var(1:2),2,1),reshape(opt_var(end-1:end),2,1),P,T,LAMBDA,PSI);
-for ct = 1:(iterations)
-    xs = set_ref(ct);
+for k = 1:(iterations)
+    xs = set_ref(k);
     % opt_var must be a vector!
     COSTFUN = @(opt_var) costFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,xs,N,reshape(opt_var(1:2),2,1),reshape(opt_var(end-1:end),2,1),P,T,LAMBDA,PSI);
-    CONSFUN = @(opt_var) constraintsFunction(opt_var(1:end-2),opt_var(end-1:end),x,N);
+    CONSFUN = @(opt_var) constraintsFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,[],options);    
     theta_opt = reshape(opt_var(end-1:end),2,1);
     u_opt = reshape(opt_var(1:2),2,1);
-    help_setpoint = Mtheta*theta_opt;
+    art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
-    x = getTransitions(x, u_opt);
+    x = getTransitions(x, u_opt); %-K*x+u_opt
     
     % Save plant states for display.
     xHistory = [xHistory x]; 
-    art_refHistory = [art_refHistory help_setpoint(1:2)];
+    art_refHistory = [art_refHistory art_ref(1:2)];
     true_refHistory = [true_refHistory xs];
 end
 
 
 %% Plot
 
-figure;
-subplot(2,1,1);
-plot(0:iterations,xHistory(1,:),'Linewidth',1);
-grid on
-xlabel('iterations');
-ylabel('x1');
-title('x1');
-subplot(2,1,2);
-plot(0:iterations,xHistory(2,:),'Linewidth',1);
-grid on
-xlabel('iterations');
-ylabel('x2');
-title('x2');
+% figure;
+% subplot(2,1,1);
+% plot(0:iterations,xHistory(1,:),'Linewidth',1);
+% grid on
+% xlabel('iterations');
+% ylabel('x1');
+% title('x1');
+% subplot(2,1,2);
+% plot(0:iterations,xHistory(2,:),'Linewidth',1);
+% grid on
+% xlabel('iterations');
+% ylabel('x2');
+% title('x2');
 
 figure;
 plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,xHistory(1,:),'Linewidth',1);
@@ -97,13 +98,16 @@ title('Artificial vs true reference vs state response');
 legend({'artifical reference','real reference', 'state response'},'Location','northeast')
 plot_refs(1).Marker='.';
 plot_refs(2).Marker='.';
+plot_refs(1).Color='Green';
+plot_refs(2).Color='Red';
+plot_refs(3).Color='Blue';
 
-figure;
-plot(xHistory(1,:),xHistory(2,:),'Linewidth',1,'Marker','o');
-grid on
-xlabel('x1');
-ylabel('x2');
-title('State space');
+% figure;
+% plot(xHistory(1,:),xHistory(2,:),'Linewidth',1,'Marker','o');
+% grid on
+% xlabel('x1');
+% ylabel('x2');
+% title('State space');
 
 %% Help functions
 %set reference depending on the iteration

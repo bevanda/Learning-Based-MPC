@@ -7,9 +7,9 @@ function example_7_2
     clearvars;
     close all;
 
-    mpciterations = 30;
-    N             = 5;
-    T             = 1;
+    mpciterations = 1000;
+    N             = 10;
+    T             = 0.01;
     tmeasure      = 0.0;
     xmeasure      = [-1, 1];
     u0            = 0.2*ones(1,N);
@@ -80,6 +80,7 @@ function y = system_dt(t, x, u, T)
 end
 
 function dx = system_ct(t, x, u, T)
+
     dx    = zeros(2,1);
     dx(1) = x(2);
     dx(2) = u(1);
@@ -120,6 +121,8 @@ function plotTrajectories(dynamic, system, T, t0, x0, u, ...
         ylabel('x_1(n), x_2(n)');
         grid on;
         hold on;
+        size(t_intermediate)
+        size(x_intermediate(:,1))
         plot(t_intermediate,x_intermediate(:,1),'-ok');
         plot(t_intermediate,x_intermediate(:,2),'-ok');
         axis([0 30 -0.5 1]);
