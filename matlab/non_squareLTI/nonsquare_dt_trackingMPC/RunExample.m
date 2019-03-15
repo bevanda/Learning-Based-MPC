@@ -1,4 +1,4 @@
-%% TRACKING REFERENCE MPC exampple
+%% TRACKING REFERENCE MPC example
 close all;
 clearvars;
 
@@ -54,13 +54,7 @@ art_refHistory = [theta0_1d; theta0_1d];
 true_refHistory = [0.0;0.0];
 % J=costFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,xs,N,reshape(opt_var(1:2),2,1),reshape(opt_var(end-1:end),2,1),P,T,LAMBDA,PSI);
 for ct = 1:(iterations)
-    if ct <=30 
-        xs=[4.9;0];
-    elseif ct > 30 && ct < 60
-        xs=[-4.9;0];
-    else
-        xs=[2;0];
-    end
+    xs = set_ref(ct);
     % opt_var must be a vector!
     COSTFUN = @(opt_var) costFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,xs,N,reshape(opt_var(1:2),2,1),reshape(opt_var(end-1:end),2,1),P,T,LAMBDA,PSI);
     CONSFUN = @(opt_var) constraintsFunction(opt_var(1:end-2),opt_var(end-1:end),x,N);
@@ -110,3 +104,15 @@ grid on
 xlabel('x1');
 ylabel('x2');
 title('State space');
+
+%% Help functions
+%set reference depending on the iteration
+function [xs] = set_ref(ct)
+    if ct <=30 
+        xs=[4.9;0];
+    elseif ct > 30 && ct < 60
+        xs=[-4.9;0];
+    else
+        xs=[2;0];
+    end
+end
