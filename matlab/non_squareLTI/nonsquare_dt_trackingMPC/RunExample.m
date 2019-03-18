@@ -5,19 +5,19 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 10;
-% syms a b; % for paramterisation
+N = 3;
+
 %% Closed-Loop Simulation
 % The initial conditions
-x = [2;0];
+x = [0;-2];
 %setpoint
-% xs = [0; 0];
+xs = [4.95;0.0];
 % N horizon, 4 num of opt variables U = [u1;u2], theta = [a;b]
 u0_1d= zeros(1,N); % start inputs
 theta0_1d = 0; % start param values
 opt_var = [u0_1d, u0_1d, theta0_1d, theta0_1d];
 
-options = optimoptions('fmincon','Algorithm','sqp','Display','none');
+options = optimoptions('fmincon','Algorithm','active-set','Display','final');
 
 % Simulation time in seconds
 iterations = 90;
@@ -35,24 +35,25 @@ n = size(A,1);
 m = size(B,2);
 o = size(C,1);
 
-% Mtheta = [1, 0, 0, 0; 0, 1, 1, -2]';
+
 % MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
 V = null(M);
 Mtheta = V;
+% Mtheta = [1, 0, 0, 0; 0, 1, 1, -2]';
 LAMBDA = Mtheta(1:2,1:2);
 PSI = Mtheta(3:4,1:2);
 
 Q = diag([1,1]);
-R = Q;
+R = diag([1,1]);
 [P, e, K] = dare(A,B,Q,R);
-T = 100*P;
+T = 1*P;
 %% Cost Calculation
 % Start simulation
 xHistory = x;
-art_refHistory = [theta0_1d; theta0_1d];
-true_refHistory = [0.0;0.0];
+art_refHistory = LAMBDA*[theta0_1d; theta0_1d];
+true_refHistory = xs;
 % J=costFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,xs,N,reshape(opt_var(1:2),2,1),reshape(opt_var(end-1:end),2,1),P,T,LAMBDA,PSI);
 for k = 1:(iterations)
     xs = set_ref(k);
@@ -103,20 +104,20 @@ plot_refs(1).Color='Green';
 plot_refs(2).Color='Red';
 plot_refs(3).Color='Blue';
 
-% figure;
-% plot(xHistory(1,:),xHistory(2,:),'Linewidth',1,'Marker','o');
-% grid on
-% xlabel('x1');
-% ylabel('x2');
-% title('State space');
+figure;
+plot(xHistory(1,:),xHistory(2,:),'Linewidth',1,'Marker','.');
+grid on
+xlabel('x1');
+ylabel('x2');
+title('State space');
 
 %% Help functions
 %set reference depending on the iteration
 function [xs] = set_ref(ct)
     if ct <=30 
-        xs=[5.9;0];
-    elseif ct > 30 && ct < 60
-        xs=[-6.9;0];
+        xs=[4.95;0];
+    elseif ct > 30 && ct <= 60
+        xs=[-5.5;0];
     else
         xs=[2;0];
     end

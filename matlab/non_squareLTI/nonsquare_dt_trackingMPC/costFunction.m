@@ -8,7 +8,8 @@ function J = costFunction(u,theta,x,xs,N,u0,theta0,P,T,K,LAMBDA,PSI)
 %   N:      prediction horizon
 %   xref:   state references, constant from time k+1 to k+N
 %   u0:     previous controller output at time k-1
-%   theta0:     previous theta output at time k-1
+%   theta0: previous theta output at time k-1
+
 % Output:
 %   J:      objective function cost
 %
@@ -17,7 +18,7 @@ function J = costFunction(u,theta,x,xs,N,u0,theta0,P,T,K,LAMBDA,PSI)
 %% Nonlinear MPC design parameters
 
 Q = diag([1,1]);
-R = Q;
+R = diag([1,1]);
 
 % Set initial plant states, controller output and cost.
 xk = x;
@@ -47,7 +48,7 @@ for ct=1:N
     end
     %TERMINAL COST
     if ct == N
-        J = J + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs) + (LAMBDA*theta-xs)'*P*(LAMBDA*theta-xs);
+        J = J + (xk1-LAMBDA*theta)'*P*(xk1-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
     end
     % Update xk and uk for the next prediction step.
     xk = xk1;
