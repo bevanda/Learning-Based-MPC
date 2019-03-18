@@ -5,7 +5,7 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 3;
+N = 90;
 % syms a b; % for paramterisation
 %% Closed-Loop Simulation
 % The initial conditions
@@ -58,8 +58,8 @@ for k = 1:(iterations)
     xs = set_ref(k);
     % opt_var must be a vector!
     COSTFUN = @(var) costFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,xs,N,reshape(var(1:2),2,1),reshape(var(end-1:end),2,1),P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,[],options);    
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,xs);
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
     theta_opt = reshape(opt_var(end-1:end),2,1);
     u_opt = reshape(opt_var(1:2),2,1);
     art_ref = Mtheta*theta_opt;
