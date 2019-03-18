@@ -29,13 +29,13 @@ for k=1:N
     % obtain new state at next prediction step
     xk1 = getTransitions(xk, uk, K, xs);
 
-    c(cons_num*k-cons_num+1) = -xk1(1)+x_min;
+%     c(cons_num*k-cons_num+1) = -xk1(1)+x_min;
     c(cons_num*k-cons_num+2) = xk1(1)-x_max;
-    c(cons_num*k-cons_num+3) = -xk1(2)+x_min;
+%     c(cons_num*k-cons_num+3) = -xk1(2)+x_min;
     c(cons_num*k-cons_num+4) = xk1(2)-x_max;
-    c(cons_num*k-cons_num+5) = -uk(1)+u_min;
+%     c(cons_num*k-cons_num+5) = -uk(1)+u_min;
     c(cons_num*k-cons_num+6) = uk(1)-u_max;
-    c(cons_num*k-cons_num+7) = -uk(2)+u_min;
+%     c(cons_num*k-cons_num+7) = -uk(2)+u_min;
     c(cons_num*k-cons_num+8) = uk(2)-u_max;
 %     c(cons_num*k-cons_num+9) = -theta(1)+inf;
 %     c(cons_num*k-cons_num+10) = theta(1)-inf;

@@ -59,7 +59,8 @@ for k = 1:(iterations)
     % opt_var must be a vector!
     COSTFUN = @(var) costFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,xs,N,reshape(var(1:2),2,1),reshape(var(end-1:end),2,1),P,T,K,LAMBDA,PSI);
     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,xs);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,[],options);    
+    [c, ceq]=CONSFUN(opt_var)
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
     theta_opt = reshape(opt_var(end-1:end),2,1);
     u_opt = reshape(opt_var(1:2),2,1);
     art_ref = Mtheta*theta_opt;
