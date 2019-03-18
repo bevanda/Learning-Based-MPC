@@ -4,7 +4,7 @@ clearvars;
 %% Configuration
 mgcm_bin_fname = 'nonsq.bin';
 
-N_values = [3 ... % horizons for which to calculate the discriminating kernel (maximum disturbance invarinat set)
+N_values = [3... % horizons for which to calculate the discriminating kernel (maximum disturbance invarinat set)
     % 60 120 240 ...
     ];
 

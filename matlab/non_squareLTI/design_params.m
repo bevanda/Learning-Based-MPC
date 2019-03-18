@@ -3,7 +3,6 @@
 %==========================================================================
 function [...
     Q, R, ...
-    dlqr_controlweight, maxadm_controlweight, ...
     x_max, x_min, ...
     u_max, u_min, ...
     state_uncert, ...
@@ -24,15 +23,15 @@ function [...
         ]); % Cost on control
     R = R(1:m,1:m);
     % used in terminal set computation
-    x_max = 5; x_min = -inf;
-    u_min = 0.3; u_max = -inf;
+    x_max = 5; x_min = -5;
+    u_min = 0.3; u_max = -0.3;
     
 %% 
 % Uncertainty bound on x+ (use same for x and y axes)
 
 uncert = [...
-    0.1 ... % mass flow
-    0.1 ... % pressure rise
+    0.0 ... % x1
+    0.0 ... % x2
     ];
 state_uncert = uncert';
 

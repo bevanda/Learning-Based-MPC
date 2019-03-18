@@ -5,7 +5,7 @@ close all;
 %% Configuration
 mgcm_bin_fname = 'mgcm.bin';
 
-N_values = [5 10 15 30 ... % horizons for which to calculate the discriminating kernel (maximum disturbance invarinat set)
+N_values = [3 10 15 30 ... % horizons for which to calculate the discriminating kernel (maximum disturbance invarinat set)
     % 60 120 240 ...
     ];
 

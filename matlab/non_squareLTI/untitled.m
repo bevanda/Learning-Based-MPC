@@ -1,96 +1,73 @@
 %% Non-square LTI system 
-A = [1, 1; 0, 1];
-B = [0.0, 0.5; 1.0, 0.5];
-C = [1 0];
-% for stady state parametrisation
-Mtheta = [1, 0, 0, 0; 0, 1, 1, -2];
-Ntheta =[1, 0];
-n = size(A,1);
-m = size(B,2);
-Q = eye(n);
-R = eye(m);
-P = dare(A,B,Q,R);
-T = 100*P;
+% Parameters
+% Set the prediction horizon:
+N = 3;
 
+%% Closed-Loop Simulation
+% The initial conditions
+x = [0;...
+    -2];
+%setpoint
+xs = [4.95;...
+      0.0];
+
+u_min =-0.3; u_max= 0.3;
+
+u0 = zeros(m*N,1); % start inputs
+theta0 = zeros(m,1); % start param values
+opt_var = [u0; theta0];
 %% Configuration
 mgcm_bin_fname = 'nonsq.bin';
 
-N_values = [3 ... % horizons for which to calculate the discriminating kernel (maximum disturbance invarinat set)
+N_values = [3 10 ... % horizons for which to calculate the discriminating kernel (maximum disturbance invarinat set)
     % 60 120 240 ...
     ];
 
 for N=N_values
     nonsq_bin_fname = ['nonsq_N' num2str(N) '.bin'];
     %% Get system definition:
-    [A,B,C,d_0,Mtheta, Ntheta] = define_system();
+    [A,B,C,d_0] = define_system();
+    %% Get design parameters:
+    [Q, R, ...
+    x_max, x_min, ...
+    u_max, u_min, ...
+    state_uncert, ...
+    ALPHA, MU_factor] = design_params(n, m);
+    %==========================================================================
+    %%
     % Count number of states n, number of inputs m, number of outputs o:
     n = size(A,1);
     m = size(B,2);
     o = size(C,1);
-    %% Get design parameters:
-    [Q, R, ...
-    dlqr_controlweight, maxadm_controlweight, ...
-    mflow_max, mflow_min, ...
-    prise_max, prise_min, ...
-    throttle_max, throttle_min, ...
-    throttle_rate_max, throttle_rate_min, ...
-    u_max, u_min, ...
-    state_uncert, ...
-    enable_learning, ALPHA, MU_factor, ...
-    uncertainty_block] = design_params(n, m);
-    %==========================================================================
-	%%
-    % feedback policy K_t used for terminal set computations:
-    K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
 
-    %==========================================================================
-    % Define a nominal feedback policy K and corresponding terminal cost
-    % Feedback policy chosen using discrete time linear quadratic regulator.
-    % This can be changed based on engineering preference:
-%     K = -dlqr(A, B, Q, dlqr_controlweight*R);
+    [P, e, K] = dare(A,B,Q,R);
 
-    % 'baseline' stabilizing feedback law
-    K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
-%     Kt=K;
-    % Terminal cost chosen as solution to DARE
-    P = dare(A+B*K, B, Q, dlqr_controlweight*R);
     %%
     %==========================================================================
     % Define polytopic constraints on input F_u*x <= h_u and
     % state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
     %==========================================================================
 
-    u_max;
-    u_min;
-
-    F_u = [eye(m); -eye(m)]; h_u = [u_max; -u_min];
-    temp_max = [mflow_max; prise_max; throttle_max; throttle_rate_max];
-    temp_min = [mflow_min; prise_min; throttle_min; throttle_rate_min];
-%     temp_min =[-mflow_max; -prise_max; -throttle_max; -throttle_rate_max];
-    F_x = [eye(n); -eye(n)]; h_x = [temp_max; -temp_min];
-    F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty Polyhedron
+    F_u = [eye(m); -eye(m)]; h_u = [u_max;u_max; -u_min;-u_min];
+    F_x = [eye(n); -eye(n)]; h_x = [x_max;x_max; -x_min;-x_min];
 
     % count the length of the constraints on input, states, and uncertainty:
     length_Fu = length(h_u);
     length_Fx = length(h_x);
-    length_Fg = length(h_g);
+
 
     %% State constraints:
-    % Points that after (A+B*K_t) get to (F_x,h_x) \ominus (F_g,h_g)
-    [F_x_g, h_x_g] = double(polytope(F_x, h_x) - polytope(F_g, h_g));
+    % Points that after (A+B*K) get to (F_x,h_x) \ominus (F_g,h_g)
+%     [F_x_g, h_x_g] = double(polytope(F_x, h_x) - polytope(F_g, h_g));
 %     tempPoly = Polyhedron(F_x, h_x) - Polyhedron(F_g, h_g);
 %     F_x_g = tempPoly.A; % Inequality description { x | H*[x; -1] <= 0 }
 %     h_x_g = tempPoly.b; % Inequality description { x | A*x <= b }
     
-    Fx{1} = F_x;
-    fx{1} = h_x;
-    for i=2:N
+    for i=1:N
         Fx{i} = F_x;
         fx{i} = h_x;
-    end
-    for i=1:N
-       Fu{i} = F_u;
-       fu{i} = h_u;
+        Fu{i} = F_u;
+        fu{i} = h_u;
     end
 
     %%
@@ -123,26 +100,27 @@ for N=N_values
     disp('Computing and simplifying terminal set...');
     F_w = [F_x zeros(length_Fx, m);
         zeros(length_Fx, n) F_x*LAMBDA; ...
-        F_u*K_t, F_u*(PSI - K_t*LAMBDA); ...
+        F_u*K, F_u*(PSI - K*LAMBDA); ...
         zeros(length_Fu, n) F_u*PSI; ...
-        F_x_g*(A+B*K_t) F_x_g*B*(PSI-K_t*LAMBDA)];
+        F_x*(A+B*K) F_x*B*(PSI-K*LAMBDA)];
     h_w = [...
         h_x; ...
         h_x - F_x*LAMBDA_0; ...
-        h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
+        h_u - F_u*(PSI_0 - K*LAMBDA_0); ...
         h_u - F_u*PSI_0; ...
-        h_x_g - F_x_g*B*(PSI_0-K_t*LAMBDA_0)];
+        h_x - F_x*B*(PSI_0-K*LAMBDA_0)];
     
     % Subtract out points due to disturbance (F_g,h_g)
-    [F_w_N0, h_w_N0] = pdiff(F_w, h_w, ...
-        [F_g zeros(length_Fg,m); ...
-        zeros(m, n) eye(m); ...
-        zeros(m, n) -eye(m)], ...
-        [h_g; ...
-        zeros(2*m,1)]);
+%     [F_w_N0, h_w_N0] = pdiff(F_w, h_w, ...
+%         [F_g zeros(length_Fg,m); ...
+%         zeros(m, n) eye(m); ...
+%         zeros(m, n) -eye(m)], ...
+%         [h_g; ...
+%         zeros(2*m,1)]);
 
     % Simplify the constraints
-    term_poly = polytope(F_w_N0, h_w_N0);
+%     term_poly = polytope(F_w_N0, h_w_N0);
+    term_poly = polytope(F_w, h_w);
     [F_w_N, h_w_N] = double(term_poly);
 %     term_poly = Polyhedron(F_w_N0, h_w_N0); 
 %     F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
