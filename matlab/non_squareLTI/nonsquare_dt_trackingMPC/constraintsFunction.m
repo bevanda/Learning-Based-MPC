@@ -16,8 +16,8 @@ function [c, ceq] = constraintsFunction(u,theta,x,N,K,xs)
 %% Nonlinear MPC design parameters
 cons_num = 4;
 
-x_min = -inf; x_max=5.0;
-u_min=-inf; u_max=0.3;
+x_min = -5.0; x_max=5.0;
+u_min=-0.3; u_max=0.3;
 %% Inequality constraints calculation
 c = zeros(N*cons_num*2,1);
 % Apply cons_num*N state constraints across prediction horizon, from time
@@ -29,13 +29,13 @@ for k=1:N
     % obtain new state at next prediction step
     xk1 = getTransitions(xk, uk, K, xs);
 
-%     c(cons_num*k-cons_num+1) = -xk1(1)+x_min;
+    c(cons_num*k-cons_num+1) = -xk1(1)+x_min;
     c(cons_num*k-cons_num+2) = xk1(1)-x_max;
-%     c(cons_num*k-cons_num+3) = -xk1(2)+x_min;
+    c(cons_num*k-cons_num+3) = -xk1(2)+x_min;
     c(cons_num*k-cons_num+4) = xk1(2)-x_max;
-%     c(cons_num*k-cons_num+5) = -uk(1)+u_min;
+    c(cons_num*k-cons_num+5) = -uk(1)+u_min;
     c(cons_num*k-cons_num+6) = uk(1)-u_max;
-%     c(cons_num*k-cons_num+7) = -uk(2)+u_min;
+    c(cons_num*k-cons_num+7) = -uk(2)+u_min;
     c(cons_num*k-cons_num+8) = uk(2)-u_max;
 %     c(cons_num*k-cons_num+9) = -theta(1)+inf;
 %     c(cons_num*k-cons_num+10) = theta(1)-inf;
