@@ -5,7 +5,7 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 10;
+N = 3;
 % syms a b; % for paramterisation
 %% Closed-Loop Simulation
 % The initial conditions
@@ -57,14 +57,14 @@ true_refHistory = [0.0;0.0];
 for k = 1:(iterations)
     xs = set_ref(k);
     % opt_var must be a vector!
-    COSTFUN = @(opt_var) costFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,xs,N,reshape(opt_var(1:2),2,1),reshape(opt_var(end-1:end),2,1),P,T,LAMBDA,PSI);
-    CONSFUN = @(opt_var) constraintsFunction(reshape(opt_var(1:end-2),2,N),reshape(opt_var(end-1:end),2,1),x,N);
+    COSTFUN = @(var) costFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,xs,N,reshape(var(1:2),2,1),reshape(var(end-1:end),2,1),P,T,K,LAMBDA,PSI);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,[],options);    
     theta_opt = reshape(opt_var(end-1:end),2,1);
     u_opt = reshape(opt_var(1:2),2,1);
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
-    x = getTransitions(x, u_opt); %-K*x+u_opt
+    x = getTransitions(x, u_opt, K, xs); %-K*(x-xs)+u_opt
     
     % Save plant states for display.
     xHistory = [xHistory x]; 
