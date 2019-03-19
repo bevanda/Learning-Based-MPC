@@ -31,6 +31,7 @@ n=size(xk,1); m=size(ck,1);
 for k=1:N
     % obtain new state at next prediction step
     [xk1, uk, E] = getTransitions(xk, ck, K, theta, LAMBDA,PSI);
+    xk1
     Xs=E(1:n,:); Us= E(n+1:n+m);
     % inequality constraints  - nominal states
     cieq(consieq_num*k-consieq_num+1) = -xk1(1)+x_min;

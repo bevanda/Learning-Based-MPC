@@ -64,37 +64,34 @@ InvSet.plot();
 
 %% Calculating MACI set with parameter dependence 
 
-% ALPHA = 0.99; 
-% 
-% Mtheta =[LAMBDA' PSI']';
-% Kw = [K eye(m)];
-% % E =Mtheta*theta;
-% L = [K eye(m)]*Mtheta;
-% 
-% sysStruct.A=[ A+B*K ,     B*L;...
-%             zeros(n,m), eye(m)];
-% sysStruct.B=zeros(4,2);
-% sysStruct.C=zeros(1,4);
-% sysStruct.D=zeros(1,2);
-% 
-% sysStruct.xmax = [xmax;inf;inf]*ALPHA;
-% sysStruct.xmin = [xmin;inf;inf]*ALPHA;
-% % sysStruct.umax = umax*ALPHA;
-% % sysStruct.umin= umin*ALPHA;
-% % sysStruct.x.penalty.weight=Q;
-% % sysStruct.u.penalty.weight=R;
-% 
-% system = LTISystem(sysStruct);
-% InvSet2 = system.invariantSet();
-% term_F=InvSet2.A
-% term_h=InvSet2.b
-% % InvSet2.plot()
+ALPHA = 0.99; 
 
-%% Some calc with YALMIP
-% x = sdpvar(2,1);
-% P1 = -0.5 <= x-[1;1] <= 0.5;
-% P2 = -0.5 <= x+[1;1] <= 0.5;
-% P  = hull(P1,P2);
-% plot(P,x);hold on
-% plot(P1,x,'y');
-% plot(P2,x,'b');
+Mtheta =[LAMBDA' PSI']';
+
+L = [K eye(m)]*Mtheta;
+
+sysStruct.A=[A-B*K ,     B*L;...
+            zeros(n,m), eye(m)]^3;
+sysStruct.B=zeros(4,2);
+sysStruct.C=zeros(1,4);
+sysStruct.D=zeros(1,2);
+
+sysStruct.xmax = [xmax;inf;inf]*ALPHA;
+sysStruct.xmin = [xmin;-inf;-inf]*ALPHA;
+sysStruct.umax = umax*ALPHA;
+sysStruct.umin= umin*ALPHA;
+% sysStruct.umax = umax*ALPHA;
+% sysStruct.umin= umin*ALPHA;
+% sysStruct.x.penalty.weight=Q;
+% sysStruct.u.penalty.weight=R;
+
+system = LTISystem(sysStruct);
+InvSet2 = system.invariantSet(); % InvSet2 is a polyhaeder
+% extracting H-representation
+term_F=InvSet2.A;
+term_h=InvSet2.b;
+% InvSet2.plot();
+
+% project the 4D case to a 2D one
+MAI=projection(InvSet2,1:2); % Maximal Admissible Invariant set
+plot(MAI);

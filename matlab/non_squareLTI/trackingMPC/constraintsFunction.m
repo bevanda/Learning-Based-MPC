@@ -1,4 +1,4 @@
-function [cieq, ceq] = constraintsFunction(c,theta,x,N,K,LAMBDA,PSI)
+function [cieq, ceq] = constraintsFunction(c,theta,x,N,K,LAMBDA,PSI, term_F, term_h)
 %% Constraint function of nonlinear MPC for pendulum swing-up and balancing control
 %
 % Inputs:
@@ -14,7 +14,7 @@ function [cieq, ceq] = constraintsFunction(c,theta,x,N,K,LAMBDA,PSI)
 % Copyright 2016 The MathWorks, Inc.
 
 %% Nonlinear MPC design parameters
-consieq_num = 16;
+consieq_num = 32;
 % conseq_num  = 8;
 ALPHA = 0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
@@ -42,16 +42,17 @@ for k=1:N
     cieq(consieq_num*k-consieq_num+6) = uk(1)-u_max;
     cieq(consieq_num*k-consieq_num+7) = -uk(2)+u_min;
     cieq(consieq_num*k-consieq_num+8) = uk(2)-u_max;
+    cieq(consieq_num*k-consieq_num+9) = -Xs(1)+x_min*ALPHA;
+    cieq(consieq_num*k-consieq_num+10) = Xs(1)-x_max*ALPHA;
+    cieq(consieq_num*k-consieq_num+11) = -Xs(2)+x_min*ALPHA;
+    cieq(consieq_num*k-consieq_num+12) = Xs(2)-x_max*ALPHA;
+    cieq(consieq_num*k-consieq_num+13) = -Us(1)+u_min*ALPHA;
+    cieq(consieq_num*k-consieq_num+14) = Us(1)-u_max*ALPHA;
+    cieq(consieq_num*k-consieq_num+15) = -Us(2)+u_min*ALPHA;
+    cieq(consieq_num*k-consieq_num+16) = Us(2)-u_max*ALPHA;
     if k==N
-    % terminal equality constraints
-        cieq(consieq_num*k-consieq_num+9) = -Xs(1)+x_min*ALPHA;
-        cieq(consieq_num*k-consieq_num+10) = Xs(1)-x_max*ALPHA;
-        cieq(consieq_num*k-consieq_num+11) = -Xs(2)+x_min*ALPHA;
-        cieq(consieq_num*k-consieq_num+12) = Xs(2)-x_max*ALPHA;
-        cieq(consieq_num*k-consieq_num+13) = -Us(1)+u_min*ALPHA;
-        cieq(consieq_num*k-consieq_num+14) = Us(1)-u_max*ALPHA;
-        cieq(consieq_num*k-consieq_num+15) = -Us(2)+u_min*ALPHA;
-        cieq(consieq_num*k-consieq_num+16) = Us(2)-u_max*ALPHA;
+        cieq(consieq_num*k-consieq_num+17:consieq_num*k-consieq_num+32,:) =...
+            term_F*[xk1;theta]-term_h;
     end
     % update plant state and input for next step
     xk = xk1;
