@@ -48,6 +48,12 @@ R = diag([1,1]);
 [P, e, K] = dare(A,B,Q,R);
 T = 100*P;
 
+% for inv set for tracking calculation
+ALPHA = 0.99; 
+L = [K eye(m)]*[LAMBDA' PSI']';
+A_w = [A-B*K, B*L;...       % extended state w=(x,theta)
+       zeros(n,m), eye(m)];
+
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];

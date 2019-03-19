@@ -18,6 +18,7 @@ consieq_num = 16;
 % conseq_num  = 8;
 ALPHA = 0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
+
 x_min = -5.0; x_max=5.0;
 u_min=-0.3; u_max=0.3;
 %% Inequality constraints calculation
@@ -32,7 +33,7 @@ for k=1:N
     % obtain new state at next prediction step
     [xk1, uk, E] = getTransitions(xk, ck, K, theta, LAMBDA,PSI);
     Xs=E(1:n,:); Us= E(n+1:n+m);
-    % inequality constraints  - nominal states
+    % inequality constraints
     cieq(consieq_num*k-consieq_num+1) = -xk1(1)+x_min;
     cieq(consieq_num*k-consieq_num+2) = xk1(1)-x_max;
     cieq(consieq_num*k-consieq_num+3) = -xk1(2)+x_min;
@@ -41,15 +42,17 @@ for k=1:N
     cieq(consieq_num*k-consieq_num+6) = uk(1)-u_max;
     cieq(consieq_num*k-consieq_num+7) = -uk(2)+u_min;
     cieq(consieq_num*k-consieq_num+8) = uk(2)-u_max;
-    % inequality constraints  - artificial steady-state states
-    cieq(consieq_num*k-consieq_num+9) = -Xs(1)+x_min*ALPHA;
-    cieq(consieq_num*k-consieq_num+10) = Xs(1)-x_max*ALPHA;
-    cieq(consieq_num*k-consieq_num+11) = -Xs(2)+x_min*ALPHA;
-    cieq(consieq_num*k-consieq_num+12) = Xs(2)-x_max*ALPHA;
-    cieq(consieq_num*k-consieq_num+13) = -Us(1)+u_min*ALPHA;
-    cieq(consieq_num*k-consieq_num+14) = Us(1)-u_max*ALPHA;
-    cieq(consieq_num*k-consieq_num+15) = -Us(2)+u_min*ALPHA;
-    cieq(consieq_num*k-consieq_num+16) = Us(2)-u_max*ALPHA;
+    if k==N
+    % terminal equality constraints
+        cieq(consieq_num*k-consieq_num+9) = -Xs(1)+x_min*ALPHA;
+        cieq(consieq_num*k-consieq_num+10) = Xs(1)-x_max*ALPHA;
+        cieq(consieq_num*k-consieq_num+11) = -Xs(2)+x_min*ALPHA;
+        cieq(consieq_num*k-consieq_num+12) = Xs(2)-x_max*ALPHA;
+        cieq(consieq_num*k-consieq_num+13) = -Us(1)+u_min*ALPHA;
+        cieq(consieq_num*k-consieq_num+14) = Us(1)-u_max*ALPHA;
+        cieq(consieq_num*k-consieq_num+15) = -Us(2)+u_min*ALPHA;
+        cieq(consieq_num*k-consieq_num+16) = Us(2)-u_max*ALPHA;
+    end
     % update plant state and input for next step
     xk = xk1;
     if k<N

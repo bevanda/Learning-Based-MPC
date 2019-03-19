@@ -53,8 +53,7 @@ opt_var = [u0; theta0];
 %% Cost Calculation
 % Start simulation
 sysHistory = [x;u0(1:2,1)];
-% art_refHistory = LAMBDA*theta0;
-art_refHistory =  [-4.9500;-0.1485];
+art_refHistory = LAMBDA*theta0;
 true_refHistory = xs;
 
 for k = 1:(iterations)
@@ -112,7 +111,7 @@ plot_refs(2).Color='Black';
 plot_refs(3).Color='Blue';
 
 figure;
-plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1,'Marker','.');
+plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'Marker','.');
 grid on
 xlabel('x1');
 ylabel('x2');

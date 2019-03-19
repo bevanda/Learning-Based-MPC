@@ -3,10 +3,8 @@ function [xk1, uk, E] = getTransitions(xk, c, K, theta, LAMBDA, PSI)
 %
 % xk1 is the states at time k+1.
 % c - decision variable
-m=size(K,2);
-Kw = [K eye(m)];
 E =[LAMBDA' PSI']'*theta;
-uk = -K*xk+Kw*E+c;
+uk = c;
 [xk1] = systemdynamics(xk, uk);
 
 end
