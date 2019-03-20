@@ -51,66 +51,81 @@ o = size(C,1);
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
 Mtheta = null(M);
-% Mtheta = [1, 0, 0, 0; 0, 1, 1, -2]';
 LAMBDA = Mtheta(1:n,:);
 PSI = Mtheta(n+1:n+m,:);
-% 
+%%%%%%%%%%%%%%%%%%%%%
+d_0 = [0,0,0,0]';
+% Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
+V_0 = M\[-d_0; zeros(o,1)];
+LAMBDA_0 = V_0(1:n);
+PSI_0 = V_0(n+1:n+m);
+%%%%%%%%%%%%%%%%%%%%%
 Q = eye(n);
 R = eye(m);
-[P, e, K] = dare(A,B,Q,R);
-K=[-3.69438241357512	-1.78296525690465	-0.271009055947981	0.00595919621278219];
+%%
+%==========================================================================
+% Define a nominal feedback policy K and corresponding terminal cost
+% 'baseline' stabilizing feedback law
+K = -dlqr(A, B, Q, R);
+% Terminal cost chosen as solution to DARE
+P = dare(A+B*K, B, Q, R);
+% terminal steady state cost
 T = 100*P; 
 
-%% Calculating constraints
-% Optimization variable bounds (usually control) not constraints per say
-LB = [ones(m*N,1)*u_min; ones(m,1)*(-inf)];
-UB = [ones(m*N,1)*u_max; ones(m,1)*(+inf)];
-u0 = zeros(m*N,1); % start inputs
-theta0 = zeros(m,1); % start param values
-opt_var = [u0; theta0];
+%%
+%==========================================================================
+% Define polytopic constraints on input F_u*x <= h_u and
+% state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
+%==========================================================================
 
-ALPHA = 0.99; 
-
-Mtheta =[LAMBDA' PSI']';
-
-L = [K eye(m)]*Mtheta;
-
-sysStruct.A=[A-B*K ,     B*L;...
-            zeros(m,n), eye(m)];
-sysStruct.B=zeros(n+m,m);
-sysStruct.C=zeros(m,n+m);
-sysStruct.D=zeros(m,m);
-
-% Q = diag([1,1]);
-% R = diag([1,1]);
-% [P, e, K] = dare(A,B,Q,R);
 umax = u_max; umin = u_min;
-xmax = [mflow_max; prise_max;throttle_max;throttle_rate_max]; 
-xmin = [mflow_min; prise_min;throttle_min;throttle_rate_min];
-run_F = [eye(m+n);eye(m+n)];
-run_h= [xmax;umax;-xmin;-umin];
+xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
+xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
-%% terminal constraints from invariant set calculation
-% sysStruct.xmax = [xmax; inf(m,1)]*ALPHA;
-% sysStruct.xmin = [xmin;-inf(m,1)]*ALPHA;
-% sysStruct.umax = umax*ALPHA;
-% sysStruct.umin= umin*ALPHA;
-% % sysStruct.umax = umax*ALPHA;
-% % sysStruct.umin= umin*ALPHA;
-% % sysStruct.x.penalty.weight=Q;
-% % sysStruct.u.penalty.weight=R;
-% 
-% system = LTISystem(sysStruct);
-% InvSet2 = system.invariantSet(); % InvSet2 is a polyhaeder
-% % extracting H-representation
-% term_F=InvSet2.A;
-% term_h=InvSet2.b;
-% % InvSet2.plot();
-% 
-% % project the 4D case to a 2D one
-% % MAI=projection(InvSet2,1:2); % Maximal Admissible Invariant set
-% % plot(MAI);
-term_F = []; term_h = [];
+F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
+F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
+
+% count the length of the constraints on input, states, and uncertainty:
+length_Fu = length(h_u);
+length_Fx = length(h_x);
+
+
+%%
+%==========================================================================
+% Compute maximally invariant set
+%==========================================================================
+
+disp('Computing and simplifying terminal set...');
+F_w = [F_x zeros(length_Fx, m);
+    zeros(length_Fx, n) F_x*LAMBDA; ...
+    F_u*K, F_u*(PSI - K*LAMBDA); ...
+    zeros(length_Fu, n) F_u*PSI];
+
+lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
+% invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
+h_w = [...
+    h_x; ...
+    (h_x - F_x*LAMBDA_0)*lambda; ...
+    h_u - F_u*(PSI_0 - K*LAMBDA_0); ...
+    (h_u - F_u*PSI_0)]*lambda;
+
+F_w_N0 = F_w; h_w_N0 = h_w;
+
+% Simplify the constraints
+term_poly = polytope(F_w_N0, h_w_N0);
+[F_w_N, h_w_N] = double(term_poly);
+%     term_poly = Polyhedron(F_w_N0, h_w_N0); 
+%     F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
+%     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
+disp('Terminal set Polyhedron:');
+term_poly
+% MAI=projection(term_poly,1:n); % Maximal Admissible Invariant set rpojected on X
+% plot(MAI);
+% x-theta constraints:
+F_xTheta = F_w_N;
+F_x = F_w_N(:, 1:n);
+F_theta = F_w_N(:,n+1:n+m);
+f_xTheta = h_w_N;
 %% Start simulation
 sysHistory = [x;u0(1:m,1)];
 % art_refHistory = LAMBDA*theta0;
