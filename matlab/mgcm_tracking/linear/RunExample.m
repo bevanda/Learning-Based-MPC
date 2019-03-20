@@ -122,26 +122,30 @@ term_poly
 % MAI=projection(term_poly,1:n); % Maximal Admissible Invariant set rpojected on X
 % plot(MAI);
 % x-theta constraints:
-F_xTheta = F_w_N;
-F_x = F_w_N(:, 1:n);
-F_theta = F_w_N(:,n+1:n+m);
-f_xTheta = h_w_N;
+% F_xTheta = F_w_N;
+% F_x = F_w_N(:, 1:n);
+% F_theta = F_w_N(:,n+1:n+m);
+% f_xTheta = h_w_N;
+LB = [ones(m*N,1)*u_min; ones(m,1)*(-inf)];
+UB = [ones(m*N,1)*u_max; ones(m,1)*(+inf)];
+u0 = zeros(m*N,1); % start inputs
+theta0 = zeros(m,1); % start param values
+opt_var = [u0; theta0];
 %% Start simulation
 sysHistory = [x;u0(1:m,1)];
-% art_refHistory = LAMBDA*theta0;
 art_refHistory =  0;
 true_refHistory = xs;
 
 for k = 1:(iterations)
     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,run_F,run_h,term_F,term_h);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,[],[]);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
 %     c=0;
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
-    x= getTransitions(x, c, K, theta_opt, LAMBDA, PSI); %-K*(x-xs)+u_opt
+    x= getTransitions(x, c, K); %-K*(x-xs)+u_opt
     his=[x; c]; % c = delta u
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
