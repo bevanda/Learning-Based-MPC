@@ -1,7 +1,6 @@
 %% TRACKING piecewise constant REFERENCE MPC example
-close all;
 clearvars;
-
+close all;
 
 %% Parameters
 % Set the prediction horizon:
@@ -15,11 +14,11 @@ x = [0;...
 xs = [4.95;...
       0.0];
 
-options = optimoptions('fmincon','Algorithm','sqp','Display','none');
+options = optimoptions('fmincon','Algorithm','sqp','Display','final');
 
 % Simulation length (iterations)
 iterations = 90;
-% Optimization variable bounds (usually control) not constraints per say
+% Optimization variable bounds not constraints per say
 u_min =-0.3; u_max= 0.3;
 LB = [ones(2*N,1)*u_min; ones(2,1)*(-inf)];
 UB = [ones(2*N,1)*u_max; ones(2,1)*(+inf)];

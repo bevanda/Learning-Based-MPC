@@ -50,6 +50,46 @@ T = 100*P;
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
+%% Calculating MACI set with parameter dependence 
+
+ALPHA = 0.99; 
+
+Mtheta =[LAMBDA' PSI']';
+
+L = [K eye(m)]*Mtheta;
+
+sysStruct.A=[A-B*K ,     B*L;...
+            zeros(n,m), eye(m)];
+sysStruct.B=zeros(4,2);
+sysStruct.C=zeros(1,4);
+sysStruct.D=zeros(1,2);
+
+% Q = diag([1,1]);
+% R = diag([1,1]);
+% [P, e, K] = dare(A,B,Q,R);
+umax = [0.3;0.3]; umin = [-0.3;-0.3];
+xmax = [5; 5]; xmin = [-5; -5];
+
+sysStruct.xmax = [xmax;inf;inf]*ALPHA;
+sysStruct.xmin = [xmin;-inf;-inf]*ALPHA;
+sysStruct.umax = umax*ALPHA;
+sysStruct.umin= umin*ALPHA;
+% sysStruct.umax = umax*ALPHA;
+% sysStruct.umin= umin*ALPHA;
+% sysStruct.x.penalty.weight=Q;
+% sysStruct.u.penalty.weight=R;
+
+system = LTISystem(sysStruct);
+InvSet2 = system.invariantSet(); % InvSet2 is a polyhaeder
+% extracting H-representation
+term_F=InvSet2.A;
+term_h=InvSet2.b;
+% InvSet2.plot();
+
+% project the 4D case to a 2D one
+MAI=projection(InvSet2,1:2); % Maximal Admissible Invariant set
+% plot(MAI);
+
 %% Cost Calculation
 % Start simulation
 sysHistory = [x;u0(1:2,1)];
@@ -60,11 +100,11 @@ true_refHistory = xs;
 for k = 1:(iterations)
     xs = set_ref(k);
     
-    COSTFUN = @(var) costFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,xs,N,reshape(var(1:2),2,1),P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,LAMBDA,PSI);
+    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),P,T,K,LAMBDA,PSI);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI, term_F,term_h);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
-    theta_opt = reshape(opt_var(end-1:end),2,1);
-    c = reshape(opt_var(1:2),2,1);
+    theta_opt = reshape(opt_var(end-m+1:end),m,1);
+    c = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
     x = getTransitions(x, c, K, theta_opt, LAMBDA, PSI); %-K*(x-xs)+u_opt
