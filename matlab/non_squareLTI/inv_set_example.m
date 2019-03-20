@@ -20,17 +20,17 @@ PSI = Mtheta(n+1:n+m,:);
 Q = diag([1,1]);
 R = diag([1,1]);
 [P, e, K] = dare(A,B,Q,R);
-sys1 = LTISystem('A', A-B*K);
+sys1 = LTISystem('A', (A-B*K)^10);
 umax = [0.3;0.3]; umin = [-0.3;-0.3];
 xmax = [5; 5]; xmin = [-5; -5];
-% R = Polyhedron([K; -K; eye(2); -eye(2)], [umax; -umin; xmax; -xmin]);
-% Q = Polyhedron.unitBox(2)*4;
-% P = R&Q; % intersection of P and Q
-% iset1 = sys1.invariantSet('X', P);
-% iset1.plot();
+R = Polyhedron([K; -K; eye(2); -eye(2)], [umax; -umin; xmax; -xmin]);
+Q = Polyhedron.unitBox(2)*4;
+P = R&Q; % intersection of P and Q
+iset1 = sys1.invariantSet('X', P);
+iset1.plot();
 
 %% Calculating maximal admissible invariant set for tracking
-
+% 
 % ALPHA = 0.99; 
 % L = [-K eye(m)]*[LAMBDA' PSI']';
 % A_w = [A+B*K, B*L;...
@@ -60,7 +60,7 @@ system = LTISystem(sysStruct);
 InvSet = system.invariantSet();
 termCons_F=InvSet.A;
 termCons_h=InvSet.b;
-InvSet.plot();
+% InvSet.plot();
 
 %% Calculating MACI set with parameter dependence 
 
@@ -71,7 +71,7 @@ Mtheta =[LAMBDA' PSI']';
 L = [K eye(m)]*Mtheta;
 
 sysStruct.A=[A-B*K ,     B*L;...
-            zeros(n,m), eye(m)]^3;
+            zeros(n,m), eye(m)];
 sysStruct.B=zeros(4,2);
 sysStruct.C=zeros(1,4);
 sysStruct.D=zeros(1,2);
@@ -94,4 +94,4 @@ term_h=InvSet2.b;
 
 % project the 4D case to a 2D one
 MAI=projection(InvSet2,1:2); % Maximal Admissible Invariant set
-plot(MAI);
+% plot(MAI);

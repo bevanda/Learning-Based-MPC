@@ -8,6 +8,7 @@ function [xk1, uk, E] = getTransitions(xk, ck, K, theta, LAMBDA, PSI)
 s=size(K,1);
 Kw = [K eye(s)];
 E =[LAMBDA' PSI']'*theta;
+% r0=1.1547;
 uk = -K*xk+Kw*E+ck;
 % uk = -K*xk+ck;
 [xk1] = systemdynamics(xk, uk);

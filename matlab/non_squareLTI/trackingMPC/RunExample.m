@@ -40,54 +40,86 @@ Mtheta = null(M);
 % Mtheta = [1, 0, 0, 0; 0, 1, 1, -2]';
 LAMBDA = Mtheta(1:n,:);
 PSI = Mtheta(n+1:n+m,:);
-
+%%%%%%%%%%%%%%%%%%%%%
+d_0 = [0,0]';
+% Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
+V_0 = M\[-d_0; zeros(o,1)];
+LAMBDA_0 = V_0(1:n);
+PSI_0 = V_0(n+1:n+m);
+%%%%%%%%%%%%%%%%%%%%%
 Q = diag([1,1]);
 R = diag([1,1]);
-[P, e, K] = dare(A,B,Q,R);
-T = 100*P; 
+
 
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
-%% Calculating MACI set with parameter dependence 
 
-ALPHA = 0.99; 
+%%
+%==========================================================================
+% Define a nominal feedback policy K and corresponding terminal cost
 
-Mtheta =[LAMBDA' PSI']';
+% 'baseline' stabilizing feedback law
+K = -dlqr(A, B, Q, R);
+% Terminal cost chosen as solution to DARE
+P = dare(A+B*K, B, Q, R);
+% terminal steady state cost
+T = 100*P;
+%%
+%==========================================================================
+% Define polytopic constraints on input F_u*x <= h_u and
+% state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
+%==========================================================================
 
-L = [K eye(m)]*Mtheta;
-
-sysStruct.A=[A-B*K ,     B*L;...
-            zeros(m,n), eye(m)];
-sysStruct.B=zeros(4,2);
-sysStruct.C=zeros(1,4);
-sysStruct.D=zeros(1,2);
-
-% Q = diag([1,1]);
-% R = diag([1,1]);
-% [P, e, K] = dare(A,B,Q,R);
 umax = [0.3;0.3]; umin = [-0.3;-0.3];
 xmax = [5; 5]; xmin = [-5; -5];
 
-sysStruct.xmax = [xmax;inf;inf]*ALPHA;
-sysStruct.xmin = [xmin;-inf;-inf]*ALPHA;
-sysStruct.umax = umax*ALPHA;
-sysStruct.umin= umin*ALPHA;
-% sysStruct.umax = umax*ALPHA;
-% sysStruct.umin= umin*ALPHA;
-% sysStruct.x.penalty.weight=Q;
-% sysStruct.u.penalty.weight=R;
+F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
+%     temp_min =[-mflow_max; -prise_max; -throttle_max; -throttle_rate_max];
+F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
 
-system = LTISystem(sysStruct);
-InvSet2 = system.invariantSet(); % InvSet2 is a polyhaeder
-% extracting H-representation
-term_F=InvSet2.A;
-term_h=InvSet2.b;
-% InvSet2.plot();
+% count the length of the constraints on input, states, and uncertainty:
+length_Fu = length(h_u);
+length_Fx = length(h_x);
 
-% project the 4D case to a 2D one
-MAI=projection(InvSet2,1:2); % Maximal Admissible Invariant set
-% plot(MAI);
+
+%%
+%==========================================================================
+% Compute maximally invariant set
+%==========================================================================
+
+disp('Computing and simplifying terminal set...');
+F_w = [F_x zeros(length_Fx, m);
+    zeros(length_Fx, n) F_x*LAMBDA; ...
+    F_u*K, F_u*(PSI - K*LAMBDA); ...
+    zeros(length_Fu, n) F_u*PSI];
+% contract the h values for the artificial steady state by a scalar λ ∈ (0, 1)
+lambda=0.99;
+h_w = [...
+    h_x; ...
+    (h_x - F_x*LAMBDA_0)*lambda; ...
+    h_u - F_u*(PSI_0 - K*LAMBDA_0); ...
+    (h_u - F_u*PSI_0)]*lambda;
+
+
+F_w_N0 = F_w; h_w_N0 = h_w;
+
+% Simplify the constraints
+term_poly = polytope(F_w_N0, h_w_N0);
+[F_w_N, h_w_N] = double(term_poly)
+%     term_poly = Polyhedron(F_w_N0, h_w_N0); 
+%     F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
+%     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
+
+disp('Terminal set Polyhedron:');
+term_poly
+MAI=projection(term_poly,1:2); % Maximal Admissible Invariant set
+plot(MAI);
+% x-theta constraints:
+F_xTheta = F_w_N;
+F_x = F_w_N(:, 1:n);
+F_theta = F_w_N(:,n+1:n+m);
+f_xTheta = h_w_N;
 
 %% Cost Calculation
 % Start simulation
@@ -99,7 +131,7 @@ for k = 1:(iterations)
     xs = set_ref(k);
     
     COSTFUN = @(var) costFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,xs,N,reshape(var(1:2),2,1),P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,LAMBDA,PSI,term_F,term_h);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,LAMBDA,PSI,F_xTheta,f_xTheta);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
     theta_opt = reshape(opt_var(end-1:end),2,1);
     c = reshape(opt_var(1:2),2,1);

@@ -36,14 +36,14 @@ for k=1:N
         % obtain new state at next prediction step
         [xk1, uk, E] = getTransitions(xk, ck, K, theta, LAMBDA,PSI);
 %         Xs=E(1:n,:); Us= E(n+1:n+m);
-        % H-representation of constraints
-        run_F = [eye(n+m);-eye(n+m)]; % columns represent (x,u) vector x1 x2 u1 u2
-        run_h = [x_max;x_max;u_max;u_max;...
-                -x_min;-x_min;-u_min;-u_min];
-%         run_h_as = run_h*ALPHA;
-%         cieq_run = [run_F*[xk1;uk]-run_h;...
-%                     run_F*[Xs;Us]-run_h_as];
-        cieq  = [cieq; run_F*[xk1;uk]-run_h];
+%         % H-representation of constraints
+%         run_F = [eye(n+m);-eye(n+m)]; % columns represent (x,u) vector x1 x2 u1 u2
+%         run_h = [x_max;x_max;u_max;u_max;...
+%                 -x_min;-x_min;-u_min;-u_min];
+% %         run_h_as = run_h*ALPHA;
+% %         cieq_run = [run_F*[xk1;uk]-run_h;...
+% %                     run_F*[Xs;Us]-run_h_as];
+%         cieq  = [cieq; run_F*[xk1;uk]-run_h];
         % update plant state and input for next step
         xk = xk1;
         if k<N

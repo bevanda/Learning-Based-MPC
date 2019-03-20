@@ -4,9 +4,9 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 100;
+N = 10;
 % Simulation length (iterations)
-iterations = 600;
+iterations = 60;
 
 % Constraints
 mflow_min=0; mflow_max=1;
