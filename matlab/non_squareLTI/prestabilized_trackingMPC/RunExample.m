@@ -59,7 +59,7 @@ Mtheta =[LAMBDA' PSI']';
 L = [K eye(m)]*Mtheta;
 
 sysStruct.A=[A-B*K ,     B*L;...
-            zeros(n,m), eye(m)];
+            zeros(m,n), eye(m)];
 sysStruct.B=zeros(4,2);
 sysStruct.C=zeros(1,4);
 sysStruct.D=zeros(1,2);
