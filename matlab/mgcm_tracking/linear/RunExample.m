@@ -4,10 +4,9 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 10;
+N = 50;
 % Simulation length (iterations)
-iterations = 60;
-
+iterations = 600;
 % Constraints
 mflow_min=0; mflow_max=1;
 prise_min=1.1875; prise_max=2.1875;
@@ -15,6 +14,11 @@ throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
 %% Closed-Loop Simulation
+% working point 
+xw = [0.5;...
+    1.6875;...
+    1.1547;...
+    0.0];
 % The initial conditions
 x = [-0.35;...
     -0.4;...
@@ -70,7 +74,7 @@ K = -dlqr(A, B, Q, R);
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
-T = 100*P; 
+T = 1000; 
 
 %%
 %==========================================================================
@@ -82,14 +86,18 @@ umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
+
 F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
-F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
+% deduce the working point from the constraints for the linearised model
+F_x = [eye(n); -eye(n)]; h_x = [xmax-xw; -(xmin-xw)];
 
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
 length_Fx = length(h_x);
 
-
+run_F = [F_x zeros(length_Fx, m);...
+        zeros(length_Fu,n) F_u];
+run_h = [h_x;h_u];
 %%
 %==========================================================================
 % Compute maximally invariant set
@@ -119,7 +127,7 @@ term_poly = polytope(F_w_N0, h_w_N0);
 %     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
 disp('Terminal set Polyhedron:');
 term_poly
-% MAI=projection(term_poly,1:n); % Maximal Admissible Invariant set rpojected on X
+% MAI=projection(term_poly,1:2); % Maximal Admissible Invariant set rpojected on X
 % plot(MAI);
 % x-theta constraints:
 % F_xTheta = F_w_N;
@@ -135,14 +143,13 @@ opt_var = [u0; theta0];
 sysHistory = [x;u0(1:m,1)];
 art_refHistory =  0;
 true_refHistory = xs;
-
+tic;
 for k = 1:(iterations)
     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,[],[]);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,run_F,run_h,F_w_N,h_w_N);
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
-%     c=0;
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
     x= getTransitions(x, c, K); %-K*(x-xs)+u_opt
@@ -152,7 +159,7 @@ for k = 1:(iterations)
     art_refHistory = [art_refHistory art_ref(1:m)];
     true_refHistory = [true_refHistory xs];
 end
-
+toc
 %% Plot
 
 figure;
