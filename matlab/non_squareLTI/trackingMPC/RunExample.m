@@ -29,27 +29,28 @@ n = size(A,1);
 m = size(B,2);
 o = size(C,1);
 
+Q = diag([1,1]);
+R = diag([1,1]);
+
+u0 = zeros(m*N,1); % start inputs
+theta0 = zeros(m,1); % start param values
+opt_var = [u0; theta0];
+
 % MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
 Mtheta = null(M);
-% Mtheta = [1, 0, 0, 0; 0, 1, 1, -2]';
 LAMBDA = Mtheta(1:n,:);
 PSI = Mtheta(n+1:n+m,:);
+
 %%%%%%%%%%%%%%%%%%%%%
+% UNDER DISTURBANCE %
 d_0 = [0,0]';
 % Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
 V_0 = M\[-d_0; zeros(o,1)];
 LAMBDA_0 = V_0(1:n);
 PSI_0 = V_0(n+1:n+m);
 %%%%%%%%%%%%%%%%%%%%%
-Q = diag([1,1]);
-R = diag([1,1]);
-
-
-u0 = zeros(m*N,1); % start inputs
-theta0 = zeros(m,1); % start param values
-opt_var = [u0; theta0];
 
 %%
 %==========================================================================
@@ -86,19 +87,21 @@ run_h = [h_x;h_u];
 %==========================================================================
 
 disp('Computing and simplifying terminal set...');
+L = (PSI - K*LAMBDA);
+L0 = (PSI_0 - K*LAMBDA_0); % when being under inital disturbance
 F_w = [F_x zeros(length_Fx, m);
     zeros(length_Fx, n) F_x*LAMBDA; ...
-    F_u*K, F_u*(PSI - K*LAMBDA); ...
+    F_u*K, F_u*L; ...
     zeros(length_Fu, n) F_u*PSI];
 % contract the h values for the artificial steady state by a scalar λ ∈ (0, 1)
-lambda=1;
+lambda=0.99;
+% h_x = lambda*h_x;
+% h_u = lambda*h_u;
 h_w = [...
     h_x; ...
-    (h_x - F_x*LAMBDA_0)*lambda; ...
-    (h_u - F_u*(PSI_0 - K*LAMBDA_0)); ...
-    (h_u - F_u*PSI_0)*lambda];
-
-
+    lambda*(h_x - F_x*LAMBDA_0); ...
+    h_u-F_u*L0; ...
+    lambda*(h_u- F_u*PSI_0)];
 F_w_N0 = F_w; h_w_N0 = h_w;
 
 % Simplify the constraints
@@ -106,11 +109,14 @@ term_poly = polytope(F_w_N0, h_w_N0);
 [F_w_N, h_w_N] = double(term_poly);
 %     term_poly = Polyhedron(F_w_N0, h_w_N0); 
 %     F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
-%     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
+%     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }\
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CONVEX POLYHAEDRON Wλ = {w = (x, θ) : (x, Kx + Lθ) ∈ Z, Mθθ ∈ λZ}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
 disp('Terminal set Polyhedron:');
 term_poly
-MAI=projection(term_poly,1:n); % Maximal Admissible Invariant set rpojected on X
+MAI=projection(term_poly,1:n); % Maximal Admissible Invariant set projected on X
 plot(MAI);
 % x-theta constraints:
 F_xTheta = F_w_N;
