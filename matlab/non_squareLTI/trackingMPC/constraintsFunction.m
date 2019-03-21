@@ -1,4 +1,4 @@
-function [cieq, ceq] = constraintsFunction(u,theta,x,N,K,LAMBDA,PSI, term_F, term_h)
+function [cieq, ceq] = constraintsFunction(u,theta,x,N,K,LAMBDA,PSI,run_F, run_h, term_F, term_h)
 %% Constraint function of MPC 
 % Inputs:
 %   u:      optimization variable, from time k to time k+N-1 
@@ -21,15 +21,16 @@ xk = x;
 uk = u(:,1);
 n=size(xk,1); m=size(uk,1);
 for k=1:N
-    if (k<N)
-        % obtain new state at next prediction step
-        [xk1, uk] = getTransitions(xk, uk);
-        % update plant state and input for next step
-        xk = xk1;
-        if k<N
-            uk = u(:,k+1);
-        end
-    else
+
+    % obtain new state at next prediction step
+    [xk1, uk] = getTransitions(xk, uk);
+    cieq = [cieq; run_F*[xk;uk]-run_h];
+    % update plant state and input for next step
+    xk = xk1;
+    if k<N
+        uk = u(:,k+1);
+    end
+    if k==N
         cieq_T = term_F*[xk1;theta]-term_h;
         cieq = [cieq; cieq_T];
     end

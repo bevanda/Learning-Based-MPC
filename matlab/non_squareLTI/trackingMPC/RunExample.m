@@ -77,7 +77,9 @@ F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
 length_Fu = length(h_u);
 length_Fx = length(h_x);
 
-
+run_F = [F_x zeros(length_Fx,m);...
+        zeros(length_Fu,n) F_u];
+run_h = [h_x;h_u];
 %%
 %==========================================================================
 % Compute maximally invariant set
@@ -126,7 +128,7 @@ for k = 1:(iterations)
     xs = set_ref(k);
     
     COSTFUN = @(var) costFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,xs,N,reshape(var(1:2),2,1),P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,LAMBDA,PSI,F_xTheta,f_xTheta);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,LAMBDA,PSI,run_F,run_h,F_xTheta,f_xTheta);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
     theta_opt = reshape(opt_var(end-1:end),2,1);
     u = reshape(opt_var(1:2),2,1);
