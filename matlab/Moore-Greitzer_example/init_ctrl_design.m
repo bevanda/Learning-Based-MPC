@@ -44,6 +44,7 @@ B = eval(B);
 % C = [A(1, :); A(2,:)] % choose f1 and f2 as outputs 
 C = eye(4);
 D = zeros(4,1);
+n=size(A,2);
 
 % Visualise the poles and zeros of the continuous system
 [b,a]=ss2tf(A,B,C,D);
@@ -53,32 +54,34 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys);
 % grid on;
 % pzmap(sys2);
-%% Euler discretisation
+%% Exact discretisation
 
-Ts = 0.01; % sampling time
+dT = 0.01; % sampling time
 xk=[xk1,xk2,xk3,xk4]';
-Ad = eye(4)+A*Ts;
-Bd = Ts*B;
-Cd = eye(4);
-Dd = D;
+Ad = expm(A*dT);
+Bd = (Ad-eye(n))*inv(A)*B;
+Cd=C;
+Dd=D;
+Td=dT;
+Ts=dT;
 e = eig(Ad);
-% figure;
-% sys = idss(Ad,Bd,Cd,Dd,'Ts',0.01);
-% pzmap(sys);
+figure;
+sys = idss(Ad,Bd,Cd,Dd,'Ts',0.01);
+pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles at ~ p=[0.75, 0.78, 0.98, 0.99]
 
-p=[0.99, 0.98, 0.78, 0.75]; % desired poles of the open-loop system, while still being stable close to existing ones
-[K,prec,message] = place(Ad,Bd,p); %nominal feedback matrix
-% K=[-3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
+p=[0.75, 0.78, 0.98, 0.99]; % desired poles of the open-loop system, while still being stable close to existing ones
+[K,prec,message] = place(Ad,Bd,p) %nominal feedback matrix
+% K=[+3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
 AK = Ad-Bd*K;
 e = eig(AK);
 xkk = (AK)*xk;
 Q = eye(4); R=1;
 P = dare(AK,Bd,Q,R);
-% figure;
-% sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
-% pzmap(sys);
+figure;
+sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
+pzmap(sys);
 %% Init for data in simulink
 X =[0 0 0];
 Y=[0 0 0 0];

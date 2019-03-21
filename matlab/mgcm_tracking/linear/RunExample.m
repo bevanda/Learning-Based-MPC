@@ -4,16 +4,24 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 50;
+N = 100;
 % Simulation length (iterations)
 iterations = 600;
-% Constraints
-mflow_min=0; mflow_max=1;
-prise_min=1.1875; prise_max=2.1875;
-throttle_min=0.1547; throttle_max=2.1547;
-throttle_rate_min=-20; throttle_rate_max=20;
-u_min=0.1547;u_max=2.1547;
-%% Closed-Loop Simulation
+
+%% Discrete time nominal model of the non-square LTI system for tracking
+A = [1.01136382181963,0.0100343559666203,-6.46049734470989e-05,-1.93718915801510e-07; ...
+    0.0100343559666203,0.995615459673586,-0.0127686112556342,-5.57236663816276e-05;...
+    0,0,0.957038195891878,0.00792982548734094;...
+    0,0,-7.92982548734093,0.602405619103784];
+B = [-4.95341630475791e-07;-0.000193161656467182;0.0429618041081219;7.92982548734093];
+C = [1,0,0,0;...
+    0,1,0,0;...
+    0,0,1,0;...
+    0,0,0,1];
+% D = [0;0;0;0];
+n = size(A,1);
+m = size(B,2);
+o = size(C,1);
 % working point 
 xw = [0.5;...
     1.6875;...
@@ -29,27 +37,6 @@ xs = [0.0;...
       0.0;...
       0.0
       0.0];
-
-options = optimoptions('fmincon','Algorithm','sqp','Display','final');
-
-% LB =[];
-% UB = [];
-
-A = [1.01125000000000,0.0100000000000000,0,0;...
-    0.0100000000000000,0.995555557627778,-0.0129903810567666,0;...
-    0,0,1,0.0100000000000000;...
-    0,0,-10,0.552786404500042];
-B = [0;0;0;10];
-C = [1,0,0,0;...
-    0,1,0,0;...
-    0,0,1,0;...
-    0,0,0,1];
-D = [0;0;0;0];
-
-n = size(A,1);
-m = size(B,2);
-o = size(C,1);
-
 
 % MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
@@ -81,7 +68,12 @@ T = 1000;
 % Define polytopic constraints on input F_u*x <= h_u and
 % state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
 %==========================================================================
-
+% Constraints
+mflow_min=0; mflow_max=1;
+prise_min=1.1875; prise_max=2.1875;
+throttle_min=0.1547; throttle_max=2.1547;
+throttle_rate_min=-20; throttle_rate_max=20;
+u_min=0.1547;u_max=2.1547;
 umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
@@ -143,6 +135,8 @@ opt_var = [u0; theta0];
 sysHistory = [x;u0(1:m,1)];
 art_refHistory =  0;
 true_refHistory = xs;
+options = optimoptions('fmincon','Algorithm','sqp','Display','final');
+
 tic;
 for k = 1:(iterations)
     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
