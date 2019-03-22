@@ -31,7 +31,7 @@ for k=1:N
         uk = u(:,k+1);
     end
     if k==N
-        cieq_T = term_F*[xk1;theta]-term_h;
+        cieq_T = term_F*[xk;theta]-term_h;
         cieq = [cieq; cieq_T];
     end
        

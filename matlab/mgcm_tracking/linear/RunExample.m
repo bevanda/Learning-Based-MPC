@@ -81,7 +81,7 @@ xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
 F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
 % deduce the working point from the constraints for the linearised model
-F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
+F_x = [eye(n); -eye(n)]; h_x = [xmax-xw; -xmin+xw];
 
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
@@ -139,7 +139,7 @@ tic;
 for k = 1:(iterations)
     fprintf('iteration no. %d/%d \n',k,iterations);
     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,F_x,h_x,F_w_N,h_w_N);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
