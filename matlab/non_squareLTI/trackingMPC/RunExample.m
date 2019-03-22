@@ -135,7 +135,7 @@ for k = 1:(iterations)
     
     COSTFUN = @(var) costFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,xs,N,reshape(var(1:2),2,1),P,T,K,LAMBDA,PSI);
     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-2),2,N),reshape(var(end-1:end),2,1),x,N,K,LAMBDA,PSI,run_F,run_h,F_xTheta,f_xTheta);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],LB,UB,CONSFUN,options);    
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-1:end),2,1);
     u = reshape(opt_var(1:2),2,1);
     art_ref = Mtheta*theta_opt;

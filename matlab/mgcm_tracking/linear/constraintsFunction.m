@@ -27,17 +27,17 @@ for k=1:N
         [xk1, uk] = getTransitions(xk, ck, K);
 %         Xs=E(1:n,:); Us= E(n+1:n+m);
         % H-representation of constraints
-        cieq_run = run_F*[xk1;uk]-run_h;
-        cieq  = [cieq; cieq_run];
+%         cieq_run = run_F*xk1-run_h;
+%         cieq  = [cieq; cieq_run];
         % update plant state and input for next step
         xk = xk1;
         if k<N
             ck = c(:,k+1);
         end
     else
-        cieq_T = term_F*[xk1;theta]-term_h;
-%         cieq_T = [];
-        cieq = [cieq; cieq_T];
+%         cieq_T = term_F*[xk1;theta]-term_h;
+% %         cieq_T = [];
+%         cieq = [cieq; cieq_T];
     end
        
 end

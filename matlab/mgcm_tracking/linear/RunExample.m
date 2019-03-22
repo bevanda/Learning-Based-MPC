@@ -4,7 +4,7 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 100;
+N = 50;
 % Simulation length (iterations)
 iterations = 600;
 
@@ -35,7 +35,7 @@ x = [-0.35;...
 %setpoint
 xs = [0.0;...
       0.0;...
-      0.0
+      0.0;...
       0.0];
 
 % MN = [Mtheta; 1, 0];
@@ -74,14 +74,14 @@ prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
+
 umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
-
 F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
 % deduce the working point from the constraints for the linearised model
-F_x = [eye(n); -eye(n)]; h_x = [xmax-xw; -(xmin-xw)];
+F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
 
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
@@ -126,8 +126,6 @@ term_poly
 % F_x = F_w_N(:, 1:n);
 % F_theta = F_w_N(:,n+1:n+m);
 % f_xTheta = h_w_N;
-LB = [ones(m*N,1)*u_min; ones(m,1)*(-inf)];
-UB = [ones(m*N,1)*u_max; ones(m,1)*(+inf)];
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
@@ -135,19 +133,21 @@ opt_var = [u0; theta0];
 sysHistory = [x;u0(1:m,1)];
 art_refHistory =  0;
 true_refHistory = xs;
-options = optimoptions('fmincon','Algorithm','sqp','Display','final');
-
+options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 tic;
+
 for k = 1:(iterations)
+    fprintf('iteration no. %d/%d \n',k,iterations);
     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,run_F,run_h,F_w_N,h_w_N);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,F_x,h_x,F_w_N,h_w_N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
+%     c=0;
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
-    x= getTransitions(x, c, K); %-K*(x-xs)+u_opt
-    his=[x; c]; % c = delta u
+    x = getTransitions(x, c, K); %-K*(x-xs)+u_opt
+    his = [x; c]; % c = delta u
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
     art_refHistory = [art_refHistory art_ref(1:m)];
