@@ -26,32 +26,33 @@ clear;
 
     %% Initial setting of the optimisation problem
     duration = 600; %length of simulation
-    N = 100; %prediction horizon
+    N = 50; %prediction horizon
     sampling_time = 0.01;
     
-    Q = 100*eye(5);  
+    Q = eye(5);  
     h = {u x1 x2 x3 x4}; 
-    r = [0,0,0,0,0];
+        %% init conditions without acado real time sim
+    x10 = 0.5;
+    x20 = 1.6875;
+    x30 = 1.1547;
+    x40 = 0;
+    r = [x10,x20,x30,x40,x30];
     
     ocp = acado.OCP(0.0, duration) ;
     ocp.minimizeLSQ(Q, h, r);
     %% Constraints
     ocp.subjectTo(f);
-    ocp.subjectTo(mflow_min <= x1 <= mflow_max); 
-    ocp.subjectTo(prise_min <= x2 <= prise_max);
-    ocp.subjectTo(throttle_min <= x3 <= throttle_max); 
-    ocp.subjectTo(throttle_rate_min <= x4 <= throttle_rate_max)
-    ocp.subjectTo(u_min <= u <= u_max);
+%     ocp.subjectTo(mflow_min <= x1 <= mflow_max); 
+%     ocp.subjectTo(prise_min <= x2 <= prise_max);
+%     ocp.subjectTo(throttle_min <= x3 <= throttle_max); 
+%     ocp.subjectTo(throttle_rate_min <= x4 <= throttle_rate_max)
+%     ocp.subjectTo(u_min <= u <= u_max);
     
-    %% init conditions without acado real time sim
-    x10 = 0.5;
-    x20 = 1.6875;
-    x30 = 1.1547;
-    x40 = 0;
-    ocp.subjectTo('AT_START', x1==x10-0.35);
-    ocp.subjectTo('AT_START', x2==x20-0.4);
-    ocp.subjectTo('AT_START', x3==x30);
-    ocp.subjectTo('AT_START', x4==0);
+
+%     ocp.subjectTo('AT_START', x1==x10-0.35);
+%     ocp.subjectTo('AT_START', x2==x20-0.4);
+%     ocp.subjectTo('AT_START', x3==x30);
+%     ocp.subjectTo('AT_START', x4==0);
 
     %% Setting up the process
 %     identity = acado.OutputFcn();
@@ -65,7 +66,7 @@ clear;
 %   algo = acado.RealTimeAlgorithm(ocp, sampling_time); % real-time algorithm
     algo = acado.OptimizationAlgorithm(ocp); 
     algo.set( 'DISCRETIZATION_TYPE', 'COLLOCATION' );
-%     algo.set( 'MAX_NUM_ITERATIONS', P);
+    algo.set( 'MAX_NUM_ITERATIONS', P);
 %     algo.set( 'INFEASIBLE_QP_HANDLING', 'YES' );
     
     algo.set('KKT_TOLERANCE', 1e-6);
