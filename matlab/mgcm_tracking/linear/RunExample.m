@@ -4,7 +4,7 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 50;
+N = 10;
 % Simulation length (iterations)
 iterations = 600;
 
@@ -13,7 +13,10 @@ A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e
     0.0100340214950357,0.995515380253533,-0.0127681799951143,-5.57226765949308e-05; ...
     0,0,0.957038195891878,0.00792982548734094; ...
     0,0,-7.92982548734093,0.602405619103784];
-B = [4.95338239742896e-07;-0.000193159646826652;0.0429618041081219;7.92982548734093];
+B = [4.95338239742896e-07; ...
+    -0.000193159646826652; ...
+    0.0429618041081219; ...
+    7.92982548734093];
 C = [1,0,0,0;...
     0,1,0,0;...
     0,0,1,0;...
@@ -22,11 +25,7 @@ C = [1,0,0,0;...
 n = size(A,1);
 m = size(B,2);
 o = size(C,1);
-% working point 
-xw = [0.5;...
-    1.6875;...
-    1.1547;...
-    0.0];
+
 % The initial conditions
 x = [-0.35;...
     -0.4;...
@@ -74,13 +73,20 @@ prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
+
 test_max=3; test_min = -3;
-umax = test_max; umin = test_min;
+umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
-F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
-% deduce the working point from the constraints for the linearised model
+%  Shift the constraints for the linearised model for the value of the
+%  working point
+xw = [0.5;...
+    1.6875;...
+    1.1547;...
+    0.0];
+r0 = xw(3);
+F_u = [eye(m); -eye(m)]; h_u = [umax-r0; -umin+r0];
 F_x = [eye(n); -eye(n)]; h_x = [xmax-xw; -xmin+xw];
 
 % count the length of the constraints on input, states, and uncertainty:
@@ -146,7 +152,7 @@ for k = 1:(iterations)
 %     c=0;
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
-    [x, u] = getTransitions(x, c, K); %-K*(x-xs)+u_opt
+    [x, u] = getTransitions(x, c, K);
     his = [x; c; u]; % c = delta u
     % Save plant states for display.
     sysHistory = [sysHistory his]; 

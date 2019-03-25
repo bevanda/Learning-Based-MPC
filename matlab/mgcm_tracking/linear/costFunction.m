@@ -13,7 +13,6 @@ function J = costFunction(c,theta,x,xs,N,c0,Q,R,P,T,K,LAMBDA,PSI)
 % Output:
 %   J:      objective function cost
 %
-
 %% LMPC design parameters
 
 % Set initial plant states, controller output and cost.
