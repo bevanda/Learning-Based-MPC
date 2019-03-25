@@ -6,7 +6,7 @@ clearvars;
 % Set the prediction horizon:
 N = 10;
 % Simulation length (iterations)
-iterations = 600;
+iterations = 1000;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = [1.01136382181963,0.0100343559666203,-6.46049734470989e-05,-1.93718915801510e-07; ...
@@ -37,7 +37,7 @@ xs = [0.0;...
       0.0;...
       0.0;...
       0.0];
-xinit = xw-x;
+xinit = x+xw;
 % MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];

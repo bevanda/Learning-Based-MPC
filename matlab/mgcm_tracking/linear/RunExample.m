@@ -4,16 +4,16 @@ clearvars;
 
 %% Parameters
 % Set the prediction horizon:
-N = 10;
+N = 50;
 % Simulation length (iterations)
 iterations = 600;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
-A = [1.01136382181963,0.0100343559666203,-6.46049734470989e-05,-1.93718915801510e-07; ...
-    0.0100343559666203,0.995615459673586,-0.0127686112556342,-5.57236663816276e-05;...
-    0,0,0.957038195891878,0.00792982548734094;...
+A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e-07; ...
+    0.0100340214950357,0.995515380253533,-0.0127681799951143,-5.57226765949308e-05; ...
+    0,0,0.957038195891878,0.00792982548734094; ...
     0,0,-7.92982548734093,0.602405619103784];
-B = [-4.95341630475791e-07;-0.000193161656467182;0.0429618041081219;7.92982548734093];
+B = [4.95338239742896e-07;-0.000193159646826652;0.0429618041081219;7.92982548734093];
 C = [1,0,0,0;...
     0,1,0,0;...
     0,0,1,0;...
@@ -75,13 +75,13 @@ throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
 test_max=3; test_min = -3;
-umax = throttle_rate_max; umin = throttle_rate_min;
-xmax = [test_max; test_max; test_max; test_max]; 
-xmin = [test_min; test_min; test_min; test_min];
+umax = test_max; umin = test_min;
+xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
+xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
 F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
 % deduce the working point from the constraints for the linearised model
-F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
+F_x = [eye(n); -eye(n)]; h_x = [xmax-xw; -xmin+xw];
 
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);

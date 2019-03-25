@@ -22,7 +22,7 @@ throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
 %% Continous time state-space model of the Moore-Greitzer compressor model
 
-f1 = x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
+f1 = -x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
 f2 = (x1+1-x3*sqrt(x2))/(beta^2); % pressure rise rate
 f3 = x4; % throttle opening rate
 f4 = -wn^2*x3-2*zeta*wn*x4+wn^2*u; % throttle opening acceleration
