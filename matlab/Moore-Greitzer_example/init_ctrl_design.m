@@ -5,10 +5,6 @@ syms u ... % control input
     x2 ... % pressure rise
     x3 ... % throttle opeining
     x4 ... % throttle opening rate
-    xk1 ...
-    xk2 ...
-    xk3 ...
-    xk4 ...
     ;
 wn=sqrt(1000); % resonant frequency
 zeta=1/sqrt(2); % damping coefficient
@@ -37,6 +33,7 @@ x1 = 0.5;
 x2 = 1.6875;
 x3 = 1.1547;
 x4 = 0;
+equili = [x1 x2 x3 x4];
 init_cond = [x1-0.35, x2-0.4, x3, 0];  % init condition
 % print the matrices in the cmd line
 A = eval(A);
@@ -57,7 +54,7 @@ sys = tf([b(1,:)],[a]);
 %% Exact discretisation
 
 dT = 0.01; % sampling time
-xk=[xk1,xk2,xk3,xk4]';
+
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
 Cd=C;
@@ -65,23 +62,25 @@ Dd=D;
 Td=dT;
 Ts=dT;
 e = eig(Ad);
-figure;
-sys = idss(Ad,Bd,Cd,Dd,'Ts',0.01);
-pzmap(sys);
+% figure;
+% sys = idss(Ad,Bd,Cd,Dd,'Ts',0.01);
+% pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles at ~ p=[0.75, 0.78, 0.98, 0.99]
 
 p=[0.75, 0.78, 0.98, 0.99]; % desired poles of the open-loop system, while still being stable close to existing ones
 [K,prec,message] = place(Ad,Bd,p) %nominal feedback matrix
 % K=[+3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
+
 AK = Ad-Bd*K;
 e = eig(AK);
-xkk = (AK)*xk;
+
 Q = eye(4); R=1;
 P = dare(AK,Bd,Q,R);
-figure;
-sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
-pzmap(sys);
+Klqr= dlqr(Ad,Bd,Q,R);
+% figure;
+% sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',0.01);
+% pzmap(sys);
 %% Init for data in simulink
 X =[0 0 0];
 Y=[0 0 0 0];

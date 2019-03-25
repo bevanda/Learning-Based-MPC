@@ -17,9 +17,9 @@ clear;
     throttle_rate_min=-20; throttle_rate_max=20;
     u_min=0.1547;u_max=2.1547;
 
-    f = acado.DifferenceEquation();
+    f = acado.DifferentialEquation();
     
-    f.add(dot(x1) == x2+x2_c+1+3*(x1/2)-(x1^3/2)); % mass flow rate
+    f.add(dot(x1) == -x2+x2_c+1+3*(x1/2)-(x1^3/2)); % mass flow rate
     f.add(dot(x2) == (x1+1-x3*sqrt(x2))/(beta^2)); % pressure rise rate
     f.add(dot(x3) == x4); % throttle opening rate
     f.add(dot(x4) == -wn^2*x3-2*zeta*wn*x4+wn^2*u) ;% throttle opening acceleration
