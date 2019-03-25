@@ -1,4 +1,4 @@
-%% TRACKING piecewise constant REFERENCE MPC example
+%% TRACKING piecewise constant REFERENCE LBMPC 
 close all;
 clearvars;
 
@@ -37,7 +37,7 @@ xs = [0.0;...
       0.0;...
       0.0;...
       0.0];
-
+xinit = xw-x;
 % MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
@@ -74,7 +74,7 @@ prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
-test_max=3; test_min = -3;
+test_max=3; test_min = 0;
 umax = throttle_rate_max; umin = throttle_rate_min;
 xmax = [test_max; test_max; test_max; test_max]; 
 xmin = [test_min; test_min; test_min; test_min];
@@ -130,27 +130,27 @@ u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
 %% Start simulation
-sysHistory = [x;u0(1:m,1);u0(1:m,1)];
+sysHistory = [xinit;u0(1:m,1);u0(1:m,1)];
 art_refHistory =  0;
-true_refHistory = xs;
+true_refHistory = xinit;
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 tic;
-
+x=xinit;
 for k = 1:(iterations)
     fprintf('iteration no. %d/%d \n',k,iterations);
-    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
-    theta_opt = reshape(opt_var(end-m+1:end),m,1);
-    c = reshape(opt_var(1:m),m,1);
-%     c=0;
-    art_ref = Mtheta*theta_opt;
+%     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
+%     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
+%     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
+%     theta_opt = reshape(opt_var(end-m+1:end),m,1);
+%     c = reshape(opt_var(1:m),m,1);
+    c=0;
+%     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
-    [x, u] = getTransitions(x, c, K); %-K*(x-xs)+u_opt
+    [x, u] = getTransitionsTrue(x, c, K); %-K*(x-xs)+u_opt
     his = [x; c; u]; % c = delta u
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
-    art_refHistory = [art_refHistory art_ref(1:m)];
+%     art_refHistory = [art_refHistory art_ref(1:m)];
     true_refHistory = [true_refHistory xs];
 end
 toc
