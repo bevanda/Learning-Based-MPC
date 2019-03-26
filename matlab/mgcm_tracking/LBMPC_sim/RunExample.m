@@ -1,19 +1,22 @@
-%% TRACKING piecewise constant REFERENCE LBMPC 
+%% TRACKING piecewise constant REFERENCE MPC example
 close all;
 clearvars;
 
 %% Parameters
-% Set the prediction horizon:
-N = 10;
+% Horizon length
+N=20;
 % Simulation length (iterations)
-iterations = 1000;
+iterations = 600;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
-A = [1.01136382181963,0.0100343559666203,-6.46049734470989e-05,-1.93718915801510e-07; ...
-    0.0100343559666203,0.995615459673586,-0.0127686112556342,-5.57236663816276e-05;...
-    0,0,0.957038195891878,0.00792982548734094;...
+A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e-07; ...
+    0.0100340214950357,0.995515380253533,-0.0127681799951143,-5.57226765949308e-05; ...
+    0,0,0.957038195891878,0.00792982548734094; ...
     0,0,-7.92982548734093,0.602405619103784];
-B = [-4.95341630475791e-07;-0.000193161656467182;0.0429618041081219;7.92982548734093];
+B = [4.95338239742896e-07; ...
+    -0.000193159646826652; ...
+    0.0429618041081219; ...
+    7.92982548734093];
 C = [1,0,0,0;...
     0,1,0,0;...
     0,0,1,0;...
@@ -22,22 +25,18 @@ C = [1,0,0,0;...
 n = size(A,1);
 m = size(B,2);
 o = size(C,1);
-% working point 
-xw = [0.5;...
-    1.6875;...
-    1.1547;...
-    0.0];
+
 % The initial conditions
-x = [-0.35;...
+x_eq_init = [-0.35;...
     -0.4;...
     0.0;...
     0.0];
 %setpoint
-xs = [0.0;...
+x_eq_ref = [0.0;...
       0.0;...
       0.0;...
       0.0];
-xinit = x+xw;
+
 % MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
@@ -45,7 +44,7 @@ Mtheta = null(M);
 LAMBDA = Mtheta(1:n,:);
 PSI = Mtheta(n+1:n+m,:);
 %%%%%%%%%%%%%%%%%%%%%
-d_0 = [0,0,0,0]';
+d_0 = [0,0,0,0]'; % inital disturbance guess
 % Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
 V_0 = M\[-d_0; zeros(o,1)];
 LAMBDA_0 = V_0(1:n);
@@ -62,7 +61,6 @@ K = -dlqr(A, B, Q, R);
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
 T = 1000; 
-
 %%
 %==========================================================================
 % Define polytopic constraints on input F_u*x <= h_u and
@@ -74,14 +72,23 @@ prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
-test_max=3; test_min = 0;
-umax = throttle_rate_max; umin = throttle_rate_min;
-xmax = [test_max; test_max; test_max; test_max]; 
-xmin = [test_min; test_min; test_min; test_min];
 
-F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
-% deduce the working point from the constraints for the linearised model
-F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
+umax = u_max; umin = u_min;
+xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
+xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
+
+
+%%
+%  Shift the constraints for the linearised model for the value of the
+%  working point
+x_w = [0.5;...
+    1.6875;...
+    1.1547;...
+    0.0];
+r0 = x_w(3);
+
+F_u = [eye(m); -eye(m)]; h_u = [umax-r0; -umin+r0];
+F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w; -xmin+x_w];
 
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
@@ -90,7 +97,6 @@ length_Fx = length(h_x);
 run_F = [F_x zeros(length_Fx, m);...
         zeros(length_Fu,n) F_u];
 run_h = [h_x;h_u];
-%%
 %==========================================================================
 % Compute maximally invariant set
 %==========================================================================
@@ -126,32 +132,52 @@ term_poly
 % F_x = F_w_N(:, 1:n);
 % F_theta = F_w_N(:,n+1:n+m);
 % f_xTheta = h_w_N;
+%%
+% Kstable=[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
+Kstable=-[3.0742   -2.0958   -0.1194    0.0089];
+
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
 %% Start simulation
-sysHistory = [xinit;u0(1:m,1);u0(1:m,1)];
+sysHistory = [x_eq_init;u0(1:m,1)];
 art_refHistory =  0;
-true_refHistory = xinit;
+true_refHistory = x_eq_ref;
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
+x_init_true=x_eq_init+x_w; % init true sys state
+x_ref_true=x_eq_ref+x_w;
+
+x = x_w+x_eq_init; % real system input
+
 tic;
-x=xinit;
-for k = 1:(iterations)
+for k = 1:(iterations)      
     fprintf('iteration no. %d/%d \n',k,iterations);
-%     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-%     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
-%     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
-%     theta_opt = reshape(opt_var(end-m+1:end),m,1);
-%     c = reshape(opt_var(1:m),m,1);
-    c=0;
-%     art_ref = Mtheta*theta_opt;
+    % To give the values to the nominal mdel w.r.t. the point around whiuch
+    % it is linearised around
+    if k==1 
+        x_eq = x_eq_init; 
+    else
+        x_eq = x - x_w;
+    end
+    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
+    theta_opt = reshape(opt_var(end-m+1:end),m,1);
+    c = reshape(opt_var(1:m),m,1);
+    art_ref = Mtheta*theta_opt;
+    
     % Implement first optimal control move and update plant states.
-    [x, u] = getTransitionsTrue(x, c, K); %-K*(x-xs)+u_opt
-    his = [x; c; u]; % c = delta u
+    [x, u] = getTransitionsTrue(x,c,x_w,r0,Kstable);
+    
+    % shift the output so that it's from the working point perspective
+    % setpoint being [0;0;0;0]
+    his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
+    
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
-%     art_refHistory = [art_refHistory art_ref(1:m)];
-    true_refHistory = [true_refHistory xs];
+    art_refHistory = [art_refHistory art_ref(1:m)];
+    true_refHistory = [true_refHistory x_eq_ref];
+    
 end
 toc
 %% Plot
@@ -182,13 +208,22 @@ xlabel('iterations');
 ylabel('x4');
 title('throttle rate');
 subplot(n+m,1,5);
-plot(0:iterations,sysHistory(5,:),0:iterations,sysHistory(6,:),'Linewidth',1);
-legend({'decision variable','input variable'},'Location','northeast')
+plot(0:iterations,sysHistory(5,:),'Linewidth',1);
+legend({'input variable'},'Location','northeast')
 grid on
 xlabel('iterations');
 ylabel('u');
 title('Sys input');
 
+% figure;
+% plot_refs=plot(0:iterations, sysHistory(1:4,:), 'Linewidth',1.5);
+% grid on;
+% xlabel('iterations');
+% ylabel('responses');
+% plot_refs(1).Color = 'Yellow';
+% plot_refs(2).Color = 'Blue';
+% plot_refs(3).Color = 'Red';
+% plot_refs(4).Color = 'Green';
 figure;
 plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
 grid on
@@ -201,6 +236,7 @@ plot_refs(2).LineStyle='-.';
 plot_refs(1).Color='Red';
 plot_refs(2).Color='Black';
 plot_refs(3).Color='Blue';
+
 
 figure;
 plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1,'Marker','.');

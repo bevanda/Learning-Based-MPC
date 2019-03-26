@@ -24,7 +24,7 @@ for k=1:N
         % inequality constraints
         
         % obtain new state at next prediction step
-        [xk1, uk] = getTransitionsTrue(xk+xw, ck, K);
+        [xk1, uk] = getTransitions(xk, ck, K);
 %         Xs=E(1:n,:); Us= E(n+1:n+m);
         % H-representation of constraints
         % state constraints
@@ -39,9 +39,9 @@ for k=1:N
             ck = c(:,k+1);
         end
     else
-%         cieq_T = term_F*[xk1;theta]-term_h;
-% %         cieq_T = [];
-%         cieq = [cieq; cieq_T];
+        cieq_T = term_F*[xk1;theta]-term_h;
+%         cieq_T = [];
+        cieq = [cieq; cieq_T];
     end
        
 end

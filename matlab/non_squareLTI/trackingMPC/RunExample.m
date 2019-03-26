@@ -12,7 +12,7 @@ x = [0;...
 %setpoint
 xs = [4.95;...
       0.0];
-options = optimoptions('fmincon','Algorithm','sqp','Display','final');
+options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 % Simulation length (iterations)
 iterations = 90;
 % Optimization variable bounds not constraints per say
@@ -105,11 +105,11 @@ h_w = [...
 F_w_N0 = F_w; h_w_N0 = h_w;
 
 % Simplify the constraints
-term_poly = polytope(F_w_N0, h_w_N0);
-[F_w_N, h_w_N] = double(term_poly);
-%     term_poly = Polyhedron(F_w_N0, h_w_N0); 
-%     F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
-%     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }\
+% term_poly = polytope(F_w_N0, h_w_N0);
+% [F_w_N, h_w_N] = double(term_poly);
+term_poly = Polyhedron(F_w_N0, h_w_N0); 
+F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
+h_w_N = term_poly.b; % Inequality description { x | A*x <= b }\
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 % CONVEX POLYHAEDRON Wλ = {w = (x, θ) : (x, Kx + Lθ) ∈ Z, Mθθ ∈ λZ}.
