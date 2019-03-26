@@ -3,8 +3,8 @@ close all;
 clearvars;
 
 %% Parameters
-% Set the prediction horizon:
-N = 10;
+% Horizon length
+N=20;
 % Simulation length (iterations)
 iterations = 600;
 
@@ -61,7 +61,6 @@ K = -dlqr(A, B, Q, R);
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
 T = 1000; 
-
 %%
 %==========================================================================
 % Define polytopic constraints on input F_u*x <= h_u and
@@ -74,11 +73,12 @@ throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
 
-test_max=3; test_min = -3;
 umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
+
+%%
 %  Shift the constraints for the linearised model for the value of the
 %  working point
 x_w = [0.5;...
@@ -97,7 +97,6 @@ length_Fx = length(h_x);
 run_F = [F_x zeros(length_Fx, m);...
         zeros(length_Fu,n) F_u];
 run_h = [h_x;h_u];
-%%
 %==========================================================================
 % Compute maximally invariant set
 %==========================================================================
@@ -133,21 +132,28 @@ term_poly
 % F_x = F_w_N(:, 1:n);
 % F_theta = F_w_N(:,n+1:n+m);
 % f_xTheta = h_w_N;
+%%
+% Kstable=[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
+Kstable=-[3.0742   -2.0958   -0.1194    0.0089];
+
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
 %% Start simulation
-sysHistory = [x_eq_init;u0(1:m,1);u0(1:m,1)];
+sysHistory = [x_eq_init;u0(1:m,1)];
 art_refHistory =  0;
 true_refHistory = x_eq_ref;
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 x_init_true=x_eq_init+x_w; % init true sys state
 x_ref_true=x_eq_ref+x_w;
 
+x = x_w+x_eq_init; % real system input
+
 tic;
-for k = 1:(iterations)     
-    
+for k = 1:(iterations)      
     fprintf('iteration no. %d/%d \n',k,iterations);
+    % To give the values to the nominal mdel w.r.t. the point around whiuch
+    % it is linearised around
     if k==1 
         x_eq = x_eq_init; 
     else
@@ -159,20 +165,17 @@ for k = 1:(iterations)
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;
-%     c=0;
-    if k==1 
-        x = x_init_true; 
-    end
+    
     % Implement first optimal control move and update plant states.
-    [x, u] = getTransitionsTrue(x,c,K);
+    [x, u] = getTransitionsTrue(x,c,x_w,r0,Kstable);
     
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
-    his = [x-x_w; c; u-r0]; % c: decision var; u-r0: delta u;
+    his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
     
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
-% %     art_refHistory = [art_refHistory art_ref(1:m)];
+    art_refHistory = [art_refHistory art_ref(1:m)];
     true_refHistory = [true_refHistory x_eq_ref];
     
 end
@@ -205,13 +208,22 @@ xlabel('iterations');
 ylabel('x4');
 title('throttle rate');
 subplot(n+m,1,5);
-plot(0:iterations,sysHistory(5,:),0:iterations,sysHistory(6,:),'Linewidth',1);
-legend({'decision variable','input variable'},'Location','northeast')
+plot(0:iterations,sysHistory(5,:),'Linewidth',1);
+legend({'input variable'},'Location','northeast')
 grid on
 xlabel('iterations');
 ylabel('u');
 title('Sys input');
 
+% figure;
+% plot_refs=plot(0:iterations, sysHistory(1:4,:), 'Linewidth',1.5);
+% grid on;
+% xlabel('iterations');
+% ylabel('responses');
+% plot_refs(1).Color = 'Yellow';
+% plot_refs(2).Color = 'Blue';
+% plot_refs(3).Color = 'Red';
+% plot_refs(4).Color = 'Green';
 figure;
 plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
 grid on
@@ -224,6 +236,7 @@ plot_refs(2).LineStyle='-.';
 plot_refs(1).Color='Red';
 plot_refs(2).Color='Black';
 plot_refs(3).Color='Blue';
+
 
 figure;
 plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1,'Marker','.');

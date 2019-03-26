@@ -38,7 +38,12 @@ function [f] = dynamics(x, u)
 %   
 %
 % dxdt is the derivative of the states.
-% [A B C D] are state space matrices linearized at the current operating point.
+% Constraints
+% mflow_min=0; mflow_max=1;
+% prise_min=1.1875; prise_max=2.1875;
+% throttle_min=0.1547; throttle_max=2.1547;
+% throttle_rate_min=-20; throttle_rate_max=20;
+% u_min=0.1547;u_max=2.1547;
 %
 wn=sqrt(1000); % resonant frequency
 zeta=1/sqrt(2); % damping coefficient
@@ -50,7 +55,6 @@ f(1) = -x(2)+x2_c+1+3*(x(1)/2)-(x(1)^3/2); % mass flow rate
 f(2) = (x(1)+1-x(3)*sqrt(x(2)))/(beta^2); % pressure rise rate
 f(3) = x(4); % throttle opening rate
 f(4) = -wn^2*x(3)-2*zeta*wn*x(4)+wn^2*u; % throttle opening acceleration
-
 end
 
 % -------------------------------------------------------------------------
