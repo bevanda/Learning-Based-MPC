@@ -58,6 +58,9 @@ PSI_0 = V_0(n+1:n+m);
 
 % 'baseline' stabilizing feedback law
 K = -dlqr(A, B, Q, R);
+u_min=-0.3;
+max_admissible_ctrl_weight=1/(u_min^2);
+K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
