@@ -29,7 +29,7 @@ else
     quad_bin_fname = 'quad.bin';
 end
 
-N_values = [5 10 15 30 ...
+N_values = [5 %10 15 30 ...
     % 60 120 240 ...
     ];
 
@@ -95,7 +95,11 @@ for N=N_values
 
     %% State constraints:
     % Points that after (A+B*K_t) get to (F_x,h_x) \ominus (F_g,h_g)
-    [F_x_g, h_x_g] = double(polytope(F_x, h_x) - polytope(F_g, h_g));
+    temp1 = Polyhedron(F_x, h_x) - Polyhedron(F_g, h_g);
+    F_x_g1 = temp1.A;
+    h_x_g1 = temp1.b;
+    temp2 = polytope(F_x, h_x) - polytope(F_g, h_g);
+    [F_x_g, h_x_g] = double(temp2);
     Fx{1} = F_x;
     fx{1} = h_x;
     for i=2:N
@@ -107,7 +111,9 @@ for N=N_values
        fu{i} = h_u;
     end
 
-
+    disp('Comparing Polyhedron and polytope calc...');
+%     F_x_g1 ==  F_x_g
+%     h_x_g1 == h_x_g
 
 
     %%
@@ -150,24 +156,48 @@ for N=N_values
         h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
         h_u - F_u*PSI_0; ...
         h_x_g - F_x_g*B*(PSI_0-K_t*LAMBDA_0)];
-
-
-
+    
+ %%%%%%%%%%% TESTING %%%%%%%%%%%%%%%%
+    
+    % extended state disturbance constraints
+    F_g_w = [F_g zeros(length_Fg,m); ...
+            zeros(m, n) eye(m); ...
+            zeros(m, n) -eye(m)];
+    h_g_w = [h_g; ...
+            zeros(2*m,1)];
+    [F_w_N01, h_w_N01] = calcRPI(F_w, h_w, F_g_w, h_g_w);
+    term_poly1 = Polyhedron(F_w_N01, h_w_N01);
+    term_poly1.minHRep(); % simplifying the polyhedron/constraints
+    F_w_N1 = term_poly1.A; h_w_N1 = term_poly1.b;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     % Subtract out points due to disturbance (F_g,h_g)
+    
     [F_w_N0, h_w_N0] = pdiff(F_w, h_w, ...
         [F_g zeros(length_Fg,m); ...
         zeros(m, n) eye(m); ...
         zeros(m, n) -eye(m)], ...
         [h_g; ...
         zeros(2*m,1)]);
-
+    
     % Simplify the constraints
     term_poly = polytope(F_w_N0, h_w_N0);
     [F_w_N, h_w_N] = double(term_poly);
+%%%%%%% COMPARE WITH ORIGINAL %%%%%%%%
+% test convexity
+%     isconvex(term_poly)
+%     term_poly1.isConvex
 
+%%%%%%%%%%%%%%%%%%%%%%%% TODO %%%%%%%%%%%%%%%%%%%%%
+% TEST REGULAR MPI pdiff with this pdiff
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+s_poly = polytope(F_w,h_w);
+d_poly = polytope(F_g_w,h_g_w);
+pdiffpoly = s_poly-d_poly
+pdiffpoly == term_poly %NOT THE SAME
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     disp('Terminal set polytope:');
-    term_poly
 
     % x-theta constraints:
     F_xTheta = F_w_N(:, 1:n);
@@ -185,8 +215,8 @@ for N=N_values
     bineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, 1);
     b_crx = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, n);
 
-    L_i = zeros(n, N*m);
-    KL_i = zeros(m, N*m);
+    L_i = zeros(n, N*m); % width of the state tube R_i 
+    KL_i = zeros(m, N*m); % width of the input tube KR_i
     disp('Generating constraints on inputs...');
     d_i = zeros(n,1);
     for ind = 1:N
@@ -232,214 +262,214 @@ for N=N_values
 
 
     CONSTRAINT_COUNT = length(bineq);
-    % disp('Removing redundant inequality constraints...');
-    % temp_tope = polytope(Aineq, bineq);
-    % [Aineq, bineq] = double(temp_tope);
+    disp('Removing redundant inequality constraints...');
+    temp_tope = polytope(Aineq, bineq);
+    [Aineq, bineq] = double(temp_tope);
 
-    %%
-    %==========================================================================
-    % Generate uncertainty structure format for the C++ code
-    %==========================================================================
-
-    disp('Generating uncertainty structure...');
-    sub_block = sum(uncertainty_block, 2);
-    uncertainty_structure = zeros(n, n + m + 1);
-    for ind = 1:n
-        uncertainty_structure(ind, 1:sub_block(ind)) = find(uncertainty_block(ind,:) == 1) - 1;
-    end
-
-    %%
-    %==========================================================================
-    % Compute uncertainty bounds
-    %==========================================================================
-
-    disp('Generating uncertainty bounds...');
-    options = optimset('Display', 'off');
-    uncertainty_upper_bounds = zeros(n, n + m + 1);
-    uncertainty_lower_bounds = zeros(n, n + m + 1);
-
-    X_vertices = extreme(polytope(blkdiag(F_x, F_u), [h_x; h_u]));
-    length_X_vertices = size(X_vertices,1);
-    X_vertices = [X_vertices ones(length_X_vertices,1)];
-
-    for ind = 1:n
-        disp(['sub_block ind: ', num2str(ind)]);
-
-        if (sub_block(ind) > 0)
-            s_vec = zeros(n,1); s_vec(ind) = 1;
-            F_g_s = [1; -1]; h_g_s = [s_vec'*linprog(-s_vec, F_g, h_g); -s_vec'*linprog(s_vec, F_g, h_g, [], [], [], [], [], options)];
-            F_delta_A = kron(F_g_s, X_vertices(:, logical(uncertainty_block(ind, :))));
-            h_delta_A = repmat(h_g_s, length_X_vertices, 1);
-            [F_delta_A, h_delta_A] = double(polytope(F_delta_A, h_delta_A));
-
-            for ind_j = 1:sub_block(ind)
-                s_vec = zeros(sub_block(ind),1); s_vec(ind_j) = 1;
-                uncertainty_upper_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(-s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
-                uncertainty_lower_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
-            end
-        else
-            uncertainty_lower_bounds(ind, :) = 0;
-            uncertainty_upper_bounds(ind, :) = 0;
-        end
-    end
-
-    %%
-    % MU_VEC becomes the diagonal entries of MU, this is the weighting on the
-    % priors
-    if enable_learning
-        MU_VEC = [MU_factor*ones(1,n+m+1)]; % weight on prior model (0 = completely uncertain)
-        MU_VEC(13) = MU_VEC(13)*0.01;
-    else
-        MU_VEC = [1e10*ones(1,n+m+1)]; % weight on prior model -- 'turn off' learning
-    end
-
-    %%
-    % Dual EKF stuff
-    p = 12; % number of parameters being estimated
-    P2_0 = zeros(n,p); % initial cross-covariance
-    P3_0 = zeros(p,p); % initial parameter covariance
-    %XI = diag([1e-4 4e-4 1e-4 4e-4 1e-4])
-    %XI = 0.01*eye(q); % innovation noise covariance
-
-    Cekf = zeros(q, n);
-    % we observe x pos, pitch, y pos, roll, and z pos:
-    Cekf(1,1) = 1;
-    Cekf(2,3) = 1;
-    Cekf(3,5) = 1;
-    Cekf(4,7) = 1;
-    Cekf(5,9) = 1;
-    % EKF feedback gain... how to pick??
-    sys = ss(A, B, Cekf, 0, -1); % -1 indicates discrete time plant w/ unspec. sample time
-
-    %[kest,Kekf,Pkf] = kalman(sys,1*eye(m),XI);
-    %Kekf = steady_state_kf(A, Cekf, eye(n), eye(q));
-    %Kekf = place(A', Cekf', [0.25 0.25 0.25 0.25 0.25 0.4 0.4 0.4 0.4 0.4])';
-    %Kekf = place(A', Cekf', [0.5 0.5 0.5 0.5 0.5 0.8 0.8 0.8 0.8 0.8])';
-    %Kekf = zeros(n,q);
-    %Kekf = steady_state_kf(A, Cekf, 1e-2*eye(n), XI); % KF too gentle --> params too aggressive
-    %Kekf = steady_state_kf(A, Cekf, 1e2*eye(n), 10000*XI); % KF too gentle --> params too aggressive
-
-
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.6 0.8])';
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 0.9])'; % too fast - parameters unstable
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.7 0.8])'; % still too slow
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.75 0.85])'; % too fast - parameters unstable
-
-    % Unstable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.7 0.8])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.001]);
-
-    % Stable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 + 0.1i 0.8 - 0.1i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Stable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 + 0.4i 0.8 - 0.4i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Unstable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.9 + 0.1i 0.9 - 0.1i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Stable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.85 + 0.4i 0.85 - 0.4i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Unstable:
-    %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.875 + 0.5i 0.875 - 0.5i])'; %
-    %XI = diag([0.01 0.01 0.01 0.01 0.01]);
-
-    % Stable:
-    Kekf_x = place(A(1:4,1:4)', Cekf(1:2,1:4)', [0.25 0.25 0.4 0.4])';
-    Kekf_y = Kekf_x;
-    Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.85 + 0.4i 0.85 - 0.4i])'; %
-    XI = diag([0.01 0.01 0.01 0.01 0.0075]);
-
-
-    Kekf = blkdiag(Kekf_x,Kekf_y,Kekf_z);
-
-    % Parameter bounds, ummm...
-    %foo = 0.2; % up to 20% error on A and B entries
-    %beta_min = zeros(p, 1);
-    nom_AB = [...
-        0.05*A(4,3) 0.05*A(4,4) 0.05*B(4,1) ... % x-axis
-        0.05*A(8,7) 0.05*A(8,8) 0.05*B(8,2) ... % y-axis
-        0.15*B(10,3) ... % z-axis (ground effect)
-        ]; %
-    %nom_AB = [A(4,3) A(4,4) B(4,1) A(8,7) A(8,8) B(8,2) 0.1*B(10,3)]; % ... but 5% on vert. B entries
-    beta_min = -abs([nom_AB zeros(1,5)])';
-    dT = 0.025; % timestep
-    max_lat_accel_noise = 1.0; % m/s^2
-    max_vert_accel_noise = 1.0*max_lat_accel_noise;
-    max_ang_accel_noise = 1.0; %rad/s^2
-    beta_min(8:end) = -[dT*max_lat_accel_noise dT*max_ang_accel_noise dT*max_lat_accel_noise dT*max_ang_accel_noise 0.5*dT^2*max_vert_accel_noise];
-    %beta_max = -beta_min;
-    %beta_min = -0.5*max_vert_accel_noise*dT^2;
-    beta_max = - beta_min;
-    P3_0 = diag(0.001*[...
-        2 4 2 ... % x (b1, b2, b3)
-        2 4 2 ... % y (b4, b5, b6)
-        10 ... % z (b7)
-        1e-3 ... % x pos b8
-        1e-3 ... % x angle b9
-        1e-3 ... % y pos b10
-        1e-3 ... % y angle b11
-        1e-3 ... % z pos b12
-        ]'.*beta_max);
-    P3_lambda = 0.1*P3_0; %1e-4*diag(beta_max);
-
-    beta_max(7) = beta_max(7)*0.1; % only allow 1/10 the correction to this parameter in the positive sense
-
-    % ground_effect_fudge1 = 10; % nominal
-    % %ground_effect_fudge1 = 100; % 'bad learning'
-    % ground_effect_fudge2 = 0.001;
-    % P3_0(7,7) = ground_effect_fudge1 * P3_0(7,7);
-    % P3_lambda(7,7) = ground_effect_fudge1 * P3_lambda(7,7);
-    % P3_0(12,12) = ground_effect_fudge2 * P3_0(12,12);
-    % P3_lambda(12,12) = ground_effect_fudge2 * P3_lambda(12,12);
-
-    % 'bad learning'
-    %P3_0(2,2) = 5*P3_0(2,2);
-    %P3_lambda(2,2) = 5*P3_lambda(2,2);
-
-    %% Parameters for constructor
-
-    n_iter = 200; % maximum number of Newton iterationshg
-    reg = 1e-5;  % regularization Term for Phi
-    reg_Y = 1e-8;   % new regularization Term for Y
-    eps_primal = 1e-6; %0.1;
-    eps_dual = 1e-6; %0.1;
-    eps_mu = 1e-6; %0.1;
-
-    disp(['F_xTheta # of rows: ' num2str(size(F_xTheta,1))]);
-
-    %% Write quad.dat and quad.mat
-    s = d_0;
-    Q_tilde = Q;
-    Q_tilde_f = P;
-    writeParam(...
-        N, ...
-        quad_bin_fname, ...
-        n_iter, ...
-        reg, ...
-        reg_Y, ...
-        eps_primal, ...
-        eps_dual, ...
-        eps_mu, ...
-        A, B, s, ...
-        Q_tilde, ...
-        Q_tilde_f, ...
-        dlqr_controlweight*R, ...
-        Fx, ...
-        fx, ...
-        Fu, ...
-        fu, ...
-        F_xTheta, ...
-        F_theta, ...
-        f_xTheta, ...
-        K ...
-        )
-
+% %     %%
+% %     %==========================================================================
+% %     % Generate uncertainty structure format for the C++ code
+% %     %==========================================================================
+% % 
+% %     disp('Generating uncertainty structure...');
+% %     sub_block = sum(uncertainty_block, 2);
+% %     uncertainty_structure = zeros(n, n + m + 1);
+% %     for ind = 1:n
+% %         uncertainty_structure(ind, 1:sub_block(ind)) = find(uncertainty_block(ind,:) == 1) - 1;
+% %     end
+% % 
+% %     %%
+%     %==========================================================================
+%     % Compute uncertainty bounds
+%     %==========================================================================
+% 
+%     disp('Generating uncertainty bounds...');
+%     options = optimset('Display', 'off');
+%     uncertainty_upper_bounds = zeros(n, n + m + 1);
+%     uncertainty_lower_bounds = zeros(n, n + m + 1);
+% 
+%     X_vertices = extreme(polytope(blkdiag(F_x, F_u), [h_x; h_u]));
+%     length_X_vertices = size(X_vertices,1);
+%     X_vertices = [X_vertices ones(length_X_vertices,1)];
+% 
+%     for ind = 1:n
+%         disp(['sub_block ind: ', num2str(ind)]);
+% 
+%         if (sub_block(ind) > 0)
+%             s_vec = zeros(n,1); s_vec(ind) = 1;
+%             F_g_s = [1; -1]; h_g_s = [s_vec'*linprog(-s_vec, F_g, h_g); -s_vec'*linprog(s_vec, F_g, h_g, [], [], [], [], [], options)];
+%             F_delta_A = kron(F_g_s, X_vertices(:, logical(uncertainty_block(ind, :))));
+%             h_delta_A = repmat(h_g_s, length_X_vertices, 1);
+%             [F_delta_A, h_delta_A] = double(polytope(F_delta_A, h_delta_A));
+% 
+%             for ind_j = 1:sub_block(ind)
+%                 s_vec = zeros(sub_block(ind),1); s_vec(ind_j) = 1;
+%                 uncertainty_upper_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(-s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
+%                 uncertainty_lower_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
+%             end
+%         else
+%             uncertainty_lower_bounds(ind, :) = 0;
+%             uncertainty_upper_bounds(ind, :) = 0;
+%         end
+%     end
+% 
+%     %%
+%     % MU_VEC becomes the diagonal entries of MU, this is the weighting on the
+%     % priors
+%     if enable_learning
+%         MU_VEC = [MU_factor*ones(1,n+m+1)]; % weight on prior model (0 = completely uncertain)
+%         MU_VEC(13) = MU_VEC(13)*0.01;
+%     else
+%         MU_VEC = [1e10*ones(1,n+m+1)]; % weight on prior model -- 'turn off' learning
+%     end
+% 
+%     %%
+%     % Dual EKF stuff
+%     p = 12; % number of parameters being estimated
+%     P2_0 = zeros(n,p); % initial cross-covariance
+%     P3_0 = zeros(p,p); % initial parameter covariance
+%     %XI = diag([1e-4 4e-4 1e-4 4e-4 1e-4])
+%     %XI = 0.01*eye(q); % innovation noise covariance
+% 
+%     Cekf = zeros(q, n);
+%     % we observe x pos, pitch, y pos, roll, and z pos:
+%     Cekf(1,1) = 1;
+%     Cekf(2,3) = 1;
+%     Cekf(3,5) = 1;
+%     Cekf(4,7) = 1;
+%     Cekf(5,9) = 1;
+%     % EKF feedback gain... how to pick??
+%     sys = ss(A, B, Cekf, 0, -1); % -1 indicates discrete time plant w/ unspec. sample time
+% 
+%     %[kest,Kekf,Pkf] = kalman(sys,1*eye(m),XI);
+%     %Kekf = steady_state_kf(A, Cekf, eye(n), eye(q));
+%     %Kekf = place(A', Cekf', [0.25 0.25 0.25 0.25 0.25 0.4 0.4 0.4 0.4 0.4])';
+%     %Kekf = place(A', Cekf', [0.5 0.5 0.5 0.5 0.5 0.8 0.8 0.8 0.8 0.8])';
+%     %Kekf = zeros(n,q);
+%     %Kekf = steady_state_kf(A, Cekf, 1e-2*eye(n), XI); % KF too gentle --> params too aggressive
+%     %Kekf = steady_state_kf(A, Cekf, 1e2*eye(n), 10000*XI); % KF too gentle --> params too aggressive
+% 
+% 
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.6 0.8])';
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 0.9])'; % too fast - parameters unstable
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.7 0.8])'; % still too slow
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.75 0.85])'; % too fast - parameters unstable
+% 
+%     % Unstable:
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.7 0.8])'; %
+%     %XI = diag([0.01 0.01 0.01 0.01 0.001]);
+% 
+%     % Stable:
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 + 0.1i 0.8 - 0.1i])'; %
+%     %XI = diag([0.01 0.01 0.01 0.01 0.01]);
+% 
+%     % Stable:
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.8 + 0.4i 0.8 - 0.4i])'; %
+%     %XI = diag([0.01 0.01 0.01 0.01 0.01]);
+% 
+%     % Unstable:
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.9 + 0.1i 0.9 - 0.1i])'; %
+%     %XI = diag([0.01 0.01 0.01 0.01 0.01]);
+% 
+%     % Stable:
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.85 + 0.4i 0.85 - 0.4i])'; %
+%     %XI = diag([0.01 0.01 0.01 0.01 0.01]);
+% 
+%     % Unstable:
+%     %Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.875 + 0.5i 0.875 - 0.5i])'; %
+%     %XI = diag([0.01 0.01 0.01 0.01 0.01]);
+% 
+%     % Stable:
+%     Kekf_x = place(A(1:4,1:4)', Cekf(1:2,1:4)', [0.25 0.25 0.4 0.4])';
+%     Kekf_y = Kekf_x;
+%     Kekf_z = place(A(9:10,9:10)', Cekf(5, 9:10)', [0.85 + 0.4i 0.85 - 0.4i])'; %
+%     XI = diag([0.01 0.01 0.01 0.01 0.0075]);
+% 
+% 
+%     Kekf = blkdiag(Kekf_x,Kekf_y,Kekf_z);
+% 
+%     % Parameter bounds, ummm...
+%     %foo = 0.2; % up to 20% error on A and B entries
+%     %beta_min = zeros(p, 1);
+%     nom_AB = [...
+%         0.05*A(4,3) 0.05*A(4,4) 0.05*B(4,1) ... % x-axis
+%         0.05*A(8,7) 0.05*A(8,8) 0.05*B(8,2) ... % y-axis
+%         0.15*B(10,3) ... % z-axis (ground effect)
+%         ]; %
+%     %nom_AB = [A(4,3) A(4,4) B(4,1) A(8,7) A(8,8) B(8,2) 0.1*B(10,3)]; % ... but 5% on vert. B entries
+%     beta_min = -abs([nom_AB zeros(1,5)])';
+%     dT = 0.025; % timestep
+%     max_lat_accel_noise = 1.0; % m/s^2
+%     max_vert_accel_noise = 1.0*max_lat_accel_noise;
+%     max_ang_accel_noise = 1.0; %rad/s^2
+%     beta_min(8:end) = -[dT*max_lat_accel_noise dT*max_ang_accel_noise dT*max_lat_accel_noise dT*max_ang_accel_noise 0.5*dT^2*max_vert_accel_noise];
+%     %beta_max = -beta_min;
+%     %beta_min = -0.5*max_vert_accel_noise*dT^2;
+%     beta_max = - beta_min;
+%     P3_0 = diag(0.001*[...
+%         2 4 2 ... % x (b1, b2, b3)
+%         2 4 2 ... % y (b4, b5, b6)
+%         10 ... % z (b7)
+%         1e-3 ... % x pos b8
+%         1e-3 ... % x angle b9
+%         1e-3 ... % y pos b10
+%         1e-3 ... % y angle b11
+%         1e-3 ... % z pos b12
+%         ]'.*beta_max);
+%     P3_lambda = 0.1*P3_0; %1e-4*diag(beta_max);
+% 
+%     beta_max(7) = beta_max(7)*0.1; % only allow 1/10 the correction to this parameter in the positive sense
+% 
+%     % ground_effect_fudge1 = 10; % nominal
+%     % %ground_effect_fudge1 = 100; % 'bad learning'
+%     % ground_effect_fudge2 = 0.001;
+%     % P3_0(7,7) = ground_effect_fudge1 * P3_0(7,7);
+%     % P3_lambda(7,7) = ground_effect_fudge1 * P3_lambda(7,7);
+%     % P3_0(12,12) = ground_effect_fudge2 * P3_0(12,12);
+%     % P3_lambda(12,12) = ground_effect_fudge2 * P3_lambda(12,12);
+% 
+%     % 'bad learning'
+%     %P3_0(2,2) = 5*P3_0(2,2);
+%     %P3_lambda(2,2) = 5*P3_lambda(2,2);
+% 
+%     %% Parameters for constructor
+% 
+%     n_iter = 200; % maximum number of Newton iterationshg
+%     reg = 1e-5;  % regularization Term for Phi
+%     reg_Y = 1e-8;   % new regularization Term for Y
+%     eps_primal = 1e-6; %0.1;
+%     eps_dual = 1e-6; %0.1;
+%     eps_mu = 1e-6; %0.1;
+% 
+%     disp(['F_xTheta # of rows: ' num2str(size(F_xTheta,1))]);
+% 
+%     %% Write quad.dat and quad.mat
+%     s = d_0;
+%     Q_tilde = Q;
+%     Q_tilde_f = P;
+%     writeParam(...
+%         N, ...
+%         quad_bin_fname, ...
+%         n_iter, ...
+%         reg, ...
+%         reg_Y, ...
+%         eps_primal, ...
+%         eps_dual, ...
+%         eps_mu, ...
+%         A, B, s, ...
+%         Q_tilde, ...
+%         Q_tilde_f, ...
+%         dlqr_controlweight*R, ...
+%         Fx, ...
+%         fx, ...
+%         Fu, ...
+%         fu, ...
+%         F_xTheta, ...
+%         F_theta, ...
+%         f_xTheta, ...
+%         K ...
+%         )
+% 
 end
 %%
 

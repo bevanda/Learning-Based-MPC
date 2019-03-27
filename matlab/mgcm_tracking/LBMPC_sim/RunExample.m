@@ -37,6 +37,10 @@ x_eq_ref = [0.0;...
       0.0;...
       0.0];
 
+%%
+%==========================================================================
+% Generate steady-state parameterization
+%==========================================================================
 % MN = [Mtheta; 1, 0];
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
@@ -50,12 +54,14 @@ V_0 = M\[-d_0; zeros(o,1)];
 LAMBDA_0 = V_0(1:n);
 PSI_0 = V_0(n+1:n+m);
 %%%%%%%%%%%%%%%%%%%%%
-Q = eye(n);
-R = eye(m);
+
 %%
 %==========================================================================
 % Define a nominal feedback policy K and corresponding terminal cost
 % 'baseline' stabilizing feedback law
+Q = eye(n);
+R = eye(m);
+
 K = -dlqr(A, B, Q, R);
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
@@ -76,8 +82,10 @@ u_min=0.1547;u_max=2.1547;
 umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
-
-
+%%%%%%%%%%%%%%%%%%%%%%%
+% To be calculated with the Taylor remainder theorem
+state_uncert = [0.1;0.1;0.1;0.1]; % just for testing
+%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %  Shift the constraints for the linearised model for the value of the
 %  working point
@@ -87,51 +95,134 @@ x_w = [0.5;...
     0.0];
 r0 = x_w(3);
 
+% Shift the abs system constraints w.r.t. to the linearisation point
 F_u = [eye(m); -eye(m)]; h_u = [umax-r0; -umin+r0];
 F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w; -xmin+x_w];
-
+F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
 length_Fx = length(h_x);
+length_Fg = length(h_g);
+% run_F = [F_x zeros(length_Fx, m);...
+%         zeros(length_Fu,n) F_u];
+% run_h = [h_x;h_u];
+%% State constraints
+temp = polytope(F_x, h_x) - polytope(F_g, h_g);
+    [F_x_g, h_x_g] = double(temp);
+    Fx{1} = F_x;
+    fx{1} = h_x;
+    for i=2:N
+        Fx{i} = F_x;
+        fx{i} = h_x;
+    end
+    for i=1:N
+       Fu{i} = F_u;
+       fu{i} = h_u;
+    end
 
-run_F = [F_x zeros(length_Fx, m);...
-        zeros(length_Fu,n) F_u];
-run_h = [h_x;h_u];
+%%
 %==========================================================================
 % Compute maximally invariant set
 %==========================================================================
 
-disp('Computing and simplifying terminal set...');
-F_w = [F_x zeros(length_Fx, m);
-    zeros(length_Fx, n) F_x*LAMBDA; ...
-    F_u*K, F_u*(PSI - K*LAMBDA); ...
-    zeros(length_Fu, n) F_u*PSI];
-
-lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
+% Terminal feedback policy for terminal set computations
+maxadm_controlweight = 1/(umin^2); % what about this ???
+K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
+%lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
-h_w = [...
-    h_x; ...
-    (h_x - F_x*LAMBDA_0)*lambda; ...
-    h_u - F_u*(PSI_0 - K*LAMBDA_0); ...
-    (h_u - F_u*PSI_0)]*lambda;
+disp('Computing and simplifying terminal set...');
+% extended state constraints
 
-F_w_N0 = F_w; h_w_N0 = h_w;
+F_w = [ F_x zeros(length_Fx, m);
+        zeros(length_Fx, n) F_x*LAMBDA; ...
+        F_u*K_t, F_u*(PSI - K_t*LAMBDA); ...
+        zeros(length_Fu, n) F_u*PSI; ...
+        F_x_g*(A+B*K_t) F_x_g*B*(PSI-K_t*LAMBDA)];
+h_w = [ h_x; ...
+        h_x - F_x*LAMBDA_0; ...
+        h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
+        h_u - F_u*PSI_0; ...
+        h_x_g - F_x_g*B*(PSI_0-K_t*LAMBDA_0)];
 
+% disturbance constraints of the extended state 
+F_g_w = [F_g zeros(length_Fg,m); ...
+        zeros(m, n) eye(m); ...
+        zeros(m, n) -eye(m)];
+h_g_w = [h_g; ...
+        zeros(2*m,1)];
+
+% calculating the robust positively invariant set    
+[F_w_N0, h_w_N0] = calcRPI(F_w, h_w, F_g_w, h_g_w);
 % Simplify the constraints
 term_poly = polytope(F_w_N0, h_w_N0);
 [F_w_N, h_w_N] = double(term_poly);
-%     term_poly = Polyhedron(F_w_N0, h_w_N0); 
-%     F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }   
-%     h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
+% term_poly = Polyhedron(F_w_N01, h_w_N01);
+% term_poly.minHRep(); % simplifying the polyhedron/constraints
+% F_w_N1 = term_poly.A; h_w_N1 = term_poly.b;
 disp('Terminal set Polyhedron:');
 term_poly
-% MAI=projection(term_poly,1:2); % Maximal Admissible Invariant set rpojected on X
-% plot(MAI);
-% x-theta constraints:
-% F_xTheta = F_w_N;
-% F_x = F_w_N(:, 1:n);
-% F_theta = F_w_N(:,n+1:n+m);
-% f_xTheta = h_w_N;
+
+
+%%
+%==========================================================================
+% Generate inequality constraints
+%==========================================================================
+
+length_Fw = size(F_w_N, 1);
+
+Aineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, N*m+m);
+bineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, 1);
+b_crx = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, n);
+
+L_i = zeros(n, N*m); % width of the state tube R_i 
+KL_i = zeros(m, N*m); % width of the input tube KR_i
+disp('Generating constraints on inputs...');
+d_i = zeros(n,1);
+for ind = 1:N
+    %disp(['u ind: ', num2str(ind)]);
+
+    KL_i = K*L_i;
+    KL_i(:, (ind-1)*m + (1:m)) = eye(m);
+
+    Aineq((ind-1)*length_Fu + (1:length_Fu),1:N*m) = F_u*KL_i;
+    bineq((ind-1)*length_Fu + (1:length_Fu)) = h_u - F_u*K*d_i;
+    b_crx((ind-1)*length_Fu + (1:length_Fu),:) = -F_u*K*(A+B*K)^(ind-1);
+
+    L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
+    d_i = (A+B*K)*d_i + d_0;
+end
+
+L_i = zeros(n, N*m);
+disp('Generating constraints on states...');
+d_i = d_0;
+for ind = 1:N
+    %disp(['x ind: ', num2str(ind)]);
+    L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
+
+    if ind == 1
+        disp('Generating terminal constraints on states...');
+        Aineq(N*length_Fu + (1:length_Fw), :) = F_w_N*[L_i zeros(n,m); zeros(m,N*m) eye(m)];
+        bineq(N*length_Fu + (1:length_Fw)) = h_w_N - F_w_N*[d_i; zeros(m,1)];
+        b_crx(N*length_Fu + (1:length_Fw),:) = -F_w_N*[(A+B*K)^(ind); zeros(m,n)];
+
+    else
+
+        Aineq(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx),1:N*m) = F_x*L_i;
+        bineq(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx)) = h_x - F_x*d_i;
+        b_crx(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx),:) = -F_x*(A+B*K)^(ind);
+
+    end
+
+    d_i = (A+B*K)*d_i + d_0;
+end
+
+ind = N;
+L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
+
+CONSTRAINT_COUNT = length(bineq);
+disp('Removing redundant inequality constraints...');
+temp_tope = polytope(Aineq, bineq);
+[Aineq, bineq] = double(temp_tope);
 %%
 % Kstable=[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
 Kstable=-[3.0742   -2.0958   -0.1194    0.0089];
