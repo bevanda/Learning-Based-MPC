@@ -67,6 +67,8 @@ K = -dlqr(A, B, Q, R);
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
 T = 1000; 
+
+
 %%
 %==========================================================================
 % Define polytopic constraints on input F_u*x <= h_u and
@@ -84,7 +86,8 @@ xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max];
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 %%%%%%%%%%%%%%%%%%%%%%%
 % To be calculated with the Taylor remainder theorem
-state_uncert = [0.1;0.1;0.1;0.1]; % just for testing
+state_uncert = [0.0;0.0;0.0;0.0]; % just for testing
+% state_uncert = [0.1;0.1;0.1;0.1]; % just for testing
 %%%%%%%%%%%%%%%%%%%%%%%
 %%
 %  Shift the constraints for the linearised model for the value of the
@@ -122,11 +125,11 @@ temp = polytope(F_x, h_x) - polytope(F_g, h_g);
 
 %%
 %==========================================================================
-% Compute maximally invariant set
+% Compute maximal invariant set
 %==========================================================================
 
 % Terminal feedback policy for terminal set computations
-maxadm_controlweight = 1/(umin^2); % what about this ???
+maxadm_controlweight = 1/(umax^2); % r_i as the inverse of the square of the maximum permissible value for the corresponding u_i
 K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
 %lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
@@ -143,6 +146,22 @@ h_w = [ h_x; ...
         h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
         h_u - F_u*PSI_0; ...
         h_x_g - F_x_g*B*(PSI_0-K_t*LAMBDA_0)];
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+% from LMPC    
+F_w = [F_x zeros(length_Fx, m);
+    zeros(length_Fx, n) F_x*LAMBDA; ...
+    F_u*K, F_u*(PSI - K*LAMBDA); ...
+    zeros(length_Fu, n) F_u*PSI];
+
+lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
+% invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
+h_w = [...
+    h_x; ...
+    (h_x - F_x*LAMBDA_0)*lambda; ...
+    h_u - F_u*(PSI_0 - K*LAMBDA_0); ...
+    (h_u - F_u*PSI_0)]*lambda;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % disturbance constraints of the extended state 
 F_g_w = [F_g zeros(length_Fg,m); ...
@@ -150,9 +169,15 @@ F_g_w = [F_g zeros(length_Fg,m); ...
         zeros(m, n) -eye(m)];
 h_g_w = [h_g; ...
         zeros(2*m,1)];
+    
 
 % calculating the robust positively invariant set    
 [F_w_N0, h_w_N0] = calcRPI(F_w, h_w, F_g_w, h_g_w);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+F_w_N0 = F_w; h_w_N0 = h_w; % from LMPC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 % Simplify the constraints
 term_poly = polytope(F_w_N0, h_w_N0);
 [F_w_N, h_w_N] = double(term_poly);
@@ -161,7 +186,6 @@ term_poly = polytope(F_w_N0, h_w_N0);
 % F_w_N1 = term_poly.A; h_w_N1 = term_poly.b;
 disp('Terminal set Polyhedron:');
 term_poly
-
 
 %%
 %==========================================================================
@@ -173,13 +197,13 @@ length_Fw = size(F_w_N, 1);
 Aineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, N*m+m);
 bineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, 1);
 b_crx = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, n);
-
+% help variables
 L_i = zeros(n, N*m); % width of the state tube R_i 
 KL_i = zeros(m, N*m); % width of the input tube KR_i
 disp('Generating constraints on inputs...');
 d_i = zeros(n,1);
 for ind = 1:N
-    %disp(['u ind: ', num2str(ind)]);
+    disp(['u ind: ', num2str(ind)]);
 
     KL_i = K*L_i;
     KL_i(:, (ind-1)*m + (1:m)) = eye(m);
@@ -196,7 +220,7 @@ L_i = zeros(n, N*m);
 disp('Generating constraints on states...');
 d_i = d_0;
 for ind = 1:N
-    %disp(['x ind: ', num2str(ind)]);
+    disp(['x ind: ', num2str(ind)]);
     L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
 
     if ind == 1

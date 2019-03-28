@@ -95,10 +95,12 @@ for N=N_values
 
     %% State constraints:
     % Points that after (A+B*K_t) get to (F_x,h_x) \ominus (F_g,h_g)
-    temp1 = Polyhedron(F_x, h_x) - Polyhedron(F_g, h_g);
-    F_x_g1 = temp1.A;
-    h_x_g1 = temp1.b;
+%     temp1 = Polyhedron(F_x, h_x) - Polyhedron(F_g, h_g);
+%     F_x_g1 = temp1.A;
+%     h_x_g1 = temp1.b;
     temp2 = polytope(F_x, h_x) - polytope(F_g, h_g);
+    tem=projection(temp2,1:3);
+    tem.plot();
     [F_x_g, h_x_g] = double(temp2);
     Fx{1} = F_x;
     fx{1} = h_x;
@@ -111,7 +113,7 @@ for N=N_values
        fu{i} = h_u;
     end
 
-    disp('Comparing Polyhedron and polytope calc...');
+%     disp('Comparing Polyhedron and polytope calc...');
 %     F_x_g1 ==  F_x_g
 %     h_x_g1 == h_x_g
 
@@ -215,8 +217,8 @@ pdiffpoly == term_poly %NOT THE SAME
     bineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, 1);
     b_crx = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, n);
 
-    L_i = zeros(n, N*m); % width of the state tube R_i 
-    KL_i = zeros(m, N*m); % width of the input tube KR_i
+    L_i = zeros(n, N*m);
+    KL_i = zeros(m, N*m);
     disp('Generating constraints on inputs...');
     d_i = zeros(n,1);
     for ind = 1:N
@@ -266,52 +268,52 @@ pdiffpoly == term_poly %NOT THE SAME
     temp_tope = polytope(Aineq, bineq);
     [Aineq, bineq] = double(temp_tope);
 
-% %     %%
-% %     %==========================================================================
-% %     % Generate uncertainty structure format for the C++ code
-% %     %==========================================================================
-% % 
-% %     disp('Generating uncertainty structure...');
-% %     sub_block = sum(uncertainty_block, 2);
-% %     uncertainty_structure = zeros(n, n + m + 1);
-% %     for ind = 1:n
-% %         uncertainty_structure(ind, 1:sub_block(ind)) = find(uncertainty_block(ind,:) == 1) - 1;
-% %     end
-% % 
-% %     %%
-%     %==========================================================================
-%     % Compute uncertainty bounds
-%     %==========================================================================
-% 
-%     disp('Generating uncertainty bounds...');
-%     options = optimset('Display', 'off');
-%     uncertainty_upper_bounds = zeros(n, n + m + 1);
-%     uncertainty_lower_bounds = zeros(n, n + m + 1);
-% 
-%     X_vertices = extreme(polytope(blkdiag(F_x, F_u), [h_x; h_u]));
-%     length_X_vertices = size(X_vertices,1);
-%     X_vertices = [X_vertices ones(length_X_vertices,1)];
-% 
-%     for ind = 1:n
-%         disp(['sub_block ind: ', num2str(ind)]);
-% 
-%         if (sub_block(ind) > 0)
-%             s_vec = zeros(n,1); s_vec(ind) = 1;
-%             F_g_s = [1; -1]; h_g_s = [s_vec'*linprog(-s_vec, F_g, h_g); -s_vec'*linprog(s_vec, F_g, h_g, [], [], [], [], [], options)];
-%             F_delta_A = kron(F_g_s, X_vertices(:, logical(uncertainty_block(ind, :))));
-%             h_delta_A = repmat(h_g_s, length_X_vertices, 1);
-%             [F_delta_A, h_delta_A] = double(polytope(F_delta_A, h_delta_A));
-% 
-%             for ind_j = 1:sub_block(ind)
-%                 s_vec = zeros(sub_block(ind),1); s_vec(ind_j) = 1;
-%                 uncertainty_upper_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(-s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
-%                 uncertainty_lower_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
-%             end
-%         else
-%             uncertainty_lower_bounds(ind, :) = 0;
-%             uncertainty_upper_bounds(ind, :) = 0;
-%         end
-%     end
+    %%
+    %==========================================================================
+    % Generate uncertainty structure format for the C++ code
+    %==========================================================================
+
+    disp('Generating uncertainty structure...');
+    sub_block = sum(uncertainty_block, 2);
+    uncertainty_structure = zeros(n, n + m + 1);
+    for ind = 1:n
+        uncertainty_structure(ind, 1:sub_block(ind)) = find(uncertainty_block(ind,:) == 1) - 1;
+    end
+
+    %%
+    %==========================================================================
+    % Compute uncertainty bounds
+    %==========================================================================
+
+    disp('Generating uncertainty bounds...');
+    options = optimset('Display', 'off');
+    uncertainty_upper_bounds = zeros(n, n + m + 1);
+    uncertainty_lower_bounds = zeros(n, n + m + 1);
+
+    X_vertices = extreme(polytope(blkdiag(F_x, F_u), [h_x; h_u]));
+    length_X_vertices = size(X_vertices,1);
+    X_vertices = [X_vertices ones(length_X_vertices,1)];
+
+    for ind = 1:n
+        disp(['sub_block ind: ', num2str(ind)]);
+
+        if (sub_block(ind) > 0)
+            s_vec = zeros(n,1); s_vec(ind) = 1;
+            F_g_s = [1; -1]; h_g_s = [s_vec'*linprog(-s_vec, F_g, h_g); -s_vec'*linprog(s_vec, F_g, h_g, [], [], [], [], [], options)];
+            F_delta_A = kron(F_g_s, X_vertices(:, logical(uncertainty_block(ind, :))));
+            h_delta_A = repmat(h_g_s, length_X_vertices, 1);
+            [F_delta_A, h_delta_A] = double(polytope(F_delta_A, h_delta_A));
+
+            for ind_j = 1:sub_block(ind)
+                s_vec = zeros(sub_block(ind),1); s_vec(ind_j) = 1;
+                uncertainty_upper_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(-s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
+                uncertainty_lower_bounds(ind, uncertainty_structure(ind, ind_j) + 1) = s_vec'*linprog(s_vec, F_delta_A, h_delta_A, [], [], [], [], [], options);
+            end
+        else
+            uncertainty_lower_bounds(ind, :) = 0;
+            uncertainty_upper_bounds(ind, :) = 0;
+        end
+    end
 % 
 %     %%
 %     % MU_VEC becomes the diagonal entries of MU, this is the weighting on the
