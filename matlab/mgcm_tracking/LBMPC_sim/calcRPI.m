@@ -1,6 +1,6 @@
 function [F_rpi,h_rpi] = calcRPI(F_mpi,h_mpi, F_d, h_d)
 %==========================================================================
-% Calculation of a Robustly Positive Invariant set
+% Calculation of a mRPI (minimal) Robustly Positive Invariant set
 % using P-difference from:
 % "Theory and computation of disturbance invariant sets for discrete-time
 % linear systems" - Ilya Kolmanovsky and Elmer G. Gilbert
