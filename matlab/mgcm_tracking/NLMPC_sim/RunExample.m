@@ -4,7 +4,7 @@ clearvars;
 
 %% Parameters
 % Horizon length
-N=20;
+N=10;
 % Simulation length (iterations)
 iterations = 600;
 
@@ -87,8 +87,8 @@ x_w = [0.5;...
     0.0];
 r0 = x_w(3);
 
-F_u = [eye(m); -eye(m)]; h_u = [umax; -umin];
-F_x = [eye(n); -eye(n)]; h_x = [xmax; -xmin];
+F_u = [eye(m); -eye(m)]; h_u = [umax-r0; -umin+r0];
+F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w; -xmin+x_w];
 
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
@@ -151,11 +151,19 @@ x = x_w+x_eq_init; % real system input
 
 tic;
 for k = 1:(iterations)      
+    %%
     fprintf('iteration no. %d/%d \n',k,iterations);
     % To give the values to the nominal mdel w.r.t. the point around whiuch
     % it is linearised around
-    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,x_ref_true,N,reshape(var(1:m),m,1),Q,R,P,T,x_w,r0,Kstable,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,x_w,r0,Kstable,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
+    if k==1 
+%         x_eq = x_eq_init;
+            x_eq = x;
+    else
+%         x_eq = x - x_w;
+            x_eq = x;
+    end
+    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,x_w,r0,K,LAMBDA,PSI);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,x_w,r0,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);

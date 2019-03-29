@@ -6,7 +6,7 @@ clearvars;
 % Horizon length
 N=20;
 % Simulation length (iterations)
-iterations = 600;
+iterations = 1000;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e-07; ...
@@ -151,6 +151,7 @@ x = x_w+x_eq_init; % real system input
 
 tic;
 for k = 1:(iterations)      
+    %%
     fprintf('iteration no. %d/%d \n',k,iterations);
     % To give the values to the nominal mdel w.r.t. the point around whiuch
     % it is linearised around
