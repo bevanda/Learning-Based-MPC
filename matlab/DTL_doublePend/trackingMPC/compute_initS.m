@@ -1,4 +1,4 @@
-function [Xmpi]=compute_MPIS(Xc,Ak)
+function [Xmpi]=compute_initS(Xc,Ak)
     % Xc: Polyherdon of constraints
     % Ak: Matrix of the autonomous system under Xc constraints
     
@@ -10,7 +10,7 @@ function [Xmpi]=compute_MPIS(Xc,Ak)
     Xpi = @(i) Polyhedron(Fpi(i), ones(size(Fpi(i), 1), 1));
     Xmpi = Xpi(0);
     i= 0;
-    while(1) % 
+    while(i<2) % 
         i = i + 1;
         % compute set intersection
         Xmpi_tmp = Xmpi & Xpi(i);

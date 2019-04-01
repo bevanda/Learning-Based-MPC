@@ -100,11 +100,11 @@ run_h = [h_x;h_u];
 %==========================================================================
 % Compute maximally invariant set
 %==========================================================================
-
+L=PSI - K*LAMBDA;
 disp('Computing and simplifying terminal set...');
 F_w = [F_x zeros(length_Fx, m);
     zeros(length_Fx, n) F_x*LAMBDA; ...
-    F_u*K, F_u*(PSI - K*LAMBDA); ...
+    F_u*K, F_u*(L); ...
     zeros(length_Fu, n) F_u*PSI];
 
 lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
@@ -132,6 +132,16 @@ term_poly
 % F_x = F_w_N(:, 1:n);
 % F_theta = F_w_N(:,n+1:n+m);
 % f_xTheta = h_w_N;
+%%%%%%% NEW MPIS %%%%%%%
+Ak=[A+B*K B*L; zeros(m,n) eye(m)];
+Xc = Polyhedron(F_w,h_w);
+term_poly2 = compute_MPIS(Xc,Ak);
+MAI2=projection(term_poly2,1:2); % Maximal Admissible Invariant set projected on X
+figure;
+plot(MAI2);
+F_w_N = term_poly2.A; % Inequality description { x | H*[x; -1] <= 0 }   
+h_w_N = term_poly2.b; % Inequality description { x | A*x <= b }\
+%%%%%%%%%%%%%%%%%%%%%%%
 %%
 % Kstable=[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
 Kstable=-[3.0742   -2.0958   -0.1194    0.0089];
