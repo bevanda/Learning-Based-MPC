@@ -4,7 +4,7 @@ clearvars;
 
 %% Parameters
 % Horizon length
-N=50;
+N=10;
 % Simulation length (iterations)
 iterations = 1000;
 
@@ -186,7 +186,7 @@ for k = 1:(iterations)
     
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
-    art_refHistory = [art_refHistory art_ref(1:m)];
+    art_refHistory = [art_refHistory art_ref(1:n)];
     true_refHistory = [true_refHistory x_eq_ref];
     
 end

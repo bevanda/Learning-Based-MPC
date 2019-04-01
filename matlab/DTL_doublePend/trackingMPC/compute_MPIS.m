@@ -3,9 +3,9 @@ function [Xmpi]=compute_MPIS(Xc,Ak)
     % Ak: Matrix of the autonomous system under Xc constraints
     
     % normalize lhs w.r.t. rhs vector in H-representation
+    % to have  { x | F*x <= 1 }
     rhe2one = @(poly) poly.A./repmat(poly.b, 1, size(poly.A, 2));
     F=rhe2one(Xc);
-    
     Fpi = @(i) (F)*Ak^i;
     Xpi = @(i) Polyhedron(Fpi(i), ones(size(Fpi(i), 1), 1));
     Xmpi = Xpi(0);

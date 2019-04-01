@@ -3,7 +3,6 @@
 *.slc
 *.txt
 **/tbxmanager
-*.fig
 *.bin
 *.cpp
 *.mexa64

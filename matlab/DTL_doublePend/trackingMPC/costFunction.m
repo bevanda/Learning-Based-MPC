@@ -1,4 +1,4 @@
-function J = costFunction(c,theta,x,xs,N,u0,P,T,K,LAMBDA,PSI)
+function J = costFunction(c,theta,x,xs,N,u0,P,T,K,LAMBDA,PSI,sys)
 %% Cost function of non-quadratic discrete time LTI
 % Inputs:
 %   c:      decision variable, from time k to time k+N-1 
@@ -17,8 +17,8 @@ function J = costFunction(c,theta,x,xs,N,u0,P,T,K,LAMBDA,PSI)
 
 %% Nonlinear MPC design parameters
 
-Q = diag([1,1]);
-R = diag([1,1]);
+Q = sys.Q;
+R = sys.R;
 
 % Set initial plant states, controller output and cost.
 xk = x;
@@ -28,7 +28,7 @@ J = 0;
 % Loop through each prediction step.
 for k=1:N
     % Obtain plant state at next prediction step.
-    [xk1,uk]= getTransitions(xk, uk);
+    [xk1,uk]= getTransitions(xk, uk,sys);
     
     % RUNNING COST
     if k < N-1
