@@ -13,8 +13,7 @@ F_f=X_f.A; h_f=X_f.b;
 F_x=Xc.A; h_x=Xc.b;
 F_u=Uc.A; h_u=Uc.b;
 
-%% Until N do
-
+%%
 % do the first step N=1
 F_w=[F_f*A F_f*B;...
     F_x zeros(lenX,m);...

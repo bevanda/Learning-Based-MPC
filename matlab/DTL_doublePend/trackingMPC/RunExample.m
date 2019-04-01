@@ -202,7 +202,7 @@ MAIS.plot('wire',1,'linewidth',2.5,'linestyle','-.','color', 'red');
 hold on;
 plot(XN,'wire',1,'linewidth',2.5,'linestyle','-','color', 'lightblue'); % ROA ext
 hold on;
-plot(XN0,'wire',1,'linewidth',2.5,'linestyle','--','color', 'green'); % ROA old
+plot(XN0,'wire',1,'linewidth',2.5,'linestyle','-','color', 'green'); % ROA old
 legend({'system state','O_{\infty}(0)','X_f','X_N','X_N(O_{\infty}(0))'},'Location','southwest'); 
 grid on;
 xlabel('x_1');
