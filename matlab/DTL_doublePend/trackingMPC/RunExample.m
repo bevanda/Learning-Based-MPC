@@ -192,9 +192,6 @@ plot_refs(2).Color='Black';
 plot_refs(3).Color='Blue';
 %%
 figure;
-% plot the system state-space
-plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'Marker','o'); 
-hold on;
 % plot the sets
 MAIS_old.plot('wire',1,'linewidth',2.5,'linestyle',':','color', 'blue'); 
 hold on;
@@ -203,19 +200,22 @@ hold on;
 plot(XN,'wire',1,'linewidth',2.5,'linestyle','-','color', 'lightblue'); % ROA ext
 hold on;
 plot(XN0,'wire',1,'linewidth',2.5,'linestyle','-','color', 'green'); % ROA old
-legend({'system state','O_{\infty}(0)','X_f','X_N','X_N(O_{\infty}(0))'},'Location','southwest'); 
-grid on;
-xlabel('x_1');
-ylabel('x_2');
-title('State space trajectory');
-
-figure;
-plot([XN,MAIS,XN0,MAIS_old]); % from L->R: bigger -> smaller set to have everything visible 
-legend({'X_N','X_f','X_N(O_{\infty}(0))','O_{\infty}(0)'},'Location','southwest'); 
+legend({'O_{\infty}(0)','X_f','X_N','X_N(O_{\infty}(0))'},'Location','southwest'); 
 grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('Relevant sets');
+
+figure;
+plot([XN,MAIS]); % from L->R: bigger -> smaller set to have everything visible 
+hold on;
+% plot the system state-space
+plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'Marker','o','color','k'); 
+legend({'X_N','X_f','state'},'Location','southwest'); 
+grid on;
+xlabel('x_1');
+ylabel('x_2');
+title('State trajectory');
 %% Helper functions
 
 %set reference depending on the iteration
