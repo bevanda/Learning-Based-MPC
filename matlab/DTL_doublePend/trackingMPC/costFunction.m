@@ -20,28 +20,23 @@ function J = costFunction(c,theta,x,xs,N,u0,P,T,K,LAMBDA,PSI,sys)
 Q = sys.Q;
 R = sys.R;
 
-% Set initial plant states, controller output and cost.
+% Set initial plant states, controller output and cost
 xk = x;
 uk = u0;
-
 J = 0;
 % Loop through each prediction step.
-for k=1:N
-    % Obtain plant state at next prediction step.
-    [xk1,uk]= getTransitions(xk, uk,sys);
-    
+for k=1:N  
     % RUNNING COST
-    if k < N-1
-        % accumulate state tracking cost from x(k+1) to x(k+N).
-        J = J + (xk1-LAMBDA*theta)'*Q*(xk1-LAMBDA*theta);
-        % accumulate MV rate of change cost from u(k) to u(k+N-1).
-        J = J + (uk-PSI*theta)'*R*(uk-PSI*theta);
-
-    end
+    % accumulate state tracking cost from x(k+1) to x(k+N).
+    J = J + (xk-LAMBDA*theta)'*Q*(xk-LAMBDA*theta);
+    % accumulate MV rate of change cost from u(k) to u(k+N-1).
+    J = J + (uk-PSI*theta)'*R*(uk-PSI*theta);
+    
     %TERMINAL COST
-    if k == N
-        J = J + (xk1-LAMBDA*theta)'*P*(xk1-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
-    end
+    J = J + (xk-LAMBDA*theta)'*P*(xk-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
+    
+    % Obtain plant state at next prediction step.
+    [xk1,~]= getTransitions(xk, uk, sys);
     % Update xk and uk for the next prediction step.
     xk = xk1;
     if k<N
