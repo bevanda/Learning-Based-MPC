@@ -221,8 +221,6 @@ grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('State trajectory');
-
-%
 %% Helper functions
 
 %set reference depending on the iteration
