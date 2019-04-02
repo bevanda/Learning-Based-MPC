@@ -1,4 +1,4 @@
- The new defaults will not take effect if there are any open figures. To
+% The new defaults will not take effect if there are any open figures. To
 % use them, we close all figures, and then repeat the first example.
 close all;
 

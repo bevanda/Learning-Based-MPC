@@ -162,6 +162,7 @@ end
 
 
 %% Plot
+disp('Generating plots...');
 figure;
 for i=1:n+m-1
     subplot(3,1,i);   
@@ -177,21 +178,24 @@ for i=1:n+m-1
     ylabel('u');
     
 end
+% 
+% figure;
+% plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
+% grid on;
+% legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
+% 
+% xlabel('iterations');
+% % ylabel('references');
+% title('Artificial vs true reference vs state response');
+% 
+% plot_refs(1).LineStyle='--';
+% plot_refs(2).LineStyle='-.';
+% plot_refs(1).Color='green';
+% plot_refs(2).Color='red';
+% plot_refs(3).Color='b';
 
-figure;
-plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
-grid on;
-legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
-
-xlabel('iterations');
-% ylabel('references');
-title('Artificial vs true reference vs state response');
-
-plot_refs(1).LineStyle='--';
-plot_refs(2).LineStyle='-.';
-plot_refs(1).Color='green';
-plot_refs(2).Color='red';
-plot_refs(3).Color='b';
+% set(gcf,'PaperPositionMode','auto')
+% print('res','-dsvg','-r300') % set dpi to 300 and save in SVG
 %%
 figure;
 % plot the sets
@@ -207,7 +211,9 @@ grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('Relevant sets');
-
+set(gcf,'PaperPositionMode','auto')
+print('sets','-dsvg','-r300') % set dpi to 300 and save in SVG
+%%
 figure;
 plot([XN,MAIS]); % from L->R: bigger -> smaller set to have everything visible 
 hold on;
@@ -221,8 +227,9 @@ grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('State trajectory');
+set(gcf,'PaperPositionMode','auto')
+print('sstraj','-dsvg','-r300') % set dpi to 300 and save in SVG
 
-%
 %% Helper functions
 
 %set reference depending on the iteration
