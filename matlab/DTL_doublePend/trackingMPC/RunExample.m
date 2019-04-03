@@ -1,4 +1,4 @@
-%% TRACKING piecewise constant REFERENCE MPC example
+ %% TRACKING piecewise constant REFERENCE MPC example
 clearvars;
 close all;
 
