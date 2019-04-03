@@ -4,9 +4,9 @@ clearvars;
 
 %% Parameters
 % Horizon length
-N=10;
+N=20;
 % Simulation length (iterations)
-iterations = 1000;
+iterations = 600;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e-07; ...
@@ -133,14 +133,15 @@ term_poly
 % F_theta = F_w_N(:,n+1:n+m);
 % f_xTheta = h_w_N;
 %%%%%%% NEW MPIS %%%%%%%
-Ak=[A+B*K B*L; zeros(m,n) eye(m)];
-Xc = Polyhedron(F_w,h_w);
-term_poly2 = compute_MPIS(Xc,Ak);
-MAI2=projection(term_poly2,1:2); % Maximal Admissible Invariant set projected on X
-figure;
-plot(MAI2);
-F_w_N = term_poly2.A; % Inequality description { x | H*[x; -1] <= 0 }   
-h_w_N = term_poly2.b; % Inequality description { x | A*x <= b }\
+%%%%%%%%%% TAKE FOREVER WITH compute_MPIS function %%%%%%%%%%%%
+% Ak=[A+B*K B*L; zeros(m,n) eye(m)];
+% Xc = Polyhedron(F_w,h_w);
+% term_poly2 = compute_MPIS(Xc,Ak); % TAKES FOREVER FOR HIGHER DIM SYSTEMS
+% MAI2=projection(term_poly2,1:2); % Maximal Admissible Invariant set projected on X
+% figure;
+% plot(MAI2);
+% F_w_N = term_poly2.A; % Inequality description { x | H*[x; -1] <= 0 }   
+% h_w_N = term_poly2.b; % Inequality description { x | A*x <= b }\
 %%%%%%%%%%%%%%%%%%%%%%%
 %%
 % Kstable=[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
@@ -186,7 +187,7 @@ for k = 1:(iterations)
     
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
-    art_refHistory = [art_refHistory art_ref(1:n)];
+    art_refHistory = [art_refHistory art_ref(1:m)];
     true_refHistory = [true_refHistory x_eq_ref];
     
 end

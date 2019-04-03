@@ -35,7 +35,8 @@ for k=1:N-1
     uk = c(:,k+1);
 end
 %%%%% TERMINAL COST %%%%%
-J = J + (xk-LAMBDA*theta)'*P*(xk-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
+J = J + (xk-LAMBDA*theta)'*P*(xk-LAMBDA*theta) + ...
+    (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
 end
 
 
