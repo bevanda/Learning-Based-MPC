@@ -10,7 +10,7 @@ N = 3;
 x = [0;...
      -2];
 %setpoint
-xs = [4.95;...
+xs = [2;...
       0.0];
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 % Simulation length (iterations)
@@ -60,7 +60,7 @@ PSI_0 = V_0(n+1:n+m);
 % Define a nominal feedback policy K and corresponding terminal cost
 
 % 'baseline' stabilizing feedback law
-K = -dlqr(A, B, Q, R);
+K = -dlqr(A, B, Q, 1*R);
 umin=-0.3;
 max_admissible_ctrl_weight=1/(umin^2);
 % K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
@@ -76,7 +76,7 @@ T = 100*P;
 %==========================================================================
 u_min =[-0.3;-0.3]; u_max= [0.3;0.3];
 x_min=[-5;-5]; x_max=[5;5];
-state_uncert = [0.1;0.1]; 
+state_uncert = [0.05;0.05]; 
 
 F_u = [eye(m); -eye(m)]; h_u = [u_max; -u_min];
 F_x = [eye(n); -eye(n)]; h_x = [x_max; -x_min];
@@ -85,13 +85,8 @@ Xc=Polyhedron(F_x,h_x);
 Uc=Polyhedron(F_u,h_u);
 W=Polyhedron(F_g,h_g);
 
-% count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
 length_Fx = length(h_x);
-
-run_F = [F_x zeros(length_Fx,m);...
-        zeros(length_Fu,n) F_u];
-run_h = [h_x;h_u];
 %%
 %==========================================================================
 % Compute maximally invariant set for tracking
@@ -124,10 +119,10 @@ disp('Terminal set Polyhedron:');
 
 % Compute new extended state maximally invariant set
 Ak=[A+B*K B*L; zeros(m,n) eye(m)];
-term_poly=compute_MPIS(X_ext,Ak);
-MAIS=projection(term_poly,1:n); % Maximal Admissible Invariant set projected on X
-F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }
-h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
+MPIS=compute_MPIS(X_ext,Ak);
+MAIS=projection(MPIS,1:n); % Maximal Admissible Invariant set projected on X
+F_w_N = MPIS.A; % Inequality description { x | H*[x; -1] <= 0 }
+h_w_N = MPIS.b; % Inequality description { x | A*x <= b }
 
 % Region of Attraction old
 Xf0=MAIS_old;
@@ -136,131 +131,160 @@ XN0=ROA(params,Xf0,Xc,Uc,N);
 Xf=X_ext.projection(1:2);
 XN=ROA(params,Xf,Xc,Uc,N);
 
-% mRPI calculation
+%% mRPI calculation
 W=Polyhedron(W);
 % S=Polyhedron(W.V);
 % S.minVRep()
-figure;
 tic;
-bla=reach_set_old(A+B*K,W,1);
+Z=reach_set(A+B*K,W,16);
 toc
-plot(bla);
-figure;
+plot(Z);
+F_z=Z.A; h_z=Z.b;
+%% Robust running constraints
+% count the length of the constraints on input, states, and uncertainty:
+X_robust=Xc-Z;
+% plot(X_robust);
+U_robust=Uc-K*Z;
+plot(U_robust);
+X_robust.minHRep(); U_robust.minHRep(); % simplify constraints
+F_x=X_robust.A; h_x=X_robust.b;
+F_u=U_robust.A; h_u=U_robust.b;
 
-tic;
-bla2=reach_set(A+B*K,W,1);
-toc
-plot(bla2*1.05);
+length_Fu = length(h_u);
+length_Fx = length(h_x);
+
+run_F = [F_x zeros(length_Fx,m);...
+        zeros(length_Fu,n) F_u];
+run_h = [h_x;h_u];
+%% 
+% extended Z constraints (for param theta) (Z x {0})
+F_z_ext=[F_z zeros(length(h_z),m);
+        zeros(m,n+m)];
+h_z_ext = [h_z;
+            zeros(m,1)];
+Z_ext=Polyhedron(F_z_ext,h_z_ext);
+Z_ext.minHRep();
+MAIS=projection(MPIS,1:n); % Maximal Admissible Invariant set projected on X
 % x-theta constraints:
-F_xTheta = F_w_N;
-F_x = F_w_N(:, 1:n);
-F_theta = F_w_N(:,n+1:n+m);
-f_xTheta = h_w_N;
+% F_xTheta = F_w_N;
+% f_xTheta = h_w_N;
 
-% %% Cost Calculation
-% % Start simulation
-% sysHistory = [x;u0(1:m,1)];
-% art_refHistory = LAMBDA*theta0;
-% true_refHistory = xs;
+Xterm=MPIS-Z_ext;
+MAIS_old=projection(Xterm,1:n); % Maximal Admissible Invariant set projected on X
+
+XN0=ROA(params,MAIS_old,X_robust,U_robust,N);
+
+
+F_xTheta = Xterm.A;
+f_xTheta = Xterm.b;
+% F_x = F_w_N(:, 1:n);
+% F_theta = F_w_N(:,n+1:n+m);
+
+
+%% Cost Calculation
+% Start simulation
+sysHistory = [x;u0(1:m,1)];
+art_refHistory = LAMBDA*theta0;
+true_refHistory = xs;
+
+for k = 1:(iterations)
+    xs = set_ref(k);
+    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),P,T,K,LAMBDA,PSI,params);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,run_F,run_h,F_xTheta,f_xTheta,params);
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
+    theta_opt = reshape(opt_var(end-m+1:end),m,1);
+    u = reshape(opt_var(1:m),m,1);
+    art_ref = Mtheta*theta_opt;
+    % Implement first optimal control move and update plant states.
+    x= getTransitions(x, u, params); %-K*(x-xs)+u_opt
+    his=[x; u];
+    % Save plant states for display.
+    sysHistory = [sysHistory his]; 
+    art_refHistory = [art_refHistory art_ref(1:n)];
+    true_refHistory = [true_refHistory xs];
+end
+
+
+%% Plot
+disp('Generating plots...');
+figure;
+for i=1:n+m-1
+    subplot(3,1,i);   
+    plot(0:iterations,sysHistory(i,:),'Linewidth',1); hold on;
+    grid on
+    xlabel('iterations');
+    ylabel('x_i');
+    title('x_i');
+    plot(0:iterations,sysHistory(i,:),0:iterations,sysHistory(i+1,:),'Linewidth',1);
+    hold on;
+    grid on;
+    xlabel('iterations');
+    ylabel('u');
+    
+end
 % 
-% for k = 1:(iterations)
-%     xs = set_ref(k);
-%     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),P,T,K,LAMBDA,PSI,params);
-%     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,run_F,run_h,F_xTheta,f_xTheta,params);
-%     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
-%     theta_opt = reshape(opt_var(end-m+1:end),m,1);
-%     u = reshape(opt_var(1:m),m,1);
-%     art_ref = Mtheta*theta_opt;
-%     % Implement first optimal control move and update plant states.
-%     x= getTransitions(x, u, params); %-K*(x-xs)+u_opt
-%     his=[x; u];
-%     % Save plant states for display.
-%     sysHistory = [sysHistory his]; 
-%     art_refHistory = [art_refHistory art_ref(1:n)];
-%     true_refHistory = [true_refHistory xs];
-% end
-% 
-% 
-% %% Plot
-% disp('Generating plots...');
-% figure;
-% for i=1:n+m-1
-%     subplot(3,1,i);   
-%     plot(0:iterations,sysHistory(i,:),'Linewidth',1); hold on;
-%     grid on
-%     xlabel('iterations');
-%     ylabel('x_i');
-%     title('x_i');
-%     plot(0:iterations,sysHistory(i,:),0:iterations,sysHistory(i+1,:),'Linewidth',1);
-%     hold on;
-%     grid on;
-%     xlabel('iterations');
-%     ylabel('u');
-%     
-% end
-% % 
-% % figure;
-% % plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
-% % grid on;
-% % legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
-% % 
-% % xlabel('iterations');
-% % % ylabel('references');
-% % title('Artificial vs true reference vs state response');
-% % 
-% % plot_refs(1).LineStyle='--';
-% % plot_refs(2).LineStyle='-.';
-% % plot_refs(1).Color='green';
-% % plot_refs(2).Color='red';
-% % plot_refs(3).Color='b';
-% 
-% % set(gcf,'PaperPositionMode','auto')
-% % print('res','-dsvg','-r300') % set dpi to 300 and save in SVG
-% %%
-% figure;
-% % plot the sets
-% MAIS_old.plot('wire',1,'linewidth',2.5,'linestyle',':','color', 'blue'); 
-% hold on;
-% MAIS.plot('wire',1,'linewidth',2.5,'linestyle','-.','color', 'red'); 
-% hold on;
-% plot(XN,'wire',1,'linewidth',2.5,'linestyle','-','color', 'lightblue'); % ROA ext
-% hold on;
-% plot(XN0,'wire',1,'linewidth',2.5,'linestyle','-','color', 'green'); % ROA old
-% legend({'O_{\infty}(0)','X_f','X_N','X_N(O_{\infty}(0))'},'Location','southwest'); 
-% grid on;
-% xlabel('x_1');
-% ylabel('x_2');
-% title('Relevant sets');
+figure;
+plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
+grid on;
+legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
+
+xlabel('iterations');
+% ylabel('references');
+title('Artificial vs true reference vs state response');
+
+plot_refs(1).LineStyle='--';
+plot_refs(2).LineStyle='-.';
+plot_refs(1).Color='green';
+plot_refs(2).Color='red';
+plot_refs(3).Color='b';
+
+% set(gcf,'PaperPositionMode','auto')
+% print('res','-dsvg','-r300') % set dpi to 300 and save in SVG
+%%
+figure;
+% plot the sets
+MAIS_old.plot('wire',1,'linewidth',2.5,'linestyle',':','color', 'blue'); 
+hold on;
+MAIS.plot('wire',1,'linewidth',2.5,'linestyle','-.','color', 'red'); 
+hold on;
+plot(XN,'wire',1,'linewidth',2.5,'linestyle','-','color', 'lightblue'); % ROA ext
+hold on;
+plot(XN0,'wire',1,'linewidth',2.5,'linestyle','--','color', 'green'); % ROA old
+legend({'O_{\infty}(0)','X_f','X_N','X_N(O_{\infty}(0))'},'Location','southwest'); 
+grid on;
+xlabel('x_1');
+ylabel('x_2');
+title('Relevant sets');
 % set(gcf,'PaperPositionMode','auto')
 % print('sets','-dsvg','-r300') % set dpi to 300 and save in SVG
-% %%
-% figure;
-% plot([XN,MAIS]); % from L->R: bigger -> smaller set to have everything visible 
-% hold on;
-% % plot the system state-space
-% 
-% plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'Marker','o','color','k',  'MarkerSize',5,...
-%     'MarkerEdgeColor','b',...
-%     'MarkerFaceColor',[0.5,0.5,0.5]); 
-% legend({'X_N','X_f','state'},'Location','southwest'); 
-% grid on;
-% xlabel('x_1');
-% ylabel('x_2');
-% title('State trajectory');
+%%
+figure;
+plot([XN,MAIS]); % from L->R: bigger -> smaller set to have everything visible 
+hold on;
+% plot the system state-space
+
+plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'Marker','o','color','k',  'MarkerSize',5,...
+    'MarkerEdgeColor','b',...
+    'MarkerFaceColor',[0.5,0.5,0.5]); 
+legend({'X_N','X_f','state'},'Location','southwest'); 
+grid on;
+xlabel('x_1');
+ylabel('x_2');
+title('State trajectory');
 % set(gcf,'PaperPositionMode','auto')
 % print('sstraj','-dsvg','-r300') % set dpi to 300 and save in SVG
-% 
-% %% Helper functions
-% 
-% %set reference depending on the iteration
-% function [xs] = set_ref(ct)
-%     if ct <=30 
-%         xs=[4.95;0];
-%     elseif ct > 30 && ct <= 60
-%         xs=[-6;0];
-%     elseif ct > 60 && ct <= 90
-%         xs=[2;0];
-%     else
-%         xs=[0;0];
-%     end
-% end
+
+%% Helper functions
+
+%set reference depending on the iteration
+function [xs] = set_ref(ct)
+    if ct <=30 
+        xs=[2;0];
+    elseif ct > 30 && ct <= 60
+        xs=[-2;0];
+    elseif ct > 60 && ct <= 90
+        xs=[2;0];
+    else
+        xs=[0;0];
+    end
+end
