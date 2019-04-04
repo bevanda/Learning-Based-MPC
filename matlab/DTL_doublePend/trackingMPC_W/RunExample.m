@@ -137,12 +137,16 @@ Xf=X_ext.projection(1:2);
 XN=ROA(params,Xf,Xc,Uc,N);
 
 % mRPI calculation
-% figure;
-% plot(reach_set_old(A+B*K,W,16));
 figure;
-W=Polyhedron(W.minVRep);
-plot(reach_set(A+B*K,W,12));
-
+tic;
+plot(reach_set_old(A+B*K,W,10));
+toc
+figure;
+% W.minVRep;
+W=Polyhedron(W);
+tic;
+plot(reach_set(A+B*K,W,10));
+toc
 % x-theta constraints:
 F_xTheta = F_w_N;
 F_x = F_w_N(:, 1:n);

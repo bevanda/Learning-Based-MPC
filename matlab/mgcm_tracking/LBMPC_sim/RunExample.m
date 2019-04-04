@@ -4,7 +4,7 @@ clearvars;
 
 %% Parameters
 % Horizon length
-N=20;
+N=10;
 % Simulation length (iterations)
 iterations = 600;
 

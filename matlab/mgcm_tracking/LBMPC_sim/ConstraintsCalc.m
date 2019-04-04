@@ -216,11 +216,16 @@ AK=A+B*K;
 % figure;
 % plot(WR_10);
 %% Full calc for RPI
-
-% WR=reach_set_old(AK,W,5);
+W=Polyhedron(W.V);
+W.minVRep();
+% tic;
+% WR=reach_set_old(AK,W,10);
+% toc
 % figure;
 % plot(WR.projection(1:2));
-WR2=reach_set(AK,W,15);
+tic;
+WR2=reach_set(AK,W,100);
+toc
 figure;
 plot(WR2.projection(1:2));
 

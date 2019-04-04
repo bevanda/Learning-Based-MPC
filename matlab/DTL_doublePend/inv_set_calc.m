@@ -21,14 +21,15 @@ K = -dlqr(A, B, Q, R);
 % LAMBDA = Mtheta(1:n,:);
 % PSI = Mtheta(n+1:n+m,:);
 % 
-% sys1 = LTISystem('A', A+B*K);
-% umax = [0.3;0.3]; umin = [-0.3;-0.3];
-% xmax = [5; 5]; xmin = [-5; -5];
-% R = Polyhedron([K; -K; eye(2); -eye(2)], [umax; -umin; xmax; -xmin]);
-% Q = Polyhedron.unitBox(2)*4;
-% P = R&Q; % intersection of P and Q
-% iset1 = sys1.invariantSet('X', P);
-% iset1.plot();
+%%
+sys1 = LTISystem('A', A+B*K);
+umax = [0.3;0.3]; umin = [-0.3;-0.3];
+xmax = [5; 5]; xmin = [-5; -5];
+R = Polyhedron([K; -K; eye(2); -eye(2)], [umax; -umin; xmax; -xmin]);
+Q = Polyhedron.unitBox(2)*4;
+P = R&Q; % intersection of P and Q
+iset1 = sys1.invariantSet('X', P);
+iset1.plot();
 %% Tracking solution with artificial setpoint
 
 % MN = [Mtheta; 1, 0];
