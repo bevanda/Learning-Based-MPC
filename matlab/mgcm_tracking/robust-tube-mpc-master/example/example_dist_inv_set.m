@@ -16,11 +16,11 @@ Xc = Polyhedron(Xc_vertex);
 Uc = Polyhedron(Uc_vertex);
 
 % construct a convex set of system noise (2dim here)
-W_vertex = [0.1, 0.1; 0.1, -0.1; -0.1, -0.1; -0.15, 0.15];
+W_vertex = [0.1, 0.1; 0.1, -0.1; -0.1, -0.1; -0.1, 0.1];
 W = Polyhedron(W_vertex);
 
 % compute disturvance invariant set Z.
-Z = mysys.compute_distinv_set(W, 10, 1.15);
+Z = mysys.compute_distinv_set(W, 10, 2);
 figure;
 Z.plot()
 % set boundary of system noise which corresponds to W.
