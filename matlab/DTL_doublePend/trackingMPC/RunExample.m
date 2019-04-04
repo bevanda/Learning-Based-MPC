@@ -124,9 +124,12 @@ MAIS=projection(term_poly,1:n); % Maximal Admissible Invariant set projected on 
 F_w_N = term_poly.A; % Inequality description { x | H*[x; -1] <= 0 }
 h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
 
-% Region of Aattraction old
+% Region of Attraction old
 Xf0=MAIS_old;
 XN0=ROA(params,Xf0,Xc,Uc,N);
+iset2=syss.reachableSet('X',poly,'N',N,'direction','forward');
+figure;
+iset2.plot();
 % Region of attraction extended
 Xf=X_ext.projection(1:2);
 XN=ROA(params,Xf,Xc,Uc,N);

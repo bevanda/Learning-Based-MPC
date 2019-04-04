@@ -188,181 +188,124 @@ term_poly = polytope(F_w_N0, h_w_N0);
 % term_poly.minHRep(); % simplifying the polyhedron/constraints
 % F_w_N1 = term_poly.A; h_w_N1 = term_poly.b;
 disp('Terminal set Polyhedron:');
-term_poly
-term_poly2=polytope(F_w,h_w)
-%%
-%==========================================================================
-% Generate inequality constraints
-%==========================================================================
-
-length_Fw = size(F_w_N, 1);
-
-Aineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, N*m+m);
-bineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, 1);
-b_crx = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, n);
-% help variables
-L_i = zeros(n, N*m); % width of the state tube R_i 
-KL_i = zeros(m, N*m); % width of the input tube KR_i
-disp('Generating constraints on inputs...');
-d_i = zeros(n,1);
-for ind = 1:N
-    disp(['u ind: ', num2str(ind)]);
-
-    KL_i = K*L_i;
-    KL_i(:, (ind-1)*m + (1:m)) = eye(m);
-
-    Aineq((ind-1)*length_Fu + (1:length_Fu),1:N*m) = F_u*KL_i;
-    bineq((ind-1)*length_Fu + (1:length_Fu)) = h_u - F_u*K*d_i;
-    b_crx((ind-1)*length_Fu + (1:length_Fu),:) = -F_u*K*(A+B*K)^(ind-1);
-
-    L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
-    d_i = (A+B*K)*d_i + d_0;
-end
-
-L_i = zeros(n, N*m);
-disp('Generating constraints on states...');
-d_i = d_0;
-for ind = 1:N
-    disp(['x ind: ', num2str(ind)]);
-    L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
-
-    if ind == 1
-        disp('Generating terminal constraints on states...');
-        Aineq(N*length_Fu + (1:length_Fw), :) = F_w_N*[L_i zeros(n,m); zeros(m,N*m) eye(m)];
-        bineq(N*length_Fu + (1:length_Fw)) = h_w_N - F_w_N*[d_i; zeros(m,1)];
-        b_crx(N*length_Fu + (1:length_Fw),:) = -F_w_N*[(A+B*K)^(ind); zeros(m,n)];
-
-    else
-
-        Aineq(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx),1:N*m) = F_x*L_i;
-        bineq(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx)) = h_x - F_x*d_i;
-        b_crx(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx),:) = -F_x*(A+B*K)^(ind);
-
-    end
-
-    d_i = (A+B*K)*d_i + d_0;
-end
-
-ind = N;
-L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
-
-CONSTRAINT_COUNT = length(bineq);
-disp('Removing redundant inequality constraints...');
-temp_tope = polytope(Aineq, bineq);
-[Aineq, bineq] = double(temp_tope);
-%%
-% Kstable=[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
-Kstable=-[3.0742   -2.0958   -0.1194    0.0089];
-
-u0 = zeros(m*N,1); % start inputs
-theta0 = zeros(m,1); % start param values
-opt_var = [u0; theta0];
-%% Start simulation
-sysHistory = [x_eq_init;u0(1:m,1)];
-art_refHistory =  0;
-true_refHistory = x_eq_ref;
-options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
-x_init_true=x_eq_init+x_w; % init true sys state
-x_ref_true=x_eq_ref+x_w;
-x = x_w+x_eq_init; % real system input
-
-tic;
-for k = 1:(iterations)      
-    fprintf('iteration no. %d/%d \n',k,iterations);
-    % To give the values to the nominal mdel w.r.t. the point around whiuch
-    % it is linearised around
-    if k==1 
-        x_eq = x_eq_init; 
-        data.X=sysHistory;
-        [xt,ut]=getTransitionsTrue(x,c,x_w,r0,Kstable);
-        [xl,ul]= systemdynamics(x_eq_init, u0);
-        data.Y=(xt-x_w)-xl;
-    else
-        x_eq = x - x_w;
-    end
-    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI,data);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N,data);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
-    theta_opt = reshape(opt_var(end-m+1:end),m,1);
-    c = reshape(opt_var(1:m),m,1);
-    art_ref = Mtheta*theta_opt;
-    
-    % Implement first optimal control move and update plant states.
-    [x, u] = getTransitionsTrue(x,c,x_w,r0,Kstable);
-    
-    % shift the output so that it's from the working point perspective
-    % setpoint being [0;0;0;0]
-    his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
-    
-    % Save plant states for display.
-    sysHistory = [sysHistory his]; 
-    art_refHistory = [art_refHistory art_ref(1:m)];
-    true_refHistory = [true_refHistory x_eq_ref];
-    
-end
-toc
-%% Plot
-
-figure;
-subplot(n+m,1,1);
-plot(0:iterations,sysHistory(1,:),'Linewidth',1);
-grid on
-xlabel('iterations');
-ylabel('x1');
-title('mass flow');
-subplot(n+m,1,2);
-plot(0:iterations,sysHistory(2,:),'Linewidth',1);
-grid on
-xlabel('iterations');
-ylabel('x2');
-title('pressure rise');
-subplot(n+m,1,3);
-plot(0:iterations,sysHistory(3,:),'Linewidth',1);
-grid on
-xlabel('iterations');
-ylabel('x3');
-title('throttle');
-subplot(n+m,1,4);
-plot(0:iterations,sysHistory(4,:),'Linewidth',1);
-grid on
-xlabel('iterations');
-ylabel('x4');
-title('throttle rate');
-subplot(n+m,1,5);
-plot(0:iterations,sysHistory(5,:),'Linewidth',1);
-legend({'input variable'},'Location','northeast')
-grid on
-xlabel('iterations');
-ylabel('u');
-title('Sys input');
-
+term_poly;
+termProj = projection(term_poly,1:2);
 % figure;
-% plot_refs=plot(0:iterations, sysHistory(1:4,:), 'Linewidth',1.5);
-% grid on;
-% xlabel('iterations');
-% ylabel('responses');
-% plot_refs(1).Color = 'Yellow';
-% plot_refs(2).Color = 'Blue';
-% plot_refs(3).Color = 'Red';
-% plot_refs(4).Color = 'Green';
+% plot(termProj);
+disp('Terminal set Polyhedron 2:');
+term_poly2 = polytope(F_w,h_w);
+termProj2 = projection(term_poly2,1:2);
+% figure;
+% plot(termProj2);
+disp('Terminal set Polyhedron diff:');
+term_dif = term_poly-term_poly2;
+isempty(term_dif);
+termProjd = projection(term_dif,1:2);
+% figure;
+% plot(termProjd);
+%% Calculation the n-reachable set
+state_uncert = [0.02;5e-04;0;0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
+F = [eye(n); -eye(n)]; h = [state_uncert; state_uncert];
+W=Polyhedron(F,h);
+W2=projection(W,1:2);
+% figure;
+
+% plot(W2);
+AK=A+B*K;
+% WR_10=fwd_reach_set(AK(1:2,1:2),W2,5);
+% figure;
+% plot(WR_10);
+%% Full calc for RPI
+
+% WR=reach_set_old(AK,W,5);
+% figure;
+% plot(WR.projection(1:2));
+WR2=reach_set(AK,W,15);
 figure;
-plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
-grid on
-xlabel('iterations');
-% ylabel('references');
-title('Artificial vs true reference vs state response');
-legend({'artifical reference','real reference', 'mass flow response'},'Location','northeast')
-plot_refs(1).LineStyle='--';
-plot_refs(2).LineStyle='-.';
-plot_refs(1).Color='Red';
-plot_refs(2).Color='Black';
-plot_refs(3).Color='Blue';
+plot(WR2.projection(1:2));
 
+%%
+sys = LTISystem('A', AK(1:2,1:2));
 
-figure;
-plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1,'Marker','.');
-grid on
-xlabel('x1');
-ylabel('x2');
-title('State space');
+%% RPI calc
+% WR_10=reach_set(AK(1:2,1:2),W2,10);
+% figure;
+% plot(WR_10);
+% WR_20=reach_set_old(AK(1:2,1:2),W2,10);
+% figure;
+% plot(WR_20);
 
+% 
+% %% MPT fwd reach calc
+% iset = sys.reachableSet('X', W2,'N',100,'direction','backward');
+% figure;
+% plot(iset);
+% %% ROA calc
+% WR_20=reach(AK(1:2,1:2),W2,10);
+% figure;
+% plot(WR_20);
+% 
+% %% MPT back reach calc
+% WR_20=reach(AK(1:2,1:2),W2,10);
+% figure;
+% plot(WR_20);
+%%
+% %==========================================================================
+% % Generate inequality constraints
+% %==========================================================================
+% 
+% length_Fw = size(F_w_N, 1);
+% 
+% Aineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, N*m+m);
+% bineq = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, 1);
+% b_crx = zeros((N-1)*length_Fx+N*length_Fu+length_Fw, n);
+% % help variables
+% L_i = zeros(n, N*m); % width of the state tube R_i 
+% KL_i = zeros(m, N*m); % width of the input tube KR_i
+% disp('Generating constraints on inputs...');
+% d_i = zeros(n,1);
+% for ind = 1:N
+%     disp(['u ind: ', num2str(ind)]);
+% 
+%     KL_i = K*L_i;
+%     KL_i(:, (ind-1)*m + (1:m)) = eye(m);
+% 
+%     Aineq((ind-1)*length_Fu + (1:length_Fu),1:N*m) = F_u*KL_i;
+%     bineq((ind-1)*length_Fu + (1:length_Fu)) = h_u - F_u*K*d_i;
+%     b_crx((ind-1)*length_Fu + (1:length_Fu),:) = -F_u*K*(A+B*K)^(ind-1);
+% 
+%     L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
+%     d_i = (A+B*K)*d_i + d_0;
+% end
+% 
+% L_i = zeros(n, N*m);
+% disp('Generating constraints on states...');
+% d_i = d_0;
+% for ind = 1:N
+%     disp(['x ind: ', num2str(ind)]);
+%     L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
+% 
+%     if ind == 1
+%         disp('Generating terminal constraints on states...');
+%         Aineq(N*length_Fu + (1:length_Fw), :) = F_w_N*[L_i zeros(n,m); zeros(m,N*m) eye(m)];
+%         bineq(N*length_Fu + (1:length_Fw)) = h_w_N - F_w_N*[d_i; zeros(m,1)];
+%         b_crx(N*length_Fu + (1:length_Fw),:) = -F_w_N*[(A+B*K)^(ind); zeros(m,n)];
+% 
+%     else
+% 
+%         Aineq(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx),1:N*m) = F_x*L_i;
+%         bineq(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx)) = h_x - F_x*d_i;
+%         b_crx(length_Fw + N*length_Fu + (ind-2)*length_Fx + (1:length_Fx),:) = -F_x*(A+B*K)^(ind);
+% 
+%     end
+% 
+%     d_i = (A+B*K)*d_i + d_0;
+% end
+% 
+% ind = N;
+% L_i = [(A+B*K)^(ind-1)*B L_i(:, 1:(N-1)*m)];
+% 
+% CONSTRAINT_COUNT = length(bineq);
+% disp('Removing redundant inequality constraints...');
+% temp_tope = polytope(Aineq, bineq);
+% [Aineq, bineq] = double(temp_tope);
