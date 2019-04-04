@@ -1,9 +1,10 @@
-function g = oracle(ksi, X, Y)
+function g = oracle(x,u,data)
+X=data.X; Y=data.Y; ksi=[x(1:2);u];
 % g = oracle(ksi, X, Y) performs a nonparametric L2 normalised Nadaraya-Watson kernel regression
 if nargin <2
     X=zeros(3,1);
     Y=zeros(4,1);
-end
+end 
 
 bandwidth = 0.5;  
 lambda = 0.001; 

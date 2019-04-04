@@ -1,4 +1,4 @@
-function [xk, y] = learnedModel(x, u)
+function [xk, y] = learnedDynamics(x, u,data)
 %% Discrete-time linear dynamic model 
 %
 % 4 states (x): 
@@ -23,6 +23,6 @@ C = [1,0,0,0;...
     0,0,1,0;...
     0,0,0,1];
 % D = [0;0;0;0];
-xk = A*x + B*u + oracle(x,u);
+xk = A*x + B*u + oracle(ksi,data);
 y = C*x;
 end

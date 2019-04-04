@@ -272,7 +272,6 @@ true_refHistory = x_eq_ref;
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 x_init_true=x_eq_init+x_w; % init true sys state
 x_ref_true=x_eq_ref+x_w;
-
 x = x_w+x_eq_init; % real system input
 
 tic;
@@ -282,11 +281,15 @@ for k = 1:(iterations)
     % it is linearised around
     if k==1 
         x_eq = x_eq_init; 
+        data.X=sysHistory;
+        [xt,ut]=getTransitionsTrue(x,c,x_w,r0,Kstable);
+        [xl,ul]= systemdynamics(x_eq_init, u0);
+        data.Y=(xt-x_w)-xl;
     else
         x_eq = x - x_w;
     end
-    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
+    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI,data);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N,data);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
