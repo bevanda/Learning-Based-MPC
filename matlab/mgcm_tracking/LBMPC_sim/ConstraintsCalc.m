@@ -204,7 +204,7 @@ termProjd = projection(term_dif,1:2);
 % figure;
 % plot(termProjd);
 %% Calculation the n-reachable set
-state_uncert = [0.02;5e-04;0;0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
+state_uncert = [0.02;5e-04;0.0;0.0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
 F = [eye(n); -eye(n)]; h = [state_uncert; state_uncert];
 W=Polyhedron(F,h);
 W2=projection(W,1:2);
@@ -216,23 +216,27 @@ AK=A+B*K;
 % figure;
 % plot(WR_10);
 %% Full calc for RPI
+% Just the minimal V-rep without any H-rep lessens memory consumption and
+% is faster thatn the only H-rep calculation for systems /w degree > 4
 W=Polyhedron(W.V);
-W.minVRep();
+W.minVRep()
 % tic;
-% WR=reach_set_old(AK,W,10);
+% WR=reach_set_old(AK,W,7);
 % toc
 % figure;
 % plot(WR.projection(1:2));
 tic;
-WR2=reach_set(AK,W,100);
+WR2=reach_set(AK,W,7);
 toc
 figure;
 plot(WR2.projection(1:2));
+figure;
+plot(WR2.projection(3:4));
 
-%%
-sys = LTISystem('A', AK(1:2,1:2));
-
-%% RPI calc
+% %%
+% sys = LTISystem('A', AK(1:2,1:2));
+% 
+% %% RPI calc
 % WR_10=reach_set(AK(1:2,1:2),W2,10);
 % figure;
 % plot(WR_10);
@@ -240,7 +244,7 @@ sys = LTISystem('A', AK(1:2,1:2));
 % figure;
 % plot(WR_20);
 
-% 
+
 % %% MPT fwd reach calc
 % iset = sys.reachableSet('X', W2,'N',100,'direction','backward');
 % figure;
