@@ -182,20 +182,20 @@ for i=1:n+m-1
     
 end
 % 
-% figure;
-% plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
-% grid on;
-% legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
-% 
-% xlabel('iterations');
-% % ylabel('references');
-% title('Artificial vs true reference vs state response');
-% 
-% plot_refs(1).LineStyle='--';
-% plot_refs(2).LineStyle='-.';
-% plot_refs(1).Color='green';
-% plot_refs(2).Color='red';
-% plot_refs(3).Color='b';
+figure;
+plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
+grid on;
+legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
+
+xlabel('iterations');
+% ylabel('references');
+title('Artificial vs true reference vs state response');
+
+plot_refs(1).LineStyle='--';
+plot_refs(2).LineStyle='-.';
+plot_refs(1).Color='green';
+plot_refs(2).Color='red';
+plot_refs(3).Color='b';
 
 % set(gcf,'PaperPositionMode','auto')
 % print('res','-dsvg','-r300') % set dpi to 300 and save in SVG

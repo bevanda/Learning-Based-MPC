@@ -63,8 +63,8 @@ PSI_0 = V_0(n+1:n+m);
 K = -dlqr(A, B, Q, 1*R);
 umin=-0.3;
 max_admissible_ctrl_weight=1/(umin^2);
-% K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
-K_t = -dlqr(A, B, Q, 10*R);
+K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
+% K_t = -dlqr(A, B, Q, 10*R);
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
@@ -76,7 +76,7 @@ T = 100*P;
 %==========================================================================
 u_min =[-0.3;-0.3]; u_max= [0.3;0.3];
 x_min=[-5;-5]; x_max=[5;5];
-state_uncert = [0.05;0.05]; 
+state_uncert = [0.1;0.1]; 
 
 F_u = [eye(m); -eye(m)]; h_u = [u_max; -u_min];
 F_x = [eye(n); -eye(n)]; h_x = [x_max; -x_min];
@@ -136,16 +136,20 @@ W=Polyhedron(W);
 % S=Polyhedron(W.V);
 % S.minVRep()
 tic;
-Z=reach_set(A+B*K,W,16);
+Z=reach_set(A+B*K_t,W,16);
 toc
-plot(Z);
+% figure;
+% plot(Z);
 F_z=Z.A; h_z=Z.b;
 %% Robust running constraints
 % count the length of the constraints on input, states, and uncertainty:
 X_robust=Xc-Z;
-% plot(X_robust);
-U_robust=Uc-K*Z;
-plot(U_robust);
+figure;
+plot([Xc,X_robust, Z]);
+U_robust=Uc-K_t*Z;
+figure;
+plot([Uc,U_robust,K_t*Z]);
+
 X_robust.minHRep(); U_robust.minHRep(); % simplify constraints
 F_x=X_robust.A; h_x=X_robust.b;
 F_u=U_robust.A; h_u=U_robust.b;
@@ -164,15 +168,16 @@ h_z_ext = [h_z;
             zeros(m,1)];
 Z_ext=Polyhedron(F_z_ext,h_z_ext);
 Z_ext.minHRep();
-MAIS=projection(MPIS,1:n); % Maximal Admissible Invariant set projected on X
+% MAIS=projection(MPIS,1:n); % Maximal Admissible Invariant set projected on X
+
 % x-theta constraints:
 % F_xTheta = F_w_N;
 % f_xTheta = h_w_N;
 
 Xterm=MPIS-Z_ext;
-MAIS_old=projection(Xterm,1:n); % Maximal Admissible Invariant set projected on X
+% MAIS_old=projection(Xterm,1:n); % Maximal Admissible Invariant set projected on X
 
-XN0=ROA(params,MAIS_old,X_robust,U_robust,N);
+% XN0=ROA(params,MAIS_old,X_robust,U_robust,N);
 
 
 F_xTheta = Xterm.A;
@@ -208,21 +213,20 @@ end
 %% Plot
 disp('Generating plots...');
 figure;
-for i=1:n+m-1
-    subplot(3,1,i);   
-    plot(0:iterations,sysHistory(i,:),'Linewidth',1); hold on;
-    grid on
-    xlabel('iterations');
-    ylabel('x_i');
-    title('x_i');
-    plot(0:iterations,sysHistory(i,:),0:iterations,sysHistory(i+1,:),'Linewidth',1);
-    hold on;
-    grid on;
-    xlabel('iterations');
-    ylabel('u');
+subplot(2,1,1);   
+plot(0:iterations,sysHistory(1:2,:),'Linewidth',1); hold on;
+grid on
+xlabel('iterations');
+ylabel('x');
+% title('states');
+subplot(2,1,2);   
+plot(0:iterations,sysHistory(3:4,:),'Linewidth',1);
+hold on;
+grid on;
+xlabel('iterations');
+ylabel('u');
     
-end
-% 
+%%
 figure;
 plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
 grid on;
