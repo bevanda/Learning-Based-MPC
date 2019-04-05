@@ -214,8 +214,8 @@ grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('Relevant sets');
-set(gcf,'PaperPositionMode','auto')
-print('sets','-dsvg','-r300') % set dpi to 300 and save in SVG
+% set(gcf,'PaperPositionMode','auto')
+% print('sets','-dsvg','-r300') % set dpi to 300 and save in SVG
 %%
 figure;
 plot([XN,MAIS]); % from L->R: bigger -> smaller set to have everything visible 
@@ -230,8 +230,8 @@ grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('State trajectory');
-set(gcf,'PaperPositionMode','auto')
-print('sstraj','-dsvg','-r300') % set dpi to 300 and save in SVG
+% set(gcf,'PaperPositionMode','auto')
+% print('sstraj','-dsvg','-r300') % set dpi to 300 and save in SVG
 
 %% Helper functions
 
