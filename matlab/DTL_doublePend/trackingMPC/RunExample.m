@@ -8,13 +8,13 @@ N = 3;
 
 % The initial conditions
 x = [0;...
-     -2];
+     -1.9];
 %setpoint
 xs = [4.95;...
       0.0];
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 % Simulation length (iterations)
-iterations = 120;
+iterations = 300;
 
 
 A = [1 1; 0 1];
@@ -67,7 +67,7 @@ K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
-T = 100*P;
+T = 0.1*P;
 %%
 %==========================================================================
 % Define polytopic constraints on input F_u*x <= h_u and
@@ -96,7 +96,7 @@ disp('Computing and simplifying terminal set...');
 L = (PSI - K*LAMBDA);
 L0 = (PSI_0 - K*LAMBDA_0); % when being under inital disturbance
 % contract the h values for the artificial steady state by a scalar λ ∈ (0, 1)
-lambda=0.99;
+lambda=0.95;
 % CONVEX POLYHAEDRON Wλ = {w = (x, θ) : (x, Kx + Lθ) ∈ Z, Mθθ ∈ λZ}.
 F_w = [F_x zeros(length_Fx, m);
     zeros(length_Fx, n) F_x*LAMBDA; ...
@@ -237,12 +237,12 @@ print('sstraj','-dsvg','-r300') % set dpi to 300 and save in SVG
 
 %set reference depending on the iteration
 function [xs] = set_ref(ct)
-    if ct <=30 
-        xs=[4.95;0];
-    elseif ct > 30 && ct <= 60
-        xs=[-6;0];
-    elseif ct > 60 && ct <= 90
-        xs=[2;0];
+    if ct <=100 
+        xs=[4.75;0];
+    elseif ct > 100 && ct <= 200
+        xs=[-4.75;0];
+%     elseif ct > 60 && ct <= 90
+%         xs=[2;0];
     else
         xs=[0;0];
     end

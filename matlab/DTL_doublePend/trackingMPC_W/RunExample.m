@@ -4,13 +4,13 @@ close all;
 
 %% Parameters
 % Set the prediction horizon:
-N = 3;
+N = 2;
 
 % The initial conditions
 x = [0;...
-     -2];
+     0];
 %setpoint
-xs = [2;...
+xs = [0;...
       0.0];
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 % Simulation length (iterations)
@@ -63,12 +63,13 @@ PSI_0 = V_0(n+1:n+m);
 K = -dlqr(A, B, Q, 1*R);
 umin=-0.3;
 max_admissible_ctrl_weight=1/(umin^2);
-K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
-% K_t = -dlqr(A, B, Q, 10*R);
+% K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
+K_t = -dlqr(A, B, Q, 10*R);
+% K_t = -dlqr(A, B, 1000*Q, R); % empty U_bar set not good
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
-T = 100*P;
+T = 10*P;
 %%
 %==========================================================================
 % Define polytopic constraints on input F_u*x <= h_u and
@@ -76,11 +77,12 @@ T = 100*P;
 %==========================================================================
 u_min =[-0.3;-0.3]; u_max= [0.3;0.3];
 x_min=[-5;-5]; x_max=[5;5];
-state_uncert = [0.1;0.1]; 
+w_min=[-0.1;-0.1]; w_max=[0.1;0.1]; % disturbance
+
 
 F_u = [eye(m); -eye(m)]; h_u = [u_max; -u_min];
 F_x = [eye(n); -eye(n)]; h_x = [x_max; -x_min];
-F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
+F_g = [eye(n); -eye(n)]; h_g = [w_max; -w_min]; % uncertainty polytope
 Xc=Polyhedron(F_x,h_x);
 Uc=Polyhedron(F_u,h_u);
 W=Polyhedron(F_g,h_g);
@@ -173,11 +175,11 @@ Z_ext.minHRep();
 % x-theta constraints:
 % F_xTheta = F_w_N;
 % f_xTheta = h_w_N;
+%% Robust terminal constraints
+Xterm=MPIS;
+MAIS_old=projection(Xterm,1:n); % Maximal Admissible Invariant set projected on X
 
-Xterm=MPIS-Z_ext;
-% MAIS_old=projection(Xterm,1:n); % Maximal Admissible Invariant set projected on X
-
-% XN0=ROA(params,MAIS_old,X_robust,U_robust,N);
+XNr=ROA(params,MAIS_old,X_robust,U_robust,N);
 
 
 F_xTheta = Xterm.A;
@@ -189,7 +191,7 @@ f_xTheta = Xterm.b;
 %% Cost Calculation
 % Start simulation
 sysHistory = [x;u0(1:m,1)];
-art_refHistory = LAMBDA*theta0;
+art_refHistory = Mtheta*theta0;
 true_refHistory = xs;
 
 for k = 1:(iterations)
@@ -201,11 +203,12 @@ for k = 1:(iterations)
     u = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
-    x= getTransitions(x, u, params); %-K*(x-xs)+u_opt
+    % Add disturbance
+    x= getTransitions(x, u, params) + disturb(0.5*u_max,0.5*u_min); 
     his=[x; u];
     % Save plant states for display.
     sysHistory = [sysHistory his]; 
-    art_refHistory = [art_refHistory art_ref(1:n)];
+    art_refHistory = [art_refHistory art_ref];
     true_refHistory = [true_refHistory xs];
 end
 
@@ -214,23 +217,26 @@ end
 disp('Generating plots...');
 figure;
 subplot(2,1,1);   
-plot(0:iterations,sysHistory(1:2,:),'Linewidth',1); hold on;
-grid on
+plot(0:iterations,sysHistory(1:n,:),'Linewidth',2); hold on;
+plot(0:iterations,art_refHistory(1:n,:),'Linewidth',1.5,'LineStyle','--');
+grid on;
+legend({'ref x_1','ref x_2','x_1 response','x_2 response'},'Location','northeast');
 xlabel('iterations');
 ylabel('x');
 % title('states');
 subplot(2,1,2);   
-plot(0:iterations,sysHistory(3:4,:),'Linewidth',1);
-hold on;
+plot(0:iterations,sysHistory(n+1:n+m,:),'Linewidth',2); hold on;
+plot(0:iterations,art_refHistory(n+1:n+m,:),'Linewidth',1.5,'LineStyle','--');
 grid on;
+legend({'ref u_1','ref u_2','u_1 response','u_2 response'},'Location','northeast');
 xlabel('iterations');
 ylabel('u');
     
 %%
 figure;
-plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
+plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',2);
 grid on;
-legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
+legend({'art_{ref}','real_{ref}','x_1 response'},'Location','northeast'); 
 
 xlabel('iterations');
 % ylabel('references');
@@ -254,7 +260,7 @@ hold on;
 plot(XN,'wire',1,'linewidth',2.5,'linestyle','-','color', 'lightblue'); % ROA ext
 hold on;
 plot(XN0,'wire',1,'linewidth',2.5,'linestyle','--','color', 'green'); % ROA old
-legend({'O_{\infty}(0)','X_f','X_N','X_N(O_{\infty}(0))'},'Location','southwest'); 
+legend({'O_{\infty}(0)','X_f','X_N','X_N(O_{\infty}(0))'},'Location','northeast'); 
 grid on;
 xlabel('x_1');
 ylabel('x_2');
@@ -263,14 +269,17 @@ title('Relevant sets');
 % print('sets','-dsvg','-r300') % set dpi to 300 and save in SVG
 %%
 figure;
-plot([XN,MAIS]); % from L->R: bigger -> smaller set to have everything visible 
-hold on;
-% plot the system state-space
+Xfr=projection(Xterm,1:2);
 
+XN.plot('wire',1,'linewidth',2.5,'linestyle','-'); hold on;
+XNr.plot('wire',1,'linewidth',2.5,'linestyle','-.'); hold on;
+Xf.plot('wire',1,'linewidth',2.5,'linestyle',':'); hold on;
+Xfr.plot('wire',1,'linewidth',2.5,'linestyle','--');  % from L->R: bigger -> smaller set to have everything visible 
+% plot the system state-space
 plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'Marker','o','color','k',  'MarkerSize',5,...
     'MarkerEdgeColor','b',...
     'MarkerFaceColor',[0.5,0.5,0.5]); 
-legend({'X_N','X_f','state'},'Location','southwest'); 
+legend({'X_N','X_{N_{robust}}','X_f','X_{f_{robust}}','state'},'Location','northeast'); 
 grid on;
 xlabel('x_1');
 ylabel('x_2');
@@ -281,14 +290,31 @@ title('State trajectory');
 %% Helper functions
 
 %set reference depending on the iteration
+
 function [xs] = set_ref(ct)
-    if ct <=30 
-        xs=[2;0];
-    elseif ct > 30 && ct <= 60
-        xs=[-2;0];
-    elseif ct > 60 && ct <= 90
-        xs=[2;0];
+    if ct <=50
+        xs=[3;0];
+    elseif ct > 50 && ct <= 100
+        xs=[-3;0];
     else
         xs=[0;0];
     end
 end
+
+function [w] = disturb(w_max,w_min)
+    w = rand(2, 1).*(w_max - w_min)+w_min;
+end
+
+% function [w] = switching_diturb(w_max,w_min,ct)
+%     if ct <=12
+%         xs=[4;0];
+%     elseif ct > 12 && ct <= 24
+%         xs=[-4;0];
+%     elseif ct > 12*2 && ct <= 24*3
+%         xs=[-4;0];    
+%     elseif ct > 12*3 && ct <= 24*4
+%         xs=[-4;0];    
+%     elseif ct > 12*5 && ct <= 24*6
+%         xs=[-4;0];
+%     end
+% end
