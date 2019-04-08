@@ -6,7 +6,7 @@ clearvars;
 % Horizon length
 N=20;
 % Simulation length (iterations)
-iterations = 600;
+iterations = 1000;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e-07; ...
@@ -171,8 +171,8 @@ for k = 1:(iterations)
     else
         x_eq = x - x_w;
     end
-    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,K,LAMBDA,PSI);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,K,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
+    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstable,LAMBDA,PSI);
+    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstable,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);

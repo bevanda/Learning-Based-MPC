@@ -13,9 +13,15 @@ s = size(Y,1);
 n = size(X,2);
 
 kval = zeros(1,n);
+U = @(X,ksi,bandwidth) (norm(X - ksi).^2)/bandwidth^2;
+
+% Gaussian Kernel
+gauss = @(X,ksi,bandwidth) exp(-(U(X,ksi,bandwidth)));
+% % Spherical Epanechnikov kernel
+% epan_sph= @(X,ksi,bandwidth) (1-(U(X,ksi,bandwidth))*(U(X,ksi,bandwidth)'*U(X,ksi,bandwidth) < 1));
+
 for i=1:n
-    % Gaussian Kernel
-    kval(i) = exp(-((norm(X(:,i) - ksi).^2)/bandwidth));
+    kval(i) = gauss(X(:,i),ksi,bandwidth);
 end
 skval = sum(kval);
 weight = kval/(lambda + skval);
