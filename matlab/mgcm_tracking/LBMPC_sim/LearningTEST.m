@@ -6,7 +6,7 @@ clearvars;
 % Horizon length
 N=20;
 % Simulation length (iterations)
-iterations = 1000;
+iterations = 600;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e-07; ...
@@ -49,11 +49,9 @@ R = eye(m);
 % 'baseline' stabilizing feedback law
 K = -dlqr(A, B, Q, R);
 
-
 %%
 % Kstable=[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
 Kstable=-[3.0742   -2.0958   -0.1194    0.0089];
-
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
@@ -72,7 +70,9 @@ xl=x_eq_init;
 xo=x_eq_init;
 data.X=zeros(3,1);
 data.Y=zeros(4,1);
+% load('dataLQRrun.mat');
 tic;
+
 for k = 1:(iterations)      
     %%
     fprintf('iteration no. %d/%d \n',k,iterations);
@@ -80,15 +80,19 @@ for k = 1:(iterations)
     % Implement first optimal control move and update plant states.
     [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstable);
     [xl_k1, ul] = getTransitions(xl,c,Kstable);
+    [xo,uo]=getTransitionsLearn(xo,c,Kstable,data);
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
     %%%%%%%%%%%%%% DATA GENERATION %%%%%%%%%%%%%
+    
     X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
     Y=(x_k1-x_w)-(A*(x-x_w)+B*(u-r0)); %[δx_true-δx_nominal]
-    q=50; % data window of 50 datapoints
+    q=1000; % moving window of 50 datapoints 
+    if ~mod(k,20) % when to get data
     data=update_data(X,Y,q,k,data);
+    end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    [xo_k1,uo]=getTransitionsLearn(xo,c,Kstable,data);
+
 
     his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
     hisO=[xo;uo];
@@ -99,11 +103,11 @@ for k = 1:(iterations)
     sysHistoryO = [sysHistoryO hisO]; %#ok<*AGROW>
     
     
-    xo=xo_k1;
     x=x_k1;
     xl=xl_k1;
 end
 toc
+
 
 %% PLOT
 figure;

@@ -27,7 +27,7 @@ skval = sum(kval);
 weight = kval/(lambda + skval);
 y=zeros(s,1);
 for i=1:n
-    out = weight(i)*Y(:,i);
+    out = Y(:,i)*weight(i);
     y = y + out;
 end
 g = y;
