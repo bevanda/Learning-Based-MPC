@@ -78,21 +78,19 @@ for k = 1:(iterations)
     fprintf('iteration no. %d/%d \n',k,iterations);
     c=0;
     % Implement first optimal control move and update plant states.
-    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstable);
-    [xl_k1, ul] = getTransitions(xl,c,Kstable);
-    [xo,uo]=getTransitionsLearn(xo,c,Kstable,data);
+    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstable); % true model
+    [xl_k1, ul] = getTransitions(xl,c,Kstable); % linear model
+    [xo,uo]=getTransitionsLearn(xo,c,Kstable,data); % learned model
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
     %%%%%%%%%%%%%% DATA GENERATION %%%%%%%%%%%%%
-    
     X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
     Y=(x_k1-x_w)-(A*(x-x_w)+B*(u-r0)); %[δx_true-δx_nominal]
-    q=1000; % moving window of 50 datapoints 
-    if ~mod(k,20) % when to get data
+    q=1000; % moving window of q datapoints 
+    if ~mod(k,10) % when to get data
     data=update_data(X,Y,q,k,data);
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
     his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
     hisO=[xo;uo];
