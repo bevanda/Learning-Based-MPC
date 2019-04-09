@@ -73,7 +73,7 @@ data.Y=zeros(4,1);
 % load('dataLQRrun.mat');
 %%%%%%%%% APRBS signal %%%%%%%
 Ts = 0.01;%sampling time
-training_length = 1000;
+training_length = 6;
 t_min=0.1; t_max=2.5; %min & max timestep of APRBS signal in seconds
 a_min = -1; a_max = 1; %min & max amplitude of Trainings data
 tp = tp_input(training_length/Ts,[t_min,t_max],[a_min, a_max],Ts);
@@ -116,8 +116,8 @@ for k = 1:(iterations)
     xl=xl_k1;
 end
 toc
-
-save('observations.mat',data);
+%%
+save('obs.mat','data');
 %% PLOT
 figure;
 subplot(n+m,1,1);

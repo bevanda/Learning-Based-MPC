@@ -72,6 +72,7 @@ xo=x_eq_init;
 
 % load observations
 load('observations.mat');
+load('obs.mat');
 
 tic;
 for k = 1:(iterations)      
