@@ -84,22 +84,22 @@ for k = 1:(iterations)
     % setpoint being [0;0;0;0]
     if ~(mod(k,1))
     % UPDATE DATA for estimation
+    % MAYBE ADD A Qdata windows of 100 datapoint that is moving???
     X=[x(1:2)-x_w(1:2); u-r0];
     data.X=[data.X, X];
     Y=(x_k1-x_w)-(A*(x-x_w)+B*(u-r0));
     data.Y=[data.Y,Y];
     end
-    [xo_k1, uo] = getTransitions(xo,c,Kstable);
-    xo_k1=xo_k1+oracle(xo,ul,data);
-%     [xo,uo]=getTransitionsLearn(xo,c,Kstable,data);
+
+    [xo_k1,uo]=getTransitionsLearn(xo,c,Kstable,data);
 
     his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
     hisO=[xo;uo];
     hisL=[xl;ul];
     % Save plant states for display.
-    sysHistory = [sysHistory his]; 
-    sysHistoryL = [sysHistoryL hisL]; 
-    sysHistoryO = [sysHistoryO hisO]; 
+    sysHistory = [sysHistory his]; %#ok<*AGROW>
+    sysHistoryL = [sysHistoryL hisL]; %#ok<*AGROW>
+    sysHistoryO = [sysHistoryO hisO]; %#ok<*AGROW>
     
     
     xo=xo_k1;
@@ -157,7 +157,7 @@ legend({'True system', 'Linear system', 'Learned true system'});
 figure;
 plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'LineStyle','-'); hold on;
 plot(sysHistoryL(1,:),sysHistoryL(2,:),'Linewidth',1.5,'LineStyle','--');  hold on;
-plot(sysHistoryO(1,:),sysHistoryO(2,:),'Linewidth',1.5,'LineStyle','-.');
+plot(sysHistoryO(1,:),sysHistoryO(2,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
 grid on
 xlabel('x1');
 ylabel('x2');
