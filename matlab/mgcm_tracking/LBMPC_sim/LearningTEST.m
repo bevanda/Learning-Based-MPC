@@ -82,12 +82,12 @@ for k = 1:(iterations)
     [xl_k1, ul] = getTransitions(xl,c,Kstable);
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
-    %%%%%%%%%%%%%% DATA %%%%%%%%%%%%%
-    X=[x(1:2)-x_w(1:2); u-r0];
-    Y=(x_k1-x_w)-(A*(x-x_w)+B*(u-r0));
+    %%%%%%%%%%%%%% DATA GENERATION %%%%%%%%%%%%%
+    X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
+    Y=(x_k1-x_w)-(A*(x-x_w)+B*(u-r0)); %[δx_true-δx_nominal]
     q=50; % data window of 50 datapoints
     data=update_data(X,Y,q,k,data);
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     [xo_k1,uo]=getTransitionsLearn(xo,c,Kstable,data);
 
     his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
@@ -159,16 +159,3 @@ grid on
 xlabel('x1');
 ylabel('x2');
 title('State space');
-
-
-function data=update_data(X,Y,q,iter,data_old)
-    % Moving window of q datapoints
-    if iter<q
-    % UPDATE DATA for estimation
-        data.X=[data_old.X, X];
-        data.Y=[data_old.Y,Y];
-    else
-        data.X=[data_old.X(:,2:end), X];
-        data.Y=[data_old.Y(:,2:end),Y];
-    end
-end
