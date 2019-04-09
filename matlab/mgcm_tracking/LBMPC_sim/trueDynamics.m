@@ -1,4 +1,4 @@
-function [xk1] = trueDynamics(xk, uk)
+function [xk1,uk] = trueDynamics(xk, uk)
 %% Discrete-time linear dynamic model 
 % 
 % 4 states (x): 

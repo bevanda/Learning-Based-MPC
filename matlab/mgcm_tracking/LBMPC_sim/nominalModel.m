@@ -1,4 +1,4 @@
-function [xk, y, A, B] = nominalModel(x, u)
+function [xk, u] = nominalModel(x, u)
 %% Discrete-time linear dynamic model 
 %
 % 4 states (x): 

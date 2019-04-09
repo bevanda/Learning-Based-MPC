@@ -1,4 +1,4 @@
-function [xk, y] = learnedDynamics(x, u,data)
+function [xk, u] = learnedDynamics(x, u,data)
 %% Discrete-time linear dynamic model 
 %
 % 4 states (x): 
