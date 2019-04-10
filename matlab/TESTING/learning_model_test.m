@@ -53,7 +53,7 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys2);
 %% Exact discretisation
 
-dT = 0.01; % sampling time
+dT = 0.02; % sampling time
 
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
@@ -98,7 +98,7 @@ close all;
 % Horizon length
 N=20;
 % Simulation length (iterations)
-iterations = 1000;
+iterations = 10/dT;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = Ad;
