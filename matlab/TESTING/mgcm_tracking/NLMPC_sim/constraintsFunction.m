@@ -1,4 +1,4 @@
-function [cieq, ceq] = constraintsFunction(c,theta,x,N,xw,r0,K,LAMBDA,PSI,state_F,state_h,in_F,in_h,term_F,term_h)
+function [cieq, ceq] = constraintsFunction(c,theta,x,N,xw,r0,K,LAMBDA,PSI,state_F,state_h,in_F,in_h,term_F,term_h,dT)
 %% Constraint function of nonlinear MPC for pendulum swing-up and balancing control
 %
 % Inputs:
@@ -24,7 +24,7 @@ for k=1:N
         % inequality constraints
         
         % obtain new state at next prediction step
-        [xk1, uk] = getTransitionsTrue(xk, ck,xw,r0, K);
+        [xk1, uk] = getTransitionsTrue(xk, ck,xw,r0, K,dT);
         x=xk1-xw;
         u=uk-r0;
 %         Xs=E(1:n,:); Us= E(n+1:n+m);

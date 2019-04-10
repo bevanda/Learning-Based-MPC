@@ -1,4 +1,4 @@
-function J = costFunction(c,theta,x,xs,N,c0,Q,R,P,T,xw,r0,K,LAMBDA,PSI)
+function J = costFunction(c,theta,x,xs,N,c0,Q,R,P,T,xw,r0,K,LAMBDA,PSI,dT)
 %% Cost function of non-quadratic discrete time LTI
 % Inputs:
 %   c:      decision variable, from time k to time k+N-1 
@@ -24,7 +24,7 @@ J = 0;
 % Loop through each prediction step.
 for k=1:N
     % Obtain plant state at next prediction step.
-    [xk1,uk]= getTransitionsTrue(xk, ck, xw,r0,K);
+    [xk1,uk]= getTransitionsTrue(xk, ck, xw,r0,K,dT);
     x=xk1-xw;
     u=uk-r0;
     % RUNNING COST
