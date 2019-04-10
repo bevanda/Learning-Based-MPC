@@ -53,9 +53,7 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys2);
 %% Exact discretisation
 
-% dT = 0.05; % sampling time
-dT = 0.02; % sampling time
-% dT = 0.01; % sampling time
+dT = 0.01; % sampling time
 
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
@@ -69,16 +67,17 @@ sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
 pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles near Re(p_old) inside unit circle
-
-% p=[0.13, 0.16, 0.9, 0.95]; % dT=0.05
-
-p=[0.55, 0.6, 0.9, 0.95]; % dT=0.02
-
-% p=[0.75, 0.78, 0.98, 0.99]; % dT=0.01
+switch dT
+    case 0.05
+        p=[0.13, 0.16, 0.9, 0.95]; % dT=0.05
+    case 0.02
+        p=[0.55, 0.6, 0.9, 0.95]; % dT=0.02
+    case 0.01
+        p=[0.75, 0.78, 0.98, 0.99]; % dT=0.01
+end
 
 [K,prec,message] = place(Ad,Bd,p) %nominal feedback matrix
 Kstabil=-K;
-% K=[+3.0741 2.0957 0.1197 -0.0090]; %nominal feedback matrix from the LBMPC paper
 
 AK = Ad+Bd*Kstabil;
 e = eig(AK);
@@ -167,8 +166,14 @@ for k = 1:(iterations)
     
     %%%%%%%%%%%%%% DATA GENERATION %%%%%%%%%%%%%
     X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
-    Y=-((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))) ; %[δx_true-δx_nominal]
-    q=iterations/10; % moving window of q datapoints 
+    switch dT
+        case 0.01
+            Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
+        otherwise
+            Y=-((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
+    end
+    
+    q=iterations/1; % moving window of q datapoints 
     data=update_data(X,Y,q,k,data);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
