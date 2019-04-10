@@ -311,7 +311,6 @@ for k = 1:(iterations)
         end
         % update state vars for estimation
         x=x_k1;
-        xl=xl_k1;
         
         % get iterations
         q=iterations/1; % moving window of q datapoints 
@@ -325,32 +324,22 @@ for k = 1:(iterations)
     % RUN THE OPTIMAL CONTROL PROBLEM
     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,LAMBDA,PSI,data);
     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],[],options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;
 %     c=0;
     % Apply control to system and models
     % Implement first optimal control move and update plant states.
-    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % plant
-    % Update states of the two models
-    [xl_k1, ul] = getTransitions(xl,c,Kstabil); % linear model
-    [xo,uo]=getTransitionsLearn(xo,c,Kstabil,data); % learned model
-    
+    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % plant   
     
     % Save state data for plotting w.r.t. work point x_w
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
     his = [x-x_w; u-r0]; 
-    hisO=[xo;uo];
-    hisL=[xl;ul];
     
     % Save plant states for display.
     sysHistory = [sysHistory his]; %#ok<*AGROW>
-    sysHistoryL = [sysHistoryL hisL]; %#ok<*AGROW>
-    sysHistoryO = [sysHistoryO hisO]; %#ok<*AGROW>
-   
-    
     art_refHistory = [art_refHistory art_ref(1:m)];
     true_refHistory = [true_refHistory x_eq_ref];
     
@@ -361,40 +350,31 @@ toc
 figure;
 subplot(n+m,1,1);
 plot(0:iterations,sysHistory(1,:),'Linewidth',1.5); hold on;
-plot(0:iterations,sysHistoryL(1,:),'Linewidth',1.5,'LineStyle','--'); hold on;
-plot(0:iterations,sysHistoryO(1,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
 grid on
 xlabel('iterations');
 ylabel('x1');
 title('mass flow');
 subplot(n+m,1,2);
 plot(0:iterations,sysHistory(2,:),'Linewidth',1.5); hold on;
-plot(0:iterations,sysHistoryL(2,:),'Linewidth',1.5,'LineStyle','--'); hold on;
-plot(0:iterations,sysHistoryO(2,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
 grid on
 xlabel('iterations');
 ylabel('x2');
 title('pressure rise');
 subplot(n+m,1,3);
 plot(0:iterations,sysHistory(3,:),'Linewidth',1.5); hold on;
-plot(0:iterations,sysHistoryL(3,:),'Linewidth',1.5,'LineStyle','--'); hold on;
-plot(0:iterations,sysHistoryO(3,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
 grid on
 xlabel('iterations');
 ylabel('x3');
 title('throttle');
 subplot(n+m,1,4);
 plot(0:iterations,sysHistory(4,:),'Linewidth',1.5); hold on;
-plot(0:iterations,sysHistoryL(4,:),'Linewidth',1.5,'LineStyle','--'); hold on;
-plot(0:iterations,sysHistoryO(4,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
 grid on
 xlabel('iterations');
 ylabel('x4');
 title('throttle rate');
 subplot(n+m,1,5);
 plot(0:iterations,sysHistory(5,:),'Linewidth',1.5); hold on;
-plot(0:iterations,sysHistoryL(5,:),'Linewidth',1.5,'LineStyle','--'); hold on;
-plot(0:iterations,sysHistoryO(5,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
+
 
 grid on
 xlabel('iterations');
@@ -405,8 +385,6 @@ legend({'True system', 'Linear system', 'Learned true system'});
 
 figure;
 plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'LineStyle','-'); hold on;
-plot(sysHistoryL(1,:),sysHistoryL(2,:),'Linewidth',1.5,'LineStyle','--');  hold on;
-plot(sysHistoryO(1,:),sysHistoryO(2,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
 grid on
 xlabel('x1');
 ylabel('x2');
