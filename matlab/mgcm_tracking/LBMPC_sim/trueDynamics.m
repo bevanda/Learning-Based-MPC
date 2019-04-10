@@ -1,4 +1,4 @@
-function [xk1,uk] = trueDynamics(xk, uk)
+function [xk1,uk] = trueDynamics(xk, uk,Ts)
 %% Discrete-time linear dynamic model 
 % 
 % 4 states (x): 
@@ -8,7 +8,6 @@ function [xk1,uk] = trueDynamics(xk, uk)
 % Simulating the continuous time system
 % -------------------------------------------------------------------------
 % Repeat application of Euler method sampled at Ts/M.
-Ts = 0.01;
 % M = 10;
 % delta = Ts/M;
 % xk1 = xk;

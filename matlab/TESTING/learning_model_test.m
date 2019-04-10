@@ -3,7 +3,7 @@ clearvars; clc; close all;
 syms u ... % control input
     x1 ... % mass flow
     x2 ... % pressure rise
-    x3 ... % throttle opeining
+    x3 ... % throttle opening
     x4 ... % throttle opening rate
     ;
 wn=sqrt(1000); % resonant frequency
