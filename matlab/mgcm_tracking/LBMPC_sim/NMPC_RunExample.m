@@ -1,4 +1,4 @@
-clearvars; clc; close all;
+clearvars;  
 %% INIT CONTROLLER DESIGN
 syms u ... % control input
     x1 ... % mass flow
@@ -62,9 +62,9 @@ Dd=D;
 Td=dT;
 Ts=dT;
 e = eig(Ad);
-figure;
-sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
-pzmap(sys);
+% figure;
+% sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
+% pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles near Re(p_old) inside unit circle
 switch dT
@@ -85,14 +85,12 @@ e = eig(AK);
 Q = eye(4); R=1;
 P = dare(AK,Bd,Q,R);
 Klqr= -dlqr(Ad,Bd,Q,R);
-figure;
-sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',dT);
-pzmap(sys);
+% figure;
+% sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',dT);
+% pzmap(sys);
 
 
 %% TRACKING piecewise constant REFERENCE MPC example
-close all;
-% clearvars;
 
 %% Parameters
 % Horizon length
@@ -300,32 +298,13 @@ data.Y=zeros(4,1);
 tic;
 for k = 1:(iterations)      
     fprintf('iteration no. %d/%d \n',k,iterations);
-    if k>1
-        % DATA ACQUISTION 
-        X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
-        switch dT
-            case 0.01
-                Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
-            otherwise
-                Y=-((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_nominal-δx_true]
-        end
-        % update state vars for estimation
-        x=x_k1;
-%         xl=xn_k1;
-        % get iterations
-        q=iterations/1; % moving window of q datapoints 
-        data=update_data(X,Y,q,k,data);
-        % get the real state w.r.t. equilibrium
-%         x_eq=x-x_w;
-        x_eq = x;
-    else
-%         x_eq=x_eq_init;
-        x_eq = x;
-    end
+
+   	x_eq=x;
+    
     
     % SOLVE THE OPTIMAL CONTROL PROBLEM
-    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
+    COSTFUN = @(var) NMPC_costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
+    CONSFUN = @(var) NMPC_constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,x_w,r0,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],[],options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
@@ -334,6 +313,7 @@ for k = 1:(iterations)
     % Apply control to system and models
     % Implement first optimal control move and update plant states.
     [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % plant   
+    x=x_k1;
 %     [xn_k1,un]= getTransitionsLearn(xl,c,Kstabil,data); % learned model
     % Save state data for plotting w.r.t. work point x_w
     % shift the output so that it's from the working point perspective
