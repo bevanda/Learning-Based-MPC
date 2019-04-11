@@ -1,4 +1,4 @@
-clearvars;  %close all;
+clearvars;  close all;
 %% INIT CONTROLLER DESIGN
 syms u ... % control input
     x1 ... % mass flow
@@ -10,20 +10,20 @@ wn=sqrt(1000); % resonant frequency
 zeta=1/sqrt(2); % damping coefficient
 beta=1; % constant >0
 x2_c=0; % pressure constant
-%% Constraints
+% Constraints
 mflow_min=0; mflow_max=1;
 prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
-%% Continous time state-space model of the Moore-Greitzer compressor model
+% Continous time state-space model of the Moore-Greitzer compressor model
 
 f1 = -x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
 f2 = (x1+1-x3*sqrt(x2))/(beta^2); % pressure rise rate
 f3 = x4; % throttle opening rate
 f4 = -wn^2*x3-2*zeta*wn*x4+wn^2*u; % throttle opening acceleration
 
-%% Linearisation around the equilibrium [0.5 1.6875 1.1547 0]'
+% Linearisation around the equilibrium [0.5 1.6875 1.1547 0]'
 
 A = jacobian([f1,f2, f3, f4], [x1, x2, x3, x4]);
 B = jacobian([f1,f2, f3, f4], [u]);
@@ -56,7 +56,7 @@ sys = tf([b(1,:)],[a]);
 
 %% Exact discretization
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-dT = 0.01; % sampling time
+dT = 0.02; % sampling time
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
@@ -65,18 +65,20 @@ Dd=D;
 Td=dT;
 Ts=dT;
 e = eig(Ad);
-% figure;
-% sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
-% pzmap(sys);
+figure;
+sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
+pzmap(sys);
 
-%% System stabilisation /w feedback matrix K to place poles near Re(p_old) inside unit circle
+% System stabilisation /w feedback matrix K to place poles near Re(p_old) inside unit circle
 switch dT
     case 0.05
         p=[0.13, 0.16, 0.9, 0.95]; % dT=0.05
+    case 0.04
+        p=[0.15, 0.2, 0.93, 0.98]; % dT=0.02
     case 0.02
-        p=[0.55, 0.65, 0.93, 0.99]; % dT=0.02
+        p=[0.55, 0.65, 0.95, 0.99]; % dT=0.02
     case 0.015
-        p=[0.65, 0.70, 0.9, 0.99]; % dT=0.015
+        p=[0.65, 0.70, 0.98, 0.99]; % dT=0.015
     case 0.01
         p=[0.75, 0.78, 0.98, 0.99]; % dT=0.01
 end
@@ -90,21 +92,14 @@ e = eig(AK);
 Q = eye(4); R=1;
 P = dare(AK,Bd,Q,R);
 Klqr= -dlqr(Ad,Bd,Q,R);
-% figure;
-% sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',dT);
-% pzmap(sys);
-
-
-%% TRACKING piecewise constant REFERENCE MPC example
-
-
-%% Parameters
-% Horizon length
-N=10;
-% Simulation length (iterations)
-iterations = 12/dT;
-
-%% Discrete time nominal model of the non-square LTI system for tracking
+figure;
+sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',dT);
+pzmap(sys);
+AKlq= Ad+Bd*Klqr;
+figure;
+sys2 = idss(AKlq,zeros(4,1),Cd,Dd,'Ts',dT);
+pzmap(sys2);
+%%Discrete time nominal model of the non-square LTI system for tracking
 A = Ad;
 B = Bd;
 C = Cd;
@@ -133,19 +128,18 @@ r0 = x_w(3);
 
 Q = eye(n);
 R = eye(m);
-%%
-%==========================================================================
-% Define a nominal feedback policy K and corresponding terminal cost
-% 'baseline' stabilizing feedback law
-K = -dlqr(A, B, Q, R);
 
-%%
-% Kstable=-[+3.0741 2.0957 0.1197 -0.0090]; % K stabilising gain from the papers
-% Kstable=-[3.0742   -2.0958   -0.1194    0.0089];
+
+%% Start simulation
+% Horizon length
+N=10;
+% Simulation length (iterations)
+iterations = 12/dT;
+
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
-%% Start simulation
+
 sysHistory = [x_eq_init;u0(1:m,1)];
 sysHistoryL=sysHistory;
 sysHistoryO=sysHistory;
@@ -170,9 +164,9 @@ for k = 1:(iterations)
         X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
 %         switch dT
 %             case 0.01
-%                 Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
+                Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
 %             otherwise
-                Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_nominal-δx_true]
+%                 Y=-((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_nominal-δx_true]
 %         end
         % update state vars for estimation
         x=x_k1;
@@ -180,7 +174,7 @@ for k = 1:(iterations)
         xo=xo_k1;
         
         % get iterations
-        q=iterations/1; % moving window of q datapoints 
+        q=iterations/10; % moving window of q datapoints 
         data=update_data(X,Y,q,k,data);
     end
     
@@ -189,9 +183,9 @@ for k = 1:(iterations)
     
     % Apply control to system and models
     % Implement first optimal control move and update plant states.
-    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % true model
-    [xl_k1, ul] = getTransitions(xl,c,Kstabil); % linear model
-    [xo_k1,uo]= getTransitionsLearn(xo,c,Kstabil,data); % learned model  
+    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Klqr,dT); % true model
+    [xl_k1, ul] = getTransitions(xl,c,Klqr); % linear model
+    [xo_k1,uo]= getTransitionsLearn(xo,c,Klqr,data); % learned model  
     % Save state data for plotting w.r.t. work point x_w
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]

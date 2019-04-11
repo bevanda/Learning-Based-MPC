@@ -29,10 +29,9 @@ for k=1:N
     % RUNNING COST
     if k < N-1
         % accumulate state tracking cost from x(k+1) to x(k+N).
-        J = J + (xk1-LAMBDA*theta)'*Q*(xk1-LAMBDA*theta);
+        J = J + (xk-LAMBDA*theta)'*Q*(xk-LAMBDA*theta);
         % accumulate MV rate of change cost from u(k) to u(k+N-1).
         J = J + (uk-PSI*theta)'*R*(uk-PSI*theta);
-
     end
     %TERMINAL COST
     if k == N

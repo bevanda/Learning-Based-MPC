@@ -10,20 +10,20 @@ wn=sqrt(1000); % resonant frequency
 zeta=1/sqrt(2); % damping coefficient
 beta=1; % constant >0
 x2_c=0; % pressure constant
-%% Constraints
+% Constraints
 mflow_min=0; mflow_max=1;
 prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
 u_min=0.1547;u_max=2.1547;
-%% Continous time state-space model of the Moore-Greitzer compressor model
+% Continous time state-space model of the Moore-Greitzer compressor model
 
 f1 = -x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
 f2 = (x1+1-x3*sqrt(x2))/(beta^2); % pressure rise rate
 f3 = x4; % throttle opening rate
 f4 = -wn^2*x3-2*zeta*wn*x4+wn^2*u; % throttle opening acceleration
 
-%% Linearisation around the equilibrium [0.5 1.6875 1.1547 0]'
+% Linearisation around the equilibrium [0.5 1.6875 1.1547 0]'
 
 A = jacobian([f1,f2, f3, f4], [x1, x2, x3, x4]);
 B = jacobian([f1,f2, f3, f4], [u]);
@@ -53,7 +53,7 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys2);
 %% Exact discretisation
 
-dT = 0.015; % sampling time
+dT = 0.01; % sampling time
 
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
@@ -62,9 +62,9 @@ Dd=D;
 Td=dT;
 Ts=dT;
 e = eig(Ad);
-figure;
-sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
-pzmap(sys);
+% figure;
+% sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
+% pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles near Re(p_old) inside unit circle
 switch dT
@@ -87,17 +87,14 @@ e = eig(AK);
 Q = eye(4); R=1;
 P = dare(AK,Bd,Q,R);
 Klqr= -dlqr(Ad,Bd,Q,R);
+T=1000;
+
 % figure;
 % sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',dT);
 % pzmap(sys);
-
-
-%% TRACKING piecewise constant REFERENCE MPC example
-
-
 %% Parameters
 % Horizon length
-N=50;
+N=20;
 % Simulation length (iterations)
 iterations = 6/dT;
 
@@ -140,40 +137,14 @@ LAMBDA_0 = V_0(1:n);
 PSI_0 = V_0(n+1:n+m);
 %%%%%%%%%%%%%%%%%%%%%
 
+
+noK=zeros(m,n);
 %%
-%==========================================================================
-% Define a nominal feedback policy K and corresponding terminal cost
-% 'baseline' stabilizing feedback law
-Q = eye(n);
-R = eye(m);
-
-Klqr = -dlqr(A, B, Q, R);
-% Terminal cost chosen as solution to DARE
-P = dare(A+B*K, B, Q, R);
-% terminal steady state cost
-T = 1000; 
-
-
-%%
-%==========================================================================
-% Define polytopic constraints on input F_u*x <= h_u and
-% state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
-%==========================================================================
-% Constraints
-mflow_min=0; mflow_max=1;
-prise_min=1.1875; prise_max=2.1875;
-throttle_min=0.1547; throttle_max=2.1547;
-throttle_rate_min=-20; throttle_rate_max=20;
-u_min=0.1547;u_max=2.1547;
-
 umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 %%%%%%%%%%%%%%%%%%%%%%%
-% To be calculated with the Taylor remainder theorem
-% state_uncert = [0.0;0.0;0.0;0.0]; % just for testing
-% state_uncert = [0.02;5e-04;0;0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
-state_uncert = [0.02;0.02;0.01;0.01]; % test
+
 %%
 %  Shift the constraints for the linearised model for the value of the
 %  working point
@@ -189,28 +160,14 @@ shrnik=0.0;
 % Shift the abs system constraints w.r.t. to the linearisation point
 F_u = [eye(m); -eye(m)]; h_u = [umax-r0-shrnik; -umin+r0+shrnik];
 F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w-shrnik; -xmin+x_w+shrnik];
-F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
+
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
 length_Fx = length(h_x);
-length_Fg = length(h_g);
-% run_F = [F_x zeros(length_Fx, m);...
-%         zeros(length_Fu,n) F_u];
-% run_h = [h_x;h_u];
-%% State constraints
-temp = polytope(F_x, h_x) - polytope(F_g, h_g);
-    [F_x_g, h_x_g] = double(temp);
-    Fx{1} = F_x;
-    fx{1} = h_x;
-    for i=2:N
-        Fx{i} = F_x;
-        fx{i} = h_x;
-    end
-    for i=1:N
-       Fu{i} = F_u;
-       fu{i} = h_u;
-    end
 
+run_F = [F_x zeros(length_Fx, m);...
+        zeros(length_Fu,n) F_u];
+run_h = [h_x;h_u];
 %%
 %==========================================================================
 % Compute maximal invariant set
@@ -223,50 +180,22 @@ K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
 disp('Computing and simplifying terminal set...');
 % extended state constraints
+L=(PSI - Klqr*LAMBDA);
+F_w = [F_x zeros(length_Fx, m);
+    zeros(length_Fx, n) F_x*LAMBDA; ...
+    F_u*Klqr, F_u*L; ...
+    zeros(length_Fu, n) F_u*PSI];
 
-F_w = [ F_x zeros(length_Fx, m);
-        zeros(length_Fx, n) F_x*LAMBDA; ...
-        F_u*K_t, F_u*(PSI - K_t*LAMBDA); ...
-        zeros(length_Fu, n) F_u*PSI; ...
-        F_x_g*(A+B*K_t) F_x_g*B*(PSI-K_t*LAMBDA)];
-h_w = [ h_x; ...
-        h_x - F_x*LAMBDA_0; ...
-        h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
-        h_u - F_u*PSI_0; ...
-        h_x_g - F_x_g*B*(PSI_0-K_t*LAMBDA_0)];
+lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
+% invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
+h_w = [...
+    h_x; ...
+    (h_x - F_x*LAMBDA_0)*lambda; ...
+    h_u - F_u*(PSI_0 - Klqr*LAMBDA_0); ...
+    (h_u - F_u*PSI_0)]*lambda;
 
-    
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-% % from LMPC    
-% F_w = [F_x zeros(length_Fx, m);
-%     zeros(length_Fx, n) F_x*LAMBDA; ...
-%     F_u*K, F_u*(PSI - K*LAMBDA); ...
-%     zeros(length_Fu, n) F_u*PSI];
-% 
-% lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
-% % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
-% h_w = [...
-%     h_x; ...
-%     (h_x - F_x*LAMBDA_0)*lambda; ...
-%     h_u - F_u*(PSI_0 - K*LAMBDA_0); ...
-%     (h_u - F_u*PSI_0)]*lambda;
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+F_w_N0 = F_w; h_w_N0 = h_w; 
 
-% disturbance constraints of the extended state 
-F_g_w = [F_g zeros(length_Fg,m); ...
-        zeros(m, n) eye(m); ...
-        zeros(m, n) -eye(m)];
-h_g_w = [h_g; ...
-        zeros(2*m,1)];
-    
-
-% calculating the robust positively invariant set    
-[F_w_N0, h_w_N0] = pdiff(F_w, h_w, F_g_w, h_g_w);
-
-% 
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% F_w_N0 = F_w; h_w_N0 = h_w; % from LMPC
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Simplify the constraints
 term_poly = polytope(F_w_N0, h_w_N0);
@@ -285,18 +214,13 @@ theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
 
 sysHistory = [x_eq_init;u0(1:m,1)];
-
 art_refHistory =  0;
 true_refHistory = x_eq_ref;
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 x = x_w+x_eq_init; % true sistem init state
-% init states from models used in MPC
-xl=x_eq_init;
-xo=x_eq_init;
-% init data form estimation
-data.X=zeros(3,1);
-data.Y=zeros(4,1);
+
 %% Run LBMPC
+
 tic;
 for k = 1:(iterations)      
     fprintf('iteration no. %d/%d \n',k,iterations);
@@ -307,7 +231,7 @@ for k = 1:(iterations)
     end
     
     % SOLVE THE OPTIMAL CONTROL PROBLEM
-    COSTFUN = @(var) LMPC_costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
+    COSTFUN = @(var) LMPC_costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,[]);
     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
@@ -316,8 +240,8 @@ for k = 1:(iterations)
     
     % Apply control to system and models
     % Implement first optimal control move and update plant states.
-    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % plant  \
-    x=x_k1;
+    [x, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % plant  
+
     % Save state data for plotting w.r.t. work point x_w
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]

@@ -14,30 +14,30 @@ function J = costFunction(c,theta,x,xs,N,c0,Q,R,P,T,xw,r0,K,LAMBDA,PSI)
 %   J:      objective function cost
 %
 
-%% LMPC design parameters
+%% NLMPC design parameters
 
 % Set initial plant states, controller output and cost.
 xk = x;
 ck = c0;
-
 J = 0;
-% Loop through each prediction step.
+
 for k=1:N
     % Obtain plant state at next prediction step.
     [xk1,uk]= getTransitionsTrue(xk, ck, xw,r0,K);
-    x=xk1-xw;
-    u=uk-r0;
+    dx=xk-xw;
+    du=uk-r0;
+    
     % RUNNING COST
     if k < N-1
-        % accumulate state tracking cost from x(k+1) to x(k+N).
-        J = J + (x-LAMBDA*theta)'*Q*(x-LAMBDA*theta);
-        % accumulate MV rate of change cost from u(k) to u(k+N-1).
-        J = J + (u-PSI*theta)'*R*(u-PSI*theta);
-
+    % accumulate state tracking cost from x(k+1) to x(k+N).
+    J = J + (dx-LAMBDA*theta)'*Q*(dx-LAMBDA*theta);
+    % accumulate MV rate of change cost from u(k) to u(k+N-1).
+    J = J + (du-PSI*theta)'*R*(du-PSI*theta);
     end
     %TERMINAL COST
     if k == N
-        J = J + (x-LAMBDA*theta)'*P*(x-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
+        %TERMINAL COST
+        J = J + (dx-LAMBDA*theta)'*P*(dx-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
     end
     % Update xk and uk for the next prediction step.
     xk = xk1;
@@ -45,5 +45,4 @@ for k=1:N
         ck = c(:,k+1);
     end
 end
-
-
+end

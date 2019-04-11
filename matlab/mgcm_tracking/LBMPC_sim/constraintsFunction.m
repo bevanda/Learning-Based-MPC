@@ -45,7 +45,6 @@ for k=1:N
     end
        
 end
-
 %% No equality constraints
 ceq = [];
 
