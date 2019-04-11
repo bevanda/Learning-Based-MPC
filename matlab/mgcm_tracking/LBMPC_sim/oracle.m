@@ -14,12 +14,15 @@ n = size(X,2);
 
 kval = zeros(1,n);
 U = @(X,ksi,bandwidth) (norm(X - ksi).^2)/bandwidth^2;
-
-% Gaussian Kernel
+Ui= @(X,ksi,bandwidth,i) (norm(X(i) - ksi(i)).^2)/bandwidth^2;
+% Gaussian Kernel (fastest)
 gauss = @(X,ksi,bandwidth) exp(-(U(X,ksi,bandwidth)));
-% % Spherical Epanechnikov kernel
-% epan_sph= @(X,ksi,bandwidth) (1-(U(X,ksi,bandwidth))*(U(X,ksi,bandwidth)'*U(X,ksi,bandwidth) < 1));
-
+% 3D Multiplicative Epanechnikov kernel
+epan_mul= @(X,ksi,bandwidth) (3/4)^3*(1-(Ui(X,ksi,bandwidth,1)^2)*(abs(Ui(X,ksi,bandwidth,1)) <= 1))...
+    *(1-(Ui(X,ksi,bandwidth,2)^2)*(abs(Ui(X,ksi,bandwidth,2)) <= 1))...
+    *(1-(Ui(X,ksi,bandwidth,3)^2)*(abs(Ui(X,ksi,bandwidth,3)) <= 1));
+% Spherical Epannchnikov kernel
+epan_sph= @(X,ksi,bandwidth) (1-(U(X,ksi,bandwidth)'*(U(X,ksi,bandwidth))))*((U(X,ksi,bandwidth)'*(U(X,ksi,bandwidth)) <= 1));
 for i=1:n
     kval(i) = gauss(X(:,i),ksi,bandwidth);
 end

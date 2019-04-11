@@ -53,7 +53,7 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys2);
 %% Exact discretisation
 
-dT = 0.02; % sampling time
+dT = 0.015; % sampling time
 
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
@@ -62,9 +62,9 @@ Dd=D;
 Td=dT;
 Ts=dT;
 e = eig(Ad);
-% figure;
-% sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
-% pzmap(sys);
+figure;
+sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
+pzmap(sys);
 
 %% System stabilisation /w feedback matrix K to place poles near Re(p_old) inside unit circle
 switch dT
@@ -72,6 +72,8 @@ switch dT
         p=[0.13, 0.16, 0.9, 0.95]; % dT=0.05
     case 0.02
         p=[0.55, 0.6, 0.9, 0.95]; % dT=0.02
+    case 0.015
+        p=[0.65, 0.70, 0.98, 0.99]; % dT=0.015
     case 0.01
         p=[0.75, 0.78, 0.98, 0.99]; % dT=0.01
 end
@@ -95,7 +97,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=5;
+N=50;
 % Simulation length (iterations)
 iterations = 6/dT;
 
@@ -182,7 +184,8 @@ x_w = [0.5;...
 r0 = x_w(3);
 
 %% testing /w oracle
-shrnik=0.1;
+% shrnik=0.1;
+shrnik=0.0;
 % Shift the abs system constraints w.r.t. to the linearisation point
 F_u = [eye(m); -eye(m)]; h_u = [umax-r0-shrnik; -umin+r0+shrnik];
 F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w-shrnik; -xmin+x_w+shrnik];
@@ -306,7 +309,7 @@ for k = 1:(iterations)
     % SOLVE THE OPTIMAL CONTROL PROBLEM
     COSTFUN = @(var) LMPC_costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],[],options);    
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;

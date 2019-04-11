@@ -1,4 +1,4 @@
-clearvars;  
+clearvars;  %close all;
 %% INIT CONTROLLER DESIGN
 syms u ... % control input
     x1 ... % mass flow
@@ -51,10 +51,13 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys);
 % grid on;
 % pzmap(sys2);
-%% Exact discretisation
 
-dT = 0.02; % sampling time
 
+
+%% Exact discretization
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+dT = 0.01; % sampling time
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
 Cd=C;
@@ -71,7 +74,9 @@ switch dT
     case 0.05
         p=[0.13, 0.16, 0.9, 0.95]; % dT=0.05
     case 0.02
-        p=[0.55, 0.6, 0.9, 0.95]; % dT=0.02
+        p=[0.55, 0.65, 0.93, 0.99]; % dT=0.02
+    case 0.015
+        p=[0.65, 0.70, 0.9, 0.99]; % dT=0.015
     case 0.01
         p=[0.75, 0.78, 0.98, 0.99]; % dT=0.01
 end
@@ -95,9 +100,9 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=5;
+N=10;
 % Simulation length (iterations)
-iterations = 6/dT;
+iterations = 12/dT;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = Ad;
@@ -107,7 +112,6 @@ C = Cd;
 n = size(A,1);
 m = size(B,2);
 o = size(C,1);
-
 
 % The initial conditions
 x_eq_init = [-0.35;...
@@ -164,12 +168,12 @@ for k = 1:(iterations)
     if k>1
         % DATA ACQUISTION 
         X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
-        switch dT
-            case 0.01
-                Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
-            otherwise
-                Y=-((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_nominal-δx_true]
-        end
+%         switch dT
+%             case 0.01
+%                 Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
+%             otherwise
+                Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_nominal-δx_true]
+%         end
         % update state vars for estimation
         x=x_k1;
         xl=xl_k1;
@@ -187,7 +191,7 @@ for k = 1:(iterations)
     % Implement first optimal control move and update plant states.
     [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % true model
     [xl_k1, ul] = getTransitions(xl,c,Kstabil); % linear model
-    [xo_k1,uo]=getTransitionsLearn(xo,c,Kstabil,data); % learned model  
+    [xo_k1,uo]= getTransitionsLearn(xo,c,Kstabil,data); % learned model  
     % Save state data for plotting w.r.t. work point x_w
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
@@ -242,7 +246,6 @@ subplot(n+m,1,5);
 plot(0:iterations,sysHistory(5,:),'Linewidth',1.5); hold on;
 plot(0:iterations,sysHistoryL(5,:),'Linewidth',1.5,'LineStyle','--'); hold on;
 plot(0:iterations,sysHistoryO(5,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
-
 grid on
 xlabel('iterations');
 ylabel('u');
@@ -258,3 +261,4 @@ grid on
 xlabel('x1');
 ylabel('x2');
 title('State space');
+legend({'True system', 'Linear system', 'Learned system'});
