@@ -72,8 +72,8 @@ data.X=zeros(3,1);
 data.Y=zeros(4,1);
 % load('dataLQRrun.mat');
 %%%%%%%%% APRBS signal %%%%%%%
-Ts = 0.01;%sampling time
-training_length = 6;
+Ts = 0.02;%sampling time
+training_length = 60;
 t_min=0.1; t_max=2.5; %min & max timestep of APRBS signal in seconds
 a_min = -1; a_max = 1; %min & max amplitude of Trainings data
 tp = tp_input(training_length/Ts,[t_min,t_max],[a_min, a_max],Ts);
@@ -86,7 +86,7 @@ for k = 1:(iterations)
     fprintf('iteration no. %d/%d \n',k,iterations);
     c=tp.signals.values(k);
     % Implement first optimal control move and update plant states.
-    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstable); % true model
+    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstable,Ts); % true model
     [xl_k1, ul] = getTransitions(xl,c,Kstable); % linear model
     [xo,uo]=getTransitionsLearn(xo,c,Kstable,data); % learned model
 %     [x_k1, u] = trueDynamics(x,c+r0); % true model
