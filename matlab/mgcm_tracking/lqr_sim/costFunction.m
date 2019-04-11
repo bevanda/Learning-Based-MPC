@@ -1,4 +1,4 @@
-function J = costFunction(c,theta,x,xs,N,c0,Q,R,P,T,K,x_w,r0,LAMBDA,PSI,data,dT)
+function J = costFunction(c,theta,x,xs,N,c0,Q,R,P,T,K,LAMBDA,PSI)
 %% Cost function of non-quadratic discrete time LTI
 % Inputs:
 %   c:      decision variable, from time k to time k+N-1 
@@ -22,25 +22,27 @@ ck = c0;
 
 J = 0;
 % Loop through each prediction step.
-for k=1:N-1  
+for k=1:N
     % Obtain plant state at next prediction step.
-%     [xk1,uk]= getTransitionsLearn(xk,ck,K,data); % learned model
-%     [xk1,uk]=getTransitions(xk,ck,K);
-    [xk1, uk] = getTransitionsTrue(xk,ck,x_w,r0,K,dT); % plant  
-    dx=xk-x_w;
-    du=uk-r0;
+    [xk1,uk]= getTransitions(xk, ck, K);
+    
     % RUNNING COST
-    % accumulate state tracking cost from x(k+1) to x(k+N).
-    J = J + (dx-LAMBDA*theta)'*Q*(dx-LAMBDA*theta);
-    % accumulate MV rate of change cost from u(k) to u(k+N-1).
-    J = J + (du-PSI*theta)'*R*(du-PSI*theta);
+    if k < N-1
+        % accumulate state tracking cost from x(k+1) to x(k+N).
+        J = J + (xk1-LAMBDA*theta)'*Q*(xk1-LAMBDA*theta);
+        % accumulate MV rate of change cost from u(k) to u(k+N-1).
+        J = J + (uk-PSI*theta)'*R*(uk-PSI*theta);
 
+    end
+    %TERMINAL COST
+    if k == N
+        J = J + (xk1-LAMBDA*theta)'*P*(xk1-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
+    end
     % Update xk and uk for the next prediction step.
     xk = xk1;
- 
-    ck = c(:,k+1);
+    if k<N
+        ck = c(:,k+1);
+    end
+end
 
-end
-%TERMINAL COST
-J = J + (dx-LAMBDA*theta)'*P*(dx-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
-end
+

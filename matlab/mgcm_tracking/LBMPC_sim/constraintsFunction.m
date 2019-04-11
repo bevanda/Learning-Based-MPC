@@ -28,11 +28,11 @@ for k=1:N
 %         Xs=E(1:n,:); Us= E(n+1:n+m);
         % H-representation of constraints
         % state constraints
-%         cieq_run1 = state_F*xk1-state_h;
-%         cieq  = [cieq; cieq_run1];
-%         % input constraints
-%         cieq_run2 = in_F*uk-in_h;
-%         cieq  = [cieq; cieq_run2];
+        cieq_run1 = state_F*xk1-state_h;
+        cieq  = [cieq; cieq_run1];
+        % input constraints
+        cieq_run2 = in_F*uk-in_h;
+        cieq  = [cieq; cieq_run2];
         % update plant state and input for next step
         xk = xk1;
         if k<N

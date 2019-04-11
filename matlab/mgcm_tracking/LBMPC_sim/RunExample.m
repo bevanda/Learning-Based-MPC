@@ -96,9 +96,9 @@ close all;
 
 %% Parameters
 % Horizon length
-N=10;
+N=5;
 % Simulation length (iterations)
-iterations = 10/dT;
+iterations = 6/dT;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = Ad;
@@ -146,7 +146,7 @@ PSI_0 = V_0(n+1:n+m);
 Q = eye(n);
 R = eye(m);
 
-K = -dlqr(A, B, Q, R);
+Klqr = -dlqr(A, B, Q, R);
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
@@ -283,8 +283,8 @@ theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
 
 sysHistory = [x_eq_init;u0(1:m,1)];
-sysHistoryL=sysHistory;
-sysHistoryO=sysHistory;
+sysHistoryN=sysHistory;
+% sysHistoryO=sysHistory;
 
 art_refHistory =  0;
 true_refHistory = x_eq_ref;
@@ -311,18 +311,20 @@ for k = 1:(iterations)
         end
         % update state vars for estimation
         x=x_k1;
-        
+%         xl=xn_k1;
         % get iterations
         q=iterations/1; % moving window of q datapoints 
         data=update_data(X,Y,q,k,data);
         % get the real state w.r.t. equilibrium
-        x_eq=x-x_w;
+%         x_eq=x-x_w;
+        x_eq = x;
     else
-        x_eq=x_eq_init;
+%         x_eq=x_eq_init;
+        x_eq = x;
     end
     
-    % RUN THE OPTIMAL CONTROL PROBLEM
-    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,LAMBDA,PSI,data);
+    % SOLVE THE OPTIMAL CONTROL PROBLEM
+    COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],[],options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
@@ -332,14 +334,15 @@ for k = 1:(iterations)
     % Apply control to system and models
     % Implement first optimal control move and update plant states.
     [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % plant   
-    
+%     [xn_k1,un]= getTransitionsLearn(xl,c,Kstabil,data); % learned model
     % Save state data for plotting w.r.t. work point x_w
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
     his = [x-x_w; u-r0]; 
-    
+%     hisN = [xl; un]; 
     % Save plant states for display.
     sysHistory = [sysHistory his]; %#ok<*AGROW>
+%     sysHistoryN = [sysHistoryN hisN];
     art_refHistory = [art_refHistory art_ref(1:m)];
     true_refHistory = [true_refHistory x_eq_ref];
     
@@ -350,37 +353,40 @@ toc
 figure;
 subplot(n+m,1,1);
 plot(0:iterations,sysHistory(1,:),'Linewidth',1.5); hold on;
+plot(0:iterations,sysHistoryN(1,:),'Linewidth',1.5); hold on;
 grid on
 xlabel('iterations');
 ylabel('x1');
 title('mass flow');
 subplot(n+m,1,2);
 plot(0:iterations,sysHistory(2,:),'Linewidth',1.5); hold on;
+plot(0:iterations,sysHistoryN(2,:),'Linewidth',1.5); hold on;
 grid on
 xlabel('iterations');
 ylabel('x2');
 title('pressure rise');
 subplot(n+m,1,3);
 plot(0:iterations,sysHistory(3,:),'Linewidth',1.5); hold on;
+plot(0:iterations,sysHistoryN(3,:),'Linewidth',1.5); hold on;
 grid on
 xlabel('iterations');
 ylabel('x3');
 title('throttle');
 subplot(n+m,1,4);
 plot(0:iterations,sysHistory(4,:),'Linewidth',1.5); hold on;
+plot(0:iterations,sysHistoryN(4,:),'Linewidth',1.5); hold on;
 grid on
 xlabel('iterations');
 ylabel('x4');
 title('throttle rate');
 subplot(n+m,1,5);
 plot(0:iterations,sysHistory(5,:),'Linewidth',1.5); hold on;
-
-
+plot(0:iterations,sysHistoryN(5,:),'Linewidth',1.5); hold on;
 grid on
 xlabel('iterations');
 ylabel('u');
 title('Sys input');
-legend({'True system', 'Linear system', 'Learned true system'});
+legend({'True system','Learned true system','Linear system'});
 
 
 figure;
