@@ -1,4 +1,5 @@
 %% Load data
+close all;
 NMPC=load('NMPC_sysH_K_T02_N5_noCONS.mat');
 LBMPC=load('LBMPC_sysH_K_T02_N5_noCONS.mat');
 LMPC=load('LMPC_sysH_K_T02_N5_noCONS.mat');
