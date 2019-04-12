@@ -25,15 +25,15 @@ for k=1:N
         
         % obtain new state at next prediction step
         [xk1, uk] = getTransitionsTrue(xk, ck,xw,r0, K,Ts);
-        x=xk1-xw;
-        u=uk-r0;
-%         Xs=E(1:n,:); Us= E(n+1:n+m);
+        dxk=xk-xw;
+        duk=uk-r0;
+        dxk1=xk1-xw;
         % H-representation of constraints
         % state constraints
-        cieq_run1 = state_F*xk1-state_h;
+        cieq_run1 = state_F*dxk1-state_h;
         cieq  = [cieq; cieq_run1];
         % input constraints
-        cieq_run2 = in_F*uk-in_h;
+        cieq_run2 = in_F*duk-in_h;
         cieq  = [cieq; cieq_run2];
         % update plant state and input for next step
         xk = xk1;
@@ -41,7 +41,7 @@ for k=1:N
             ck = c(:,k+1);
         end
     else
-        cieq_T = term_F*[xk1;theta]-term_h;
+        cieq_T = term_F*[dxk1;theta]-term_h;
 %         cieq_T = [];
         cieq = [cieq; cieq_T];
     end

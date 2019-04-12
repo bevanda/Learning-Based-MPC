@@ -87,16 +87,16 @@ e = eig(AK);
 Q = eye(4); R=1;
 P = dare(AK,Bd,Q,R);
 Klqr= -dlqr(Ad,Bd,Q,R);
+% T=100*P;
 T=1000;
-
 % figure;
 % sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',dT);
 % pzmap(sys);
 %% Parameters
 % Horizon length
-N=20;
+N=40;
 % Simulation length (iterations)
-iterations = 6/dT;
+iterations = 10/dT;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = Ad;
@@ -176,7 +176,7 @@ run_h = [h_x;h_u];
 % Terminal feedback policy for terminal set computations
 maxadm_controlweight = 10; % r_i as the inverse of the square of the maximum permissible value for the corresponding u_i
 K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
-%lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
+%lambda=0.99; % ?? ??? (0, 1), ?? can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
 disp('Computing and simplifying terminal set...');
 % extended state constraints
@@ -186,7 +186,7 @@ F_w = [F_x zeros(length_Fx, m);
     F_u*Klqr, F_u*L; ...
     zeros(length_Fu, n) F_u*PSI];
 
-lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
+lambda=0.99; % ?? ??? (0, 1), ?? can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
 h_w = [...
     h_x; ...

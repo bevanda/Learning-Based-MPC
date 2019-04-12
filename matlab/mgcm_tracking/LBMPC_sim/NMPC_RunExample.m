@@ -96,7 +96,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 % Horizon length
 N=20;
 % Simulation length (iterations)
-iterations = 6/dT;
+iterations = 10/dT;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = Ad;
@@ -290,8 +290,6 @@ true_refHistory = x_eq_ref;
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 x = x_w+x_eq_init; % true sistem init state
 % init states from models used in MPC
-xl=x_eq_init;
-xo=x_eq_init;
 % init data form estimation
 data.X=zeros(3,1);
 data.Y=zeros(4,1);
@@ -301,7 +299,6 @@ for k = 1:(iterations)
     fprintf('iteration no. %d/%d \n',k,iterations);
 
    	x_eq=x;
-    
     
     % SOLVE THE OPTIMAL CONTROL PROBLEM
     COSTFUN = @(var) NMPC_costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
@@ -375,4 +372,4 @@ plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'LineStyle','-'); hold on;
 grid on
 xlabel('x1');
 ylabel('x2');
-title('State space');
+title('State space'); 

@@ -4,9 +4,9 @@ clearvars;
 
 %% Parameters
 % Horizon length
-N=20;
+N=40;
 % Simulation length (iterations)
-iterations = 600;
+iterations = 1000;
 
 %% Discrete time nominal model of the non-square LTI system for tracking
 A = [1.01126321746508,-0.0100340214950357,6.46038913508018e-05,1.93716902346107e-07; ...

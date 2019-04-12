@@ -21,18 +21,15 @@ xk = x;
 ck = c(:,1);
 for k=1:N
     if (k<N)
-        % inequality constraints
-        
         % obtain new state at next prediction step
         [xk1, uk] = getTransitions(xk, ck, K);
-%         Xs=E(1:n,:); Us= E(n+1:n+m);
         % H-representation of constraints
         % state constraints
         cieq_run1 = state_F*xk1-state_h;
-        cieq  = [cieq; cieq_run1];
+        cieq  = [cieq; cieq_run1]; %#ok<*AGROW>
         % input constraints
         cieq_run2 = in_F*uk-in_h;
-        cieq  = [cieq; cieq_run2];
+        cieq  = [cieq; cieq_run2]; %#ok<*AGROW>
         % update plant state and input for next step
         xk = xk1;
         if k<N
@@ -40,8 +37,7 @@ for k=1:N
         end
     else
         cieq_T = term_F*[xk1;theta]-term_h;
-%         cieq_T = [];
-        cieq = [cieq; cieq_T];
+        cieq = [cieq; cieq_T]; %#ok<*AGROW>
     end
        
 end

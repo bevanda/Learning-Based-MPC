@@ -1,4 +1,4 @@
-function J = NMPC_costFunction(c,theta,x,xs,N,c0,Q,R,P,T,K,x_w,r0,LAMBDA,PSI,data,dT)
+function J = NMPC_costFunction(c,theta,x,xs,N,c0,Q,R,P,T,K,xw,r0,LAMBDA,PSI,data,dT)
 %% Cost function of non-quadratic discrete time LTI
 % Inputs:
 %   c:      decision variable, from time k to time k+N-1 
@@ -14,22 +14,21 @@ function J = NMPC_costFunction(c,theta,x,xs,N,c0,Q,R,P,T,K,x_w,r0,LAMBDA,PSI,dat
 %   J:      objective function cost
 %
 
-%% LMPC design parameters
+%% NLMPC design parameters
 
 % Set initial plant states, controller output and cost.
 xk = x;
 ck = c0;
-
 J = 0;
 
-% Loop through each prediction step.
 for k=1:N
     % Obtain plant state at next prediction step.
-    [xk1, uk] = getTransitionsTrue(xk,ck,x_w,r0,K,dT); % plant  
+    [xk1, uk] = getTransitionsTrue(xk,ck,xw,r0,K,dT); % plant  
     % put into lin sys perspective
-    dx=xk-x_w;
+    dx=xk-xw;
     du=uk-r0;
-    
+    dxk1=xk1-xw;
+%     dxk1=xk1-xw;
     % RUNNING COST
     if k < N-1
         % accumulate state tracking cost from x(k+1) to x(k+N).
@@ -39,11 +38,12 @@ for k=1:N
     end
     %TERMINAL COST
     if k == N
-        J = J + (dx-LAMBDA*theta)'*P*(dx-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
+        J = J + ((dxk1)-LAMBDA*theta)'*P*((dxk1)-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
     end
     % Update xk and uk for the next prediction step.
     xk = xk1;
     if k<N
         ck = c(:,k+1);
     end
+end
 end
