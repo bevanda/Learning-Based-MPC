@@ -53,7 +53,7 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys2);
 %% Exact discretisation
 
-dT = 0.02; % sampling time
+dT = 0.01; % sampling time
 
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
@@ -94,7 +94,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=5;
+N=20;
 % Simulation length (iterations)
 iterations = 6/dT;
 
@@ -168,9 +168,9 @@ xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max];
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 %%%%%%%%%%%%%%%%%%%%%%%
 % To be calculated with the Taylor remainder theorem
-% state_uncert = [0.0;0.0;0.0;0.0]; % just for testing
+state_uncert = [0.0;0.0;0.0;0.0]; % just for testing
 % state_uncert = [0.02;5e-04;0;0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
-state_uncert = [0.02;0.02;0.01;0.01]; % test
+% state_uncert = [0.02;0.02;0.01;0.01]; % test
 %%
 %  Shift the constraints for the linearised model for the value of the
 %  working point
@@ -181,10 +181,11 @@ x_w = [0.5;...
 r0 = x_w(3);
 
 %% testing /w oracle
-shrnik=0.1;
+% shrnik=0.1;
+shrink=0.0;
 % Shift the abs system constraints w.r.t. to the linearisation point
-F_u = [eye(m); -eye(m)]; h_u = [umax-r0-shrnik; -umin+r0+shrnik];
-F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w-shrnik; -xmin+x_w+shrnik];
+F_u = [eye(m); -eye(m)]; h_u = [umax-r0-shrink; -umin+r0+shrink];
+F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w-shrink; -xmin+x_w+shrink];
 F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
@@ -304,8 +305,8 @@ for k = 1:(iterations)
     
     % SOLVE THE OPTIMAL CONTROL PROBLEM
     COSTFUN = @(var) NMPC_costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
-    CONSFUN = @(var) NMPC_constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,x_w,r0,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],[],options);    
+    CONSFUN = @(var) NMPC_constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,x_w,r0,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N,dT);
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;
