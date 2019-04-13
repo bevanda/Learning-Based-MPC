@@ -165,9 +165,6 @@ F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w-shrnik; -xmin+x_w+shrnik];
 length_Fu = length(h_u);
 length_Fx = length(h_x);
 
-run_F = [F_x zeros(length_Fx, m);...
-        zeros(length_Fu,n) F_u];
-run_h = [h_x;h_u];
 %%
 %==========================================================================
 % Compute maximal invariant set
@@ -180,18 +177,21 @@ K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
 disp('Computing and simplifying terminal set...');
 % extended state constraints
-L=(PSI - Klqr*LAMBDA);
+L=(PSI - K_t*LAMBDA);
+L0=(PSI_0 - K_t*LAMBDA_0);
 F_w = [F_x zeros(length_Fx, m);
     zeros(length_Fx, n) F_x*LAMBDA; ...
-    F_u*Klqr, F_u*L; ...
+    F_u*K_t, F_u*L; ...
     zeros(length_Fu, n) F_u*PSI];
 
-lambda=0.99; % ?? ??? (0, 1), ?? can be chosen arbitrarily close to 1, the obtained
+% lambda=0.99; 
+% ?? ??? (0, 1), ?? can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
+lambda=1;
 h_w = [...
     h_x; ...
     (h_x - F_x*LAMBDA_0)*lambda; ...
-    h_u - F_u*(PSI_0 - Klqr*LAMBDA_0); ...
+    h_u - F_u*(L0); ...
     (h_u - F_u*PSI_0)]*lambda;
 
 F_w_N0 = F_w; h_w_N0 = h_w; 

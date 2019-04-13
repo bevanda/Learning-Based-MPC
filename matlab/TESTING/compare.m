@@ -1,6 +1,6 @@
 %% Load data
-LMPC_sys=load('LMPC_sysH_K_T01_N40_new.mat');
-LMPC_art=load('LMPC_artH_K_T01_N40_new.mat');
+LMPC_sys=load('LMPC_sysH_K_T01_N40_new_new.mat');
+LMPC_art=load('LMPC_artH_K_T01_N40_new_new.mat');
 % NMPC_sys=load('NMPC_sysH_K_T01_N20_new_1000iter.mat');
 % NMPC_art=load('NMPC_artH_K_T01_N20_new_1000iter.mat');
 NMPC_sys=load('NMPC_sysH_K_T01_N40_new.mat');
