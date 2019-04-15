@@ -95,7 +95,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=20;
+N=40;
 % Simulation length (iterations)
 iterations = 10/dT;
 
@@ -170,8 +170,8 @@ xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 %%%%%%%%%%%%%%%%%%%%%%%
 % To be calculated with the Taylor remainder theorem
 % state_uncert = [0.0;0.0;0.0;0.0]; % just for testing
-% state_uncert = [0.02;5e-04;0;0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
-state_uncert = [0.01;0.01;0.01;0.01]; % test
+state_uncert = [0.02;5e-04;0;0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
+% state_uncert = [0.01;0.01;0.01;0.01]; % test
 %%
 %  Shift the constraints for the linearised model for the value of the
 %  working point
@@ -182,8 +182,8 @@ x_w = [0.5;...
 r0 = x_w(3);
 
 %% testing /w oracle
-shrnik=0.05;
-% shrnik=0.0;
+% shrnik=0.05;
+shrnik=0.0;
 % Shift the abs system constraints w.r.t. to the linearisation point
 F_u = [eye(m); -eye(m)]; h_u = [umax-r0-shrnik; -umin+r0+shrnik];
 F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w-shrnik; -xmin+x_w+shrnik];
@@ -197,7 +197,7 @@ length_Fg = length(h_g);
 % run_h = [h_x;h_u];
 %% State constraints
 temp = polytope(F_x, h_x) - polytope(F_g, h_g);
-    [F_x_g, h_x_g] = double(temp);
+    [F_x_d, h_x_d] = double(temp);
     Fx{1} = F_x;
     fx{1} = h_x;
     for i=2:N
@@ -226,29 +226,14 @@ F_w = [ F_x zeros(length_Fx, m);
         zeros(length_Fx, n) F_x*LAMBDA; ...
         F_u*K_t, F_u*(PSI - K_t*LAMBDA); ...
         zeros(length_Fu, n) F_u*PSI; ...
-        F_x_g*(A+B*K_t) F_x_g*B*(PSI-K_t*LAMBDA)];
+        F_x_d*(A+B*K_t) F_x_d*B*(PSI-K_t*LAMBDA)];
 h_w = [ h_x; ...
         h_x - F_x*LAMBDA_0; ...
         h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
         h_u - F_u*PSI_0; ...
-        h_x_g - F_x_g*B*(PSI_0-K_t*LAMBDA_0)];
+        h_x_d - F_x_d*B*(PSI_0-K_t*LAMBDA_0)];
 
-    
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-% % from LMPC    
-% F_w = [F_x zeros(length_Fx, m);
-%     zeros(length_Fx, n) F_x*LAMBDA; ...
-%     F_u*K, F_u*(PSI - K*LAMBDA); ...
-%     zeros(length_Fu, n) F_u*PSI];
-% 
-% lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
-% % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
-% h_w = [...
-%     h_x; ...
-%     (h_x - F_x*LAMBDA_0)*lambda; ...
-%     h_u - F_u*(PSI_0 - K*LAMBDA_0); ...
-%     (h_u - F_u*PSI_0)]*lambda;
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   
 
 % disturbance constraints of the extended state 
 F_g_w = [F_g zeros(length_Fg,m); ...
@@ -261,10 +246,6 @@ h_g_w = [h_g; ...
 % calculating the robust positively invariant set    
 [F_w_N0, h_w_N0] = pdiff(F_w, h_w, F_g_w, h_g_w);
 
-% 
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% F_w_N0 = F_w; h_w_N0 = h_w; % from LMPC
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Simplify the constraints
 term_poly = polytope(F_w_N0, h_w_N0);
@@ -291,7 +272,7 @@ x = x_w+x_eq_init; % true sistem init state
 % init states from models used in MPC
 xl=x_eq_init;
 xo=x_eq_init;
-% init data form estimation
+% init data from estimation
 data.X=zeros(3,1);
 data.Y=zeros(4,1);
 % sysHistoryO=[x_eq_init; 0];
@@ -323,8 +304,8 @@ for k = 1:(iterations)
     
     % SOLVE THE OPTIMAL CONTROL PROBLEM
     COSTFUN = @(var) LBMPC_costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,r0,LAMBDA,PSI,data,dT);
-    CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N);
-    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],[],options);    
+    CONSFUN = @(var) LBMPC_constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x_eq,N,Kstabil,LAMBDA,PSI,F_x,h_x,F_u,h_u,F_w_N,h_w_N,F_x_d,h_x_d);
+    opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;

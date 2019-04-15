@@ -94,7 +94,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=40;
+N=50;
 % Simulation length (iterations)
 iterations = 10/dT;
 
@@ -287,7 +287,7 @@ sysHistoryN=sysHistory;
 
 art_refHistory =  0;
 true_refHistory = x_eq_ref;
-options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
+options = optimoptions('fmincon','Algorithm','sqp','Display','notify','MaxFunctionEvaluations',10000);
 x = x_w+x_eq_init; % true sistem init state
 % init states from models used in MPC
 % init data form estimation
