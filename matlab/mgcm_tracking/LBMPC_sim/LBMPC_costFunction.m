@@ -17,25 +17,29 @@ function J = LBMPC_costFunction(c,theta,x,xs,N,c0,Q,R,P,T,K,x_w,r0,LAMBDA,PSI,da
 %% LMPC design parameters
 
 % Set initial plant states, controller output and cost.
-dxk = x;
+xk = x;
 ck = c0;
 
 J = 0;
 % Loop through each prediction step.
-for k=1:N-1  
+for k=1:N 
     % Obtain plant state at next prediction step.
-    [dxk1,duk]= getTransitionsLearn(dxk,ck,K,data); % learned model
+    [xk1,uk]= getTransitionsLearn(xk,ck,K,data); % learned model
 
-    % RUNNING COST
-    % accumulate state tracking cost from x(k+1) to x(k+N).
-    J = J + (dxk-LAMBDA*theta)'*Q*(dxk-LAMBDA*theta);
-    % accumulate MV rate of change cost from u(k) to u(k+N-1).
-    J = J + (duk-PSI*theta)'*R*(duk-PSI*theta);
-
-    % Update xk and ck for the next prediction step.
-    dxk = dxk1;
-    ck = c(:,k+1);
-end
-%TERMINAL COST
-J = J + (dxk-LAMBDA*theta)'*P*(dxk-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
+   % RUNNING COST
+    if k < N-1
+        % accumulate state tracking cost from x(k+1) to x(k+N).
+        J = J + (xk-LAMBDA*theta)'*Q*(xk-LAMBDA*theta);
+        % accumulate MV rate of change cost from u(k) to u(k+N-1).
+        J = J + (uk-PSI*theta)'*R*(uk-PSI*theta);
+    end
+    %TERMINAL COST
+    if k == N
+        J = J + (xk1-LAMBDA*theta)'*P*(xk1-LAMBDA*theta) + (LAMBDA*theta-xs)'*T*(LAMBDA*theta-xs);
+    end
+    % Update xk and uk for the next prediction step.
+    xk = xk1;
+    if k<N
+        ck = c(:,k+1);
+    end
 end
