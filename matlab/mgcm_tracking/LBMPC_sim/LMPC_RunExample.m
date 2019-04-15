@@ -94,7 +94,9 @@ T=1000;
 % pzmap(sys);
 %% Parameters
 % Horizon length
-N=50;
+
+N=100;
+
 % Simulation length (iterations)
 iterations = 10/dT;
 
