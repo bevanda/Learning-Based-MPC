@@ -95,7 +95,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=40;
+N=50;
 % Simulation length (iterations)
 iterations = 10/dT;
 
@@ -323,8 +323,8 @@ for k = 1:(iterations)
     % Save plant states for display.
     sysHistory = [sysHistory his]; %#ok<*AGROW>
 %     sysHistoryO = [sysHistoryO hisO]; %#ok<*AGROW>
-%     art_refHistory = [art_refHistory art_ref(1:m)];
-%     true_refHistory = [true_refHistory x_eq_ref];
+    art_refHistory = [art_refHistory art_ref(1:m)];
+    true_refHistory = [true_refHistory x_eq_ref];
     
 end
 toc

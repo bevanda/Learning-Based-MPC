@@ -1,7 +1,7 @@
 %% Load data
 close all;
 NMPC=load('NMPC_sysH_K_T01_N40_new.mat');
-LBMPC=load('LBMPC_N40_sys.mat');
+LBMPC=load('LBMPC_N50_sys.mat');
 LMPC=load('LMPC_sysH_K_T01_N40_new_new.mat');
 
 %% Plot

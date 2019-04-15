@@ -94,7 +94,7 @@ T=1000;
 % pzmap(sys);
 %% Parameters
 % Horizon length
-N=40;
+N=100;
 % Simulation length (iterations)
 iterations = 10/dT;
 
@@ -216,7 +216,7 @@ opt_var = [u0; theta0];
 sysHistory = [x_eq_init;u0(1:m,1)];
 art_refHistory =  0;
 true_refHistory = x_eq_ref;
-options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
+options = optimoptions('fmincon','Algorithm','sqp','Display','notify','MaxFunctionEvaluations',10000);
 x = x_w+x_eq_init; % true sistem init state
 
 %% Run LBMPC
