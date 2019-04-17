@@ -94,7 +94,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=50;
+N=60;
 % Simulation length (iterations)
 iterations = 10/dT;
 

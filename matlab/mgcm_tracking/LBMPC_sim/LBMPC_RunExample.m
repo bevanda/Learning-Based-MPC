@@ -15,7 +15,7 @@ mflow_min=0; mflow_max=1;
 prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
 throttle_rate_min=-20; throttle_rate_max=20;
-u_min=0.1547;u_max=2.1547;
+u_min=0.1547; u_max=2.1547;
 %% Continous time state-space model of the Moore-Greitzer compressor model
 
 f1 = -x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
@@ -95,7 +95,7 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 
 %% Parameters
 % Horizon length
-N=50;
+N=100;
 % Simulation length (iterations)
 iterations = 10/dT;
 
@@ -217,20 +217,21 @@ temp = polytope(F_x, h_x) - polytope(F_g, h_g);
 % Terminal feedback policy for terminal set computations
 maxadm_controlweight = 10; % r_i as the inverse of the square of the maximum permissible value for the corresponding u_i
 K_t = -dlqr(A, B, Q, maxadm_controlweight*R);
-%lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
+lambda=0.99; % λ ∈ (0, 1), λ can be chosen arbitrarily close to 1, the obtained
 % invariant set can be used as a reliable polyhedral approximation to the maximal invariant set 
 disp('Computing and simplifying terminal set...');
 % extended state constraints
-
+L=(PSI - K_t*LAMBDA);
+L0=(PSI_0 - K_t*LAMBDA_0);
 F_w = [ F_x zeros(length_Fx, m);
         zeros(length_Fx, n) F_x*LAMBDA; ...
-        F_u*K_t, F_u*(PSI - K_t*LAMBDA); ...
+        F_u*K_t, F_u*L; ...
         zeros(length_Fu, n) F_u*PSI; ...
-        F_x_d*(A+B*K_t) F_x_d*B*(PSI-K_t*LAMBDA)];
+        F_x_d*(A+B*K_t) F_x_d*B*L];
 h_w = [ h_x; ...
-        h_x - F_x*LAMBDA_0; ...
-        h_u - F_u*(PSI_0 - K_t*LAMBDA_0); ...
-        h_u - F_u*PSI_0; ...
+        lambda*(h_x - F_x*LAMBDA_0); ...
+        h_u - F_u*L0; ...
+        lambda*(h_u - F_u*PSI_0); ...
         h_x_d - F_x_d*B*(PSI_0-K_t*LAMBDA_0)];
 
    
