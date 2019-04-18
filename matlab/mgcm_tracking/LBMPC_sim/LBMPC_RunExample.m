@@ -90,8 +90,6 @@ Klqr= -dlqr(Ad,Bd,Q,R);
 % pzmap(sys);
 
 
-%% TRACKING piecewise constant REFERENCE MPC example
-
 
 %% Parameters
 % Horizon length
