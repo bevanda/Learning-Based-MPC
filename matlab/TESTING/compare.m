@@ -3,7 +3,7 @@ LMPC_sys=load('LMPC_N50_sys.mat');
 % LMPC_art=load('LMPC_artH_K_T01_N40_new_new.mat');
 % NMPC_sys=load('NMPC_sysH_K_T01_N20_new_1000iter.mat');
 % NMPC_art=load('NMPC_artH_K_T01_N20_new_1000iter.mat');
-LBMPC_sys=load('LBMPC_N50_sys.mat');
+LBMPC_sys=load('LBMPC_N60_sys.mat');
 % NMPC_art=load('NMPC_artH_K_T01_N40_new.mat');
 % LBMPC_sys=load('LMPC_sysH_K_T01_N20_new_1000iter_T1000P.mat');
 % NMPC_art=load('LMPC_artH_K_T01_N20_new_1000iter_T1000P.mat');
@@ -120,5 +120,19 @@ fprintf('Accmumulated ctrl effort mass flow: %d\n',compute_ctrl_energy(0.01*(0:i
 % fprintf('Percent of throttle rate over/under-shoot: %d\n',compute_overshoot(LBMPC_sys.sysHistory(4,:),0));
 disp('Evaluating LMPC responses\n');
 fprintf('Accmumulated ctrl effort mass flow: %d\n',compute_ctrl_energy(0.01*(0:iterations),LMPC_sys.sysHistory(5,:),t_ss_lmpc1));
+% fprintf('Percent of throttle over/under-shoot: %d\n',compute_overshoot(LMPC_sys.sysHistory(3,:),0));
+% fprintf('Percent of throttle rate over/under-shoot: %d\n',compute_overshoot(LMPC_sys.sysHistory(4,:),0));
+
+%%
+eps=0.05;
+disp('setl time\n');
+disp('Evaluating LBMPC responses\n');
+fprintf('setl time mass flow: %d\n',compute_ss_time(0.01*(0:iterations),LBMPC_sys.sysHistory(1,:),0,eps));
+fprintf('setl time pressure rise: %d\n',compute_ss_time(0.01*(0:iterations),LBMPC_sys.sysHistory(2,:),0,eps));
+% fprintf('Percent of throttle over/under-shoot: %d\n',compute_overshoot(LBMPC_sys.sysHistory(3,:),0));
+% fprintf('Percent of throttle rate over/under-shoot: %d\n',compute_overshoot(LBMPC_sys.sysHistory(4,:),0));
+disp('Evaluating LMPC responses\n');
+fprintf('Accmumulated ctrl error mass flow: %d\n',compute_ss_time(0.01*(0:iterations),LMPC_sys.sysHistory(1,:),0,eps));
+fprintf('Accmumulated ctrl error pressure rise: %d\n',compute_ss_time(0.01*(0:iterations),LMPC_sys.sysHistory(2,:),0,eps));
 % fprintf('Percent of throttle over/under-shoot: %d\n',compute_overshoot(LMPC_sys.sysHistory(3,:),0));
 % fprintf('Percent of throttle rate over/under-shoot: %d\n',compute_overshoot(LMPC_sys.sysHistory(4,:),0));
