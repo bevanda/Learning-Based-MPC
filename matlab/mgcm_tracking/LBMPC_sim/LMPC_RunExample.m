@@ -95,7 +95,7 @@ T=1000;
 %% Parameters
 % Horizon length
 
-N=100;
+N=40;
 
 % Simulation length (iterations)
 iterations = 10/dT;
