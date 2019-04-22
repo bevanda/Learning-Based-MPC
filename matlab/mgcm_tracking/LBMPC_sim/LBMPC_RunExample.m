@@ -292,7 +292,7 @@ for k = 1:(iterations)
         x=x_k1;
 %         xl=xn_k1;
         % get iterations
-        q=100; % moving window of q datapoints 
+        q=200; % moving window of q datapoints 
         data=update_data(X,Y,q,k,data);
         
         % get the real state w.r.t. equilibrium
