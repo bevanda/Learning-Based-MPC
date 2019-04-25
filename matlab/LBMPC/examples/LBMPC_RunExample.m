@@ -1,107 +1,22 @@
 clearvars;  
 addpath('../'); 
-%% INIT CONTROLLER DESIGN
-syms u ... % control input
-    x1 ... % mass flow
-    x2 ... % pressure rise
-    x3 ... % throttle opeining
-    x4 ... % throttle opening rate
-    ;
-wn=sqrt(1000); % resonant frequency
-zeta=1/sqrt(2); % damping coefficient
-beta=1; % constant >0
-x2_c=0; % pressure constant
+% Generate the DLTI verison of the Moore-Greitzer Compressor model (mgcm)
+[A,B,C,D,Ts]=mgcmDLTI();
+n = size(A,1); % num of states
+m = size(B,2); % num of inputs
+o = size(C,1); % num of outputs
 
-%% Continous time state-space model of the Moore-Greitzer compressor model
-
-f1 = -x2+x2_c+1+3*(x1/2)-(x1^3/2); % mass flow rate
-f2 = (x1+1-x3*sqrt(x2))/(beta^2); % pressure rise rate
-f3 = x4; % throttle opening rate
-f4 = -wn^2*x3-2*zeta*wn*x4+wn^2*u; % throttle opening acceleration
-
-%% Linearisation around the equilibrium [0.5 1.6875 1.1547 0]'
-
-A = jacobian([f1,f2, f3, f4], [x1, x2, x3, x4]);
-B = jacobian([f1,f2, f3, f4], [u]);
-
-% equilibrium params
-x1 = 0.5;
-x2 = 1.6875;
-x3 = 1.1547;
-x4 = 0;
-equili = [x1 x2 x3 x4];
-init_cond = [x1-0.35, x2-0.4, x3, 0];  % init condition
-% print the matrices in the cmd line
-A = eval(A);
-B = eval(B);
-% C = [A(1, :); A(2,:)] % choose f1 and f2 as outputs 
-C = eye(4);
-D = zeros(4,1);
-n=size(A,2);
-
-% Visualise the poles and zeros of the continuous system
-[b,a]=ss2tf(A,B,C,D);
-sys = tf([b(1,:)],[a]);
-% sys2 = tf([b(2,:)],[a]);
-% figure;
-% pzmap(sys);
-% grid on;
-% pzmap(sys2);
-%% Exact discretisation
-
-dT = 0.01; % sampling time
-
-Ad = expm(A*dT);
-Bd = (Ad-eye(n))*inv(A)*B;
-Cd=C;
-Dd=D;
-Td=dT;
-Ts=dT;
-e = eig(Ad);
-% figure;
-% sys = idss(Ad,Bd,Cd,Dd,'Ts',dT);
-% pzmap(sys);
-
-%% System stabilisation /w feedback matrix K to place poles near Re(p_old) inside unit circle
-switch dT
-    case 0.05
-        p=[0.13, 0.16, 0.9, 0.95]; % dT=0.05
-    case 0.02
-        p=[0.55, 0.6, 0.9, 0.95]; % dT=0.02
-    case 0.01
-        p=[0.75, 0.78, 0.98, 0.99]; % dT=0.01
-end
-
-[K,prec,message] = place(Ad,Bd,p) %nominal feedback matrix
-Kstabil=-K;
-
-AK = Ad+Bd*Kstabil;
-e = eig(AK);
-
-Q = eye(4); R=1;
-P = dare(AK,Bd,Q,R);
-Klqr= -dlqr(Ad,Bd,Q,R);
-% figure;
-% sys = idss(AK,zeros(4,1),Cd,Dd,'Ts',dT);
-% pzmap(sys);
-
+% System stabilisation /w feedback matrix K and
+% state space parametrization
+[Kstabil,Klqr,Q,R,P,T,Mtheta,LAMBDA,PSI,LAMBDA_0,PSI_0]=matOCP(A,B,C,n,m,o);
 
 
 %% Parameters
 % Horizon length
 N=10;
 % Simulation length (iterations)
-iterations = 10/dT;
-
-%% Discrete time nominal model of the non-square LTI system for tracking
-A = Ad;
-B = Bd;
-C = Cd;
-% D = [0;0;0;0];
-n = size(A,1);
-m = size(B,2);
-o = size(C,1);
-
+iterations = 10/Ts;
+%% Simulation setup
 
 % The initial conditions
 x_eq_init = [-0.35;...
@@ -114,36 +29,6 @@ x_eq_ref = [0.0;...
       0.0;...
       0.0];
 
-%%
-%==========================================================================
-% Generate steady-state parameterization
-%==========================================================================
-% MN = [Mtheta; 1, 0];
-M = [A - eye(n), B, zeros(n,o); ...
-        C, zeros(o,m), -eye(o)];
-Mtheta = null(M);
-LAMBDA = Mtheta(1:n,:);
-PSI = Mtheta(n+1:n+m,:);
-%%%%%%%%%%%%%%%%%%%%%
-d_0 = [0,0,0,0]'; % inital disturbance guess
-% Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
-V_0 = M\[-d_0; zeros(o,1)];
-LAMBDA_0 = V_0(1:n);
-PSI_0 = V_0(n+1:n+m);
-%%%%%%%%%%%%%%%%%%%%%
-
-%%
-%==========================================================================
-% Define a nominal feedback policy K and corresponding terminal cost
-% 'baseline' stabilizing feedback law
-Q = eye(n);
-R = eye(m);
-
-Klqr = -dlqr(A, B, Q, R);
-% Terminal cost chosen as solution to DARE
-P = dare(A+B*K, B, Q, R);
-% terminal steady state cost
-T = 1000; 
 
 
 %%
@@ -161,11 +46,8 @@ u_min=0.1547;u_max=2.1547;
 umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
-%%%%%%%%%%%%%%%%%%%%%%%
-% To be calculated with the Taylor remainder theorem
-% state_uncert = [0.0;0.0;0.0;0.0]; % just for testing
+
 state_uncert = [0.02;5e-04;0;0]; % from max lin error from TaylorRemainder (Lagrange Error Bound)
-% state_uncert = [0.01;0.01;0.01;0.01]; % test
 %%
 %  Shift the constraints for the linearised model for the value of the
 %  working point
@@ -174,36 +56,18 @@ x_w = [0.5;...
     1.1547;...
     0.0];
 u_w = x_w(3);
-
-%% testing /w oracle
-% shrnik=0.05;
-shrnik=0.0;
+%%
 % Shift the abs system constraints w.r.t. to the linearisation point
-F_u = [eye(m); -eye(m)]; h_u = [umax-u_w-shrnik; -umin+u_w+shrnik];
-F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w-shrnik; -xmin+x_w+shrnik];
+F_u = [eye(m); -eye(m)]; h_u = [umax-u_w; -umin+u_w];
+F_x = [eye(n); -eye(n)]; h_x = [xmax-x_w; -xmin+x_w];
 F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
 length_Fx = length(h_x);
 length_Fg = length(h_g);
-% run_F = [F_x zeros(length_Fx, m);...
-%         zeros(length_Fu,n) F_u];
-% run_h = [h_x;h_u];
 %% State constraints
 temp = polytope(F_x, h_x) - polytope(F_g, h_g);
-    [F_x_d, h_x_d] = double(temp);
-    Fx{1} = F_x;
-    fx{1} = h_x;
-    for i=2:N
-        Fx{i} = F_x;
-        fx{i} = h_x;
-    end
-    for i=1:N
-       Fu{i} = F_u;
-       fu{i} = h_u;
-    end
-
-%%
+[F_x_d, h_x_d] = double(temp);
 %==========================================================================
 % Compute maximal invariant set
 %==========================================================================
@@ -278,7 +142,7 @@ for k = 1:(iterations)
     if k>1
         % DATA ACQUISTION 
         X=[x(1:2)-x_w(1:2); u-u_w]; %[δphi;δpsi;δu]
-        switch dT
+        switch Ts
             case 0.01
                 Y=((x_k1-x_w)-(A*(x-x_w)+B*(u-u_w))); %[δx_true-δx_nominal]
             otherwise
@@ -299,7 +163,7 @@ for k = 1:(iterations)
     
     % SOLVE THE OPTIMAL CONTROL PROBLEM
     COSTFUN = @(var) costLBMPC(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),...
-        x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,u_w,LAMBDA,PSI,data,dT);
+        x_eq,x_eq_ref,N,reshape(var(1:m),m,1),Q,R,P,T,Kstabil,x_w,u_w,LAMBDA,PSI,data,Ts);
     CONSFUN = @(var) constraintsLBMPC(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),...
         x_eq,N,Kstabil,F_x,h_x,F_u,h_u,F_w_N,h_w_N,F_x_d,h_x_d);
     opt_var = fmincon(COSTFUN,opt_var,[],[],[],[],[],[],CONSFUN,options);    
@@ -308,7 +172,7 @@ for k = 1:(iterations)
     art_ref = Mtheta*theta_opt;
     % Apply control to system and models
     % Implement first optimal control move and update plant states.
-    [x_k1, u] = transitionTrue(x,c,x_w,u_w,Kstabil,dT); % plant   
+    [x_k1, u] = transitionTrue(x,c,x_w,u_w,Kstabil,Ts); % plant   
     
     % Save state data for plotting w.r.t. work point x_w
     % shift the output so that it's from the working point perspective

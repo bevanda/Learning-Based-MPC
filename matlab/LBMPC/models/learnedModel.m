@@ -22,6 +22,6 @@ C = [1,0,0,0;...
     0,0,1,0;...
     0,0,0,1];
 % D = [0;0;0;0];
-xk = A*x + B*u + oracle(x,u,data);
+xk = A*x + B*u + oracleL2NW(x,u,data);
 % y = C*x;
 end

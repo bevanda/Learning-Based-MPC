@@ -1,4 +1,4 @@
-function g = oracle(x,u,data)
+function g = oracleL2NW(x,u,data)
 X=data.X; Y=data.Y; ksi=[x(1:2);u];
 % g = oracle(ksi, X, Y) performs a nonparametric L2 normalised Nadaraya-Watson kernel regression
 if nargin <2
