@@ -1,5 +1,7 @@
 clearvars;  
-addpath('../'); addpath('../models');
+addpath('../'); 
+addpath('../misc/'); 
+addpath('../models/'); 
 %% INIT CONTROLLER DESIGN
 syms u ... % control input
     x1 ... % mass flow
