@@ -26,7 +26,6 @@ grid on;
 xlabel('iterations');
 ylabel('\delta x_2');
 title('pressure rise');
-% legend({ 'LBMPC40','LBMPC40', 'LMPC'},'Location','southeast')
 
 subplot(5,1,3);
 plot(0:iterations, LBMPC40.sysHistory(3,:),'Linewidth',1.5,'Color','r'); hold on;
@@ -36,7 +35,7 @@ grid on;
 xlabel('iterations');
 ylabel('\delta x_3');
 title('throttle');
-% legend({ 'LBMPC40', 'LBMPC40','LMPC'},'Location','southeast')
+
 
 subplot(5,1,4);
 plot(0:iterations, LBMPC40.sysHistory(4,:),'Linewidth',1.5,'Color','r'); hold on;
@@ -46,7 +45,7 @@ grid on;
 xlabel('iterations');
 ylabel('\delta x_4');
 title('throttle rate');
-% legend({ 'LBMPC40','LBMPC40', 'LMPC'},'Location','southeast')
+
 
 subplot(5,1,5);
 plot(0:iterations, LBMPC40.sysHistory(5,:),'Linewidth',1.5,'Color','r'); hold on;
@@ -56,7 +55,7 @@ grid on;
 xlabel('iterations');
 ylabel('\delta u');
 title('Sys input');
-% legend({ 'LBMPC40','LBMPC40', 'LMPC'},'Location','southeast')
+
 
 
 figure;

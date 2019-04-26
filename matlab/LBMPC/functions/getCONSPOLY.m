@@ -4,7 +4,7 @@ function    [F_x,h_x,...    % nominal state constraints polytope
             ,F_x_d,h_x_d]... % uncertainty polytope
             =getCONSPOLY(xmax,xmin,umax,umin,state_uncert,x_wp,u_wp,m,n,A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0)
 %==========================================================================
-% Define polytopic constraints on input F_u*x <= h_u and
+% Defining polytopic constraints on input F_u*x <= h_u and
 % state F_x*x <= h_x and define model uncertainty as a F_g*x <= h_g
 % (so called H-representation)
 %==========================================================================
@@ -21,10 +21,10 @@ length_Fg = length(h_g);
 temp = Polyhedron(F_x, h_x) - Polyhedron(F_g, h_g);
 temp.minHRep();
 F_x_d= temp.A; h_x_d = temp.b;
+
 %==========================================================================
 % Compute maximal positively invariant set (MPIS)
 %==========================================================================
-
 % Terminal feedback policy for terminal set computations
 % r_i as the inverse of the square of the maximum permissible value 
 % for the corresponding u_i
