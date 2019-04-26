@@ -5,7 +5,8 @@ function [sysHistory,art_refHistory,true_refHistory]...
                     F_x,h_x,F_u,h_u,F_w_N,h_w_N,F_x_d,h_x_d,...
                     sysHistory,art_refHistory,true_refHistory)
 %==========================================================================
-% Solving the LBMPC optimal control problem at every timestep
+% Solving the Learnin-Based Model Predictive optimal control problem 
+% at every timestep
 %==========================================================================
 for k = 1:(iterations)      
     fprintf('iteration no. %d/%d \n',k,iterations);

@@ -1,11 +1,10 @@
 clearvars;  
-addpath('../'); 
-addpath('../misc/'); 
+addpath('../utilities');
 addpath('../models/'); 
 addpath('../functions/'); 
 
 %% Parameter initialization
-
+disp('Initializing parameters...');
 % Generate the DLTI verison of the continouous Moore-Greitzer Compressor 
 % model (MGCM)
 [A,B,C,D,Ts]=mgcmDLTI();
@@ -17,10 +16,11 @@ o = size(C,1); % num of outputs
 [Kstabil,Klqr,Q,R,P,T,Mtheta,LAMBDA,PSI,LAMBDA_0,PSI_0]=matOCP(A,B,C,n,m,o);
 
 %% Optimal control problem (OCP) setting
-
-N=10; % Horizon length
+disp('Setting up the OPC ...');
+% Horizon length
+N=10;
  
-% Constraints
+% Constraints of the compressor model
 mflow_min=0; mflow_max=1;
 prise_min=1.1875; prise_max=2.1875;
 throttle_min=0.1547; throttle_max=2.1547;
@@ -40,7 +40,7 @@ x_wp_init = [-0.35;...
             -0.4;...
             0.0;...
             0.0];
-% setpoint
+% setpoint w.r.t. to the linearisation/working point
 x_wp_ref = [0.0;...
             0.0;...
             0.0;...
@@ -65,11 +65,12 @@ u_wp = x_wp(3);
 
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
-opt_var = [u0; theta0];
+opt_var = [u0; theta0]; 
 
-sysHistory = [x_wp_init;u0(1:m,1)];
-art_refHistory =  0;
-true_refHistory = x_wp_ref;
+% Storing system history
+sysH = [x_wp_init;u0(1:m,1)];
+art_refH =  0;
+true_refH = x_wp_ref;
 
 % init data from estimation
 data.X=zeros(3,1);
@@ -79,26 +80,24 @@ x = x_wp+x_wp_init; % true system init state
 
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 
-
-
 %% Run LBMPC OCP simulation
 
 iterations = 10/Ts; % simulation length (iterations)
-
+disp('Running LBMPC...');
 tic;
-[sysHistory,art_refHistory,true_refHistory]=ocpLBMPC(...
+[sysH,art_refH,true_refH]=ocpLBMPC(...
                     x,x_wp,x_wp_init,x_wp_ref,u_wp,...
                     N,Ts,iterations,options,opt_var,data,...
                     A,B,Kstabil,Q,R,P,T,Mtheta,LAMBDA,PSI,m,...
                     F_x,h_x,F_u,h_u,F_w_N,h_w_N,F_x_d,h_x_d,...
-                    sysHistory,art_refHistory,true_refHistory);
+                    sysH,art_refH,true_refH);
 toc
 
 %% Plot
 
 % System response plot
 t_vec=Ts*(0:iterations);
-plotRESPONSE(sysHistory,art_refHistory,t_vec,n,m)
+plotRESPONSE(sysH,art_refH,t_vec,n,m)
 
 % 2D state space (x1,x2) plot
-plot2DSS(sysHistory(1,:),sysHistory(2,:));
+plot2DSS(sysH(1,:),sysH(2,:));
