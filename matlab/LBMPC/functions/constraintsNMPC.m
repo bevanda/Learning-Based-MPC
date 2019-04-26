@@ -1,4 +1,4 @@
-function [cieq, ceq] = constraintsNMPC(c,theta,x,N,xw,r0,K,state_F,state_h,in_F,in_h,term_F,term_h,Ts)
+function [cieq, ceq] = constraintsNMPC(c,theta,x,N,Ts,xw,uw,K,state_F,state_h,in_F,in_h,term_F,term_h)
 %% Constraint function for NMPC control of the Moore-Greitzer Compressor Model
 %
 % Inputs:
@@ -23,9 +23,9 @@ for k=1:N
         % inequality constraints
         
         % obtain new state at next prediction step
-        [xk1, uk] = transitionTrue(xk,ck,xw,r0,K,Ts);
+        [xk1, uk] = transitionTrue(xk,ck,xw,uw,K,Ts);
         dxk=xk-xw; 
-        duk=uk-r0;
+        duk=uk-uw;
         dxk1=xk1-xw;
         % H-representation of constraints
         % state constraints
@@ -41,7 +41,6 @@ for k=1:N
         end
     else
         cieq_T = term_F*[dxk1;theta]-term_h;
-%         cieq_T = [];
         cieq = [cieq; cieq_T]; %#ok<*AGROW>
     end
        

@@ -1,4 +1,4 @@
-function J = costNMPC(c,theta,x,xs,N,c0,Q,R,P,T,K,xw,r0,LAMBDA,PSI,dT)
+function J = costNMPC(c,theta,x,xs,xw,uw,N,Ts,c0,Q,R,P,T,K,LAMBDA,PSI)
 %% Cost function for NMPC
 % Inputs:
 %   c:      decision variable, from time k to time k+N-1 
@@ -23,10 +23,10 @@ J = 0;
 
 for k=1:N
     % Obtain plant state at next prediction step.
-    [xk1, uk] = transitionTrue(xk,ck,xw,r0,K,dT); % plant  
+    [xk1, uk] = transitionTrue(xk,ck,xw,uw,K,Ts); % plant  
     % put into lin sys perspective
     dx=xk-xw;
-    du=uk-r0;
+    du=uk-uw;
     dxk1=xk1-xw;
 %     dxk1=xk1-xw;
     % RUNNING COST
