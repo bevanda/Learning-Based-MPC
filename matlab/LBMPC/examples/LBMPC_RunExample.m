@@ -2,8 +2,10 @@ clearvars;
 addpath('../'); 
 addpath('../misc/'); 
 addpath('../models/'); 
+addpath('../functions/'); 
 
 %% Parameter initialization
+
 % Generate the DLTI verison of the continouous Moore-Greitzer Compressor 
 % model (MGCM)
 [A,B,C,D,Ts]=mgcmDLTI();
@@ -15,7 +17,8 @@ o = size(C,1); % num of outputs
 [Kstabil,Klqr,Q,R,P,T,Mtheta,LAMBDA,PSI,LAMBDA_0,PSI_0]=matOCP(A,B,C,n,m,o);
 
 %% OCP setting
-N=60; % Horizon length
+
+N=20; % Horizon length
 iterations = 10/Ts; % Simulation length (iterations)
 
 % The initial conditions w.r.t. to the linearisation/working point
@@ -40,9 +43,9 @@ umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
-% Uncertainty bound
-state_uncert = [0.02;5e-04;0;0]; % obtained form the maximal 
-% linearization error Lagrange Error Bound + estimation error toleranace
+% Uncertainty bound obtained form the maximal linearization error
+% Lagrange Error Bound + estimation error toleranace
+state_uncert = [0.02;5e-04;0;0];
 
 % Working point (wp)
 x_wp = [0.5;...
@@ -51,9 +54,13 @@ x_wp = [0.5;...
     0.0];
 u_wp = x_wp(3);
 
-[F_x,h_x, F_u,h_u, F_w_N,h_w_N, F_x_d,h_x_d]...
+[F_x,h_x, ... % nominal state ineq constraints 
+ F_u,h_u,...  % nominal input ineq constraints 
+ F_w_N,h_w_N,... % terminal extended state ineq constraints 
+ F_x_d,h_x_d]... % uncertainty ineq
     =getCONSPOLY(xmax,xmin,umax,umin,state_uncert,x_wp,u_wp,m,n,...
     A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0);
+
 %% Simulation setup
 
 u0 = zeros(m*N,1); % start inputs
@@ -61,39 +68,37 @@ theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
 
 sysHistory = [x_wp_init;u0(1:m,1)];
-
 art_refHistory =  0;
 true_refHistory = x_wp_ref;
-options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
-x = x_wp+x_wp_init; % true sistem init state
-% init states from models used in MPC
-xl=x_wp_init;
-xo=x_wp_init;
 % init data from estimation
 data.X=zeros(3,1);
 data.Y=zeros(4,1);
 
-%% Run LBMPC
+x = x_wp+x_wp_init; % true sistem init state
+
+options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
+
+%% Run LBMPC OPC
+
 tic;
 for k = 1:(iterations)      
     fprintf('iteration no. %d/%d \n',k,iterations);
     if k>1
+        
         % DATA ACQUISTION 
-        X=[x(1:2)-x_wp(1:2); u-u_wp]; %[δphi;δpsi;δu]
+        X=[x(1:2)-x_wp(1:2); u-u_wp]; %[δx1;δx2;δu]
         switch Ts
             case 0.01
                 Y=((x_k1-x_wp)-(A*(x-x_wp)+B*(u-u_wp))); %[δx_true-δx_nominal]
             otherwise
                 Y=-((x_k1-x_wp)-(A*(x-x_wp)+B*(u-u_wp))); %[δx_nominal-δx_true]
         end
-        % update state vars for estimation
-        x=x_k1;
-%         xl=xn_k1;
-        % get iterations
+       
+        x=x_k1; % update state vars for estimation
         q=100; % moving window of q datapoints 
-        data=update_data(X,Y,q,k,data);
+        data=update_data(X,Y,q,k,data); % update data
         
-        % get the real state w.r.t. wpuilibrium
+    % get the real state w.r.t. equilibrium
         dx=x-x_wp;
     else
         dx=x_wp_init;
@@ -108,15 +113,14 @@ for k = 1:(iterations)
     theta_opt = reshape(opt_var(end-m+1:end),m,1);
     c = reshape(opt_var(1:m),m,1);
     art_ref = Mtheta*theta_opt;
-    % Apply control to system and models
+
     % Implement first optimal control move and update plant states.
     [x_k1, u] = transitionTrue(x,c,x_wp,u_wp,Kstabil,Ts); % plant   
     
-    % Save state data for plotting w.r.t. work point x_w
-    % shift the output so that it's from the working point perspective
-    % setpoint being [0;0;0;0]
-    [dx, du]=wp_shift(x,x_wp,u,u_wp);
-    his = [dx; du]; 
+    % Save state data for plotting w.r.t. work point x_wp
+    [x, u]=wp_shift(x,x_wp,u,u_wp);
+    his = [x; u]; 
+    
     % Save plant states for display.
     sysHistory = [sysHistory his]; %#ok<*AGROW>
     art_refHistory = [art_refHistory art_ref(1:m)];
@@ -126,6 +130,7 @@ end
 toc
 
 %% PLOT
+
 figure;
 subplot(n+m,1,1);
 plot(0:iterations,sysHistory(1,:),'Linewidth',1.5); hold on;
