@@ -1,10 +1,12 @@
- %% TRACKING piecewise constant REFERENCE MPC example
+%% MPC for tracking piecewise constant references 
 clearvars;
 close all;
 
-%% Parameters
+%% Parameters initialization
 % Set the prediction horizon:
 N = 3;
+% Simulation length (iterations)
+iterations = 100;
 
 % The initial conditions
 x = [0;...
@@ -13,54 +15,46 @@ x = [0;...
 xs = [4.95;...
       0.0];
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
-% Simulation length (iterations)
-iterations = 100;
 
-
+% A non-square DLTI system - sampled double integrator
 A = [1 1; 0 1];
 B = [0.0 0.5; 1.0 0.5];
 C = [1 0];
 n = size(A,1);
 m = size(B,2);
 o = size(C,1);
-% Optimization variable bounds not constraints per say
+Q = eye(n);
+R = eye(m);
 
 params.A=A;
 params.B=B;
 params.C=C;
 params.n=n;
 params.m=m;
-
-Q = eye(n);
-R = eye(m);
 params.Q=Q;
 params.R=R;
+
 u0 = zeros(m*N,1); % start inputs
 theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0];
 
-% MN = [Mtheta; 1, 0];
+% Steady state parametrization matrice
 M = [A - eye(n), B, zeros(n,o); ...
         C, zeros(o,m), -eye(o)];
 Mtheta = null(M);
 LAMBDA = Mtheta(1:n,:);
 PSI = Mtheta(n+1:n+m,:);
 
-%%%%%%%%%%%%%%%%%%%%%
-% UNDER DISTURBANCE %
+% For an initial disturbance guess
 d_0 = [0,0]';
 % Solutions of M*[x;u;y] = [-d;0] are of the form M\[-d;0] + V*theta, theta in R^m
 V_0 = M\[-d_0; zeros(o,1)];
 LAMBDA_0 = V_0(1:n);
 PSI_0 = V_0(n+1:n+m);
-%%%%%%%%%%%%%%%%%%%%%
 
-%%
-%==========================================================================
-% Define a nominal feedback policy K and corresponding terminal cost
+%% Define a nominal feedback policy K and corresponding terminal cost
 
-% 'baseline' stabilizing feedback law
-K = -dlqr(A, B, Q, R);
+K = -dlqr(A, B, Q, R); % 'baseline' stabilizing feedback gain
 umin=-0.3;
 max_admissible_ctrl_weight=1/(umin^2);
 K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
@@ -68,11 +62,9 @@ K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
 T = 100*P;
-%%
-%==========================================================================
-% Define polytopic constraints on input F_u*x <= h_u and
+%% Define polytopic constraints on input F_u*x <= h_u and
 % state F_x*x <= h_x.  Also define model uncertainty as a F_g*x <= h_g
-%==========================================================================
+
 u_min =[-0.3;-0.3]; u_max= [0.3;0.3];
 x_min=[-5;-5]; x_max=[5;5];
 F_u = [eye(m); -eye(m)]; h_u = [u_max; -u_min];
@@ -87,17 +79,16 @@ length_Fx = length(h_x);
 run_F = [F_x zeros(length_Fx,m);...
         zeros(length_Fu,n) F_u];
 run_h = [h_x;h_u];
-%%
-%==========================================================================
-% Compute maximally invariant set for tracking
-%==========================================================================
+%% Compute maximally invariant set for tracking
 
 disp('Computing and simplifying terminal set...');
 L = (PSI - K*LAMBDA);
 L0 = (PSI_0 - K*LAMBDA_0); % when being under inital disturbance
-% contract the h values for the artificial steady state by a scalar λ ∈ (0, 1)
+% contract the h values for the artificial steady state by a scalar \lambda
+% to ensure that the invariant set is 
 lambda=0.99;
-% CONVEX POLYHAEDRON Wλ = {w = (x, θ) : (x, Kx + Lθ) ∈ Z, Mθθ ∈ λZ}.
+
+% Convex polyhedrons of extended state for the DLTI system
 F_w = [F_x zeros(length_Fx, m);
     zeros(length_Fx, n) F_x*LAMBDA; ...
     F_u*K, F_u*L; ...
@@ -110,7 +101,7 @@ h_w = [...
 F_w_N0 = F_w; h_w_N0 = h_w;
 X_ext=Polyhedron(F_w,h_w);
 
-% Compute usual maximally invariant set
+% Compute the usual maximal admissible invariant set (MAIS)
 syss = LTISystem('A', A+B*K);
 poly = Polyhedron([K; -K; eye(2); -eye(2)], [u_max; -u_min; x_max; -x_min]);
 iset1 = syss.invariantSet('X', poly);
@@ -128,9 +119,8 @@ h_w_N = term_poly.b; % Inequality description { x | A*x <= b }
 Xf0=MAIS_old;
 XN0=ROA(params,Xf0,Xc,Uc,N);
 iset2=syss.reachableSet('X',poly,'N',N,'direction','forward');
-figure;
-iset2.plot();
-% Region of attraction extended
+
+% Region of Attraction extended
 Xf=X_ext.projection(1:2);
 XN=ROA(params,Xf,Xc,Uc,N);
 
@@ -158,38 +148,35 @@ for k = 1:(iterations)
     x= getTransitions(x, u, params); %-K*(x-xs)+u_opt
     his=[x; u];
     % Save plant states for display.
-    sysHistory = [sysHistory his]; 
+    sysHistory = [sysHistory his]; %#ok<*AGROW>
     art_refHistory = [art_refHistory art_ref(1:n)];
     true_refHistory = [true_refHistory xs];
 end
 
-
 %% Plot
+
 disp('Generating plots...');
 figure;
-for i=1:n+m-1
-    subplot(3,1,i);   
-    plot(0:iterations,sysHistory(i,:),'Linewidth',1); hold on;
-    grid on
-    xlabel('iterations');
-    ylabel('x_i');
-    title('x_i');
-    plot(0:iterations,sysHistory(i,:),0:iterations,sysHistory(i+1,:),'Linewidth',1);
-    hold on;
-    grid on;
-    xlabel('iterations');
-    ylabel('u');
-    
-end
+for i=1:n+m
+        subplot(n+m,1,i);
+        plot(0:iterations,sysHistory(i,:),'Linewidth',1); hold on;
+        grid on
+        xlabel('time [s]');
+        if i<=n
+            lableTex = [' x_{',num2str(i),'}'];
+        else
+            lableTex = [' u_{',num2str(i-n),'}'];
+        end
+        ylabel(lableTex,'Interpreter','tex' );
+ end
+suptitle('System response');
 % 
 figure;
 plot_refs=plot(0:iterations,art_refHistory(1,:), 0:iterations, true_refHistory(1,:),0:iterations,sysHistory(1,:),'Linewidth',1.5);
 grid on;
 legend({'art_{ref}','real_{ref}','x_1 response'},'Location','southeast'); 
-
 xlabel('iterations');
-% ylabel('references');
-% title('Artificial vs true reference vs state response');
+title('x_1 response');
 
 plot_refs(1).LineStyle='--';
 plot_refs(2).LineStyle='-.';
@@ -197,8 +184,6 @@ plot_refs(1).Color='green';
 plot_refs(2).Color='red';
 plot_refs(3).Color='b';
 
-% set(gcf,'PaperPositionMode','auto')
-% print('res','-dsvg','-r300') % set dpi to 300 and save in SVG
 %%
 figure;
 % plot the sets
@@ -214,14 +199,12 @@ grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('Relevant sets');
-% set(gcf,'PaperPositionMode','auto')
-% print('sets','-dsvg','-r300') % set dpi to 300 and save in SVG
+
 %%
 figure;
-plot([XN,MAIS]); % from L->R: bigger -> smaller set to have everything visible 
+plot([XN,MAIS]); % from L->R: bigger->smaller set to have everything visible 
 hold on;
 % plot the system state-space
-
 plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'Marker','o','color','k',  'MarkerSize',5,...
     'MarkerEdgeColor','b',...
     'MarkerFaceColor',[0.5,0.5,0.5]); 
@@ -230,8 +213,6 @@ grid on;
 xlabel('x_1');
 ylabel('x_2');
 title('State trajectory');
-% set(gcf,'PaperPositionMode','auto')
-% print('sstraj','-dsvg','-r300') % set dpi to 300 and save in SVG
 
 %% Helper functions
 
