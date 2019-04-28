@@ -2,7 +2,11 @@ function    [F_x,h_x,...    % nominal state constraints polytope
             F_u,h_u,...     % nominal input constraints polytope
             F_w_N,h_w_N...  % terminal extended state constraints polytope
             ,F_x_d,h_x_d]... % uncertainty polytope
-            =getCONSPOLY(xmax,xmin,umax,umin,state_uncert,x_wp,u_wp,m,n,A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0)
+            =getCONSPOLY(...
+                xmax,xmin,umax,umin,state_uncert,...
+                x_wp,u_wp,m,n,...
+                A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0...
+                )
 %==========================================================================
 % Defining polytopic constraints on input F_u*x <= h_u and
 % state F_x*x <= h_x and define model uncertainty as a F_g*x <= h_g
@@ -12,14 +16,14 @@ disp('Computing constraint polytopes...');
 % Shift the system constraints w.r.t. to the linearisation point
 F_u = [eye(m); -eye(m)]; h_u = [umax-u_wp; -umin+u_wp];
 F_x = [eye(n); -eye(n)]; h_x = [xmax-x_wp; -xmin+x_wp];
-F_g = [eye(n); -eye(n)]; h_g = [state_uncert; state_uncert]; % uncertainty polytope
+F_d = [eye(n); -eye(n)]; h_d = [state_uncert; state_uncert]; % uncertainty polytope
 % count the length of the constraints on input, states, and uncertainty:
 length_Fu = length(h_u);
 length_Fx = length(h_x);
-length_Fg = length(h_g);
+length_Fd = length(h_d);
 
 % uncertainty polytope
-temp = Polyhedron(F_x, h_x) - Polyhedron(F_g, h_g);
+temp = Polyhedron(F_x, h_x) - Polyhedron(F_d, h_d);
 temp.minHRep();
 F_x_d= temp.A; h_x_d = temp.b;
 
@@ -49,14 +53,14 @@ h_w = [ h_x; ...
         h_x_d - F_x_d*B*(PSI_0-K_t*LAMBDA_0)];
 
 % disturbance constraints of the extended state 
-F_g_w = [F_g zeros(length_Fg,m); ...
+F_d_w = [F_d zeros(length_Fd,m); ...
         zeros(m, n) eye(m); ...
         zeros(m, n) -eye(m)];
-h_g_w = [h_g; ...
+h_d_w = [h_d; ...
         zeros(2*m,1)];
     
 % calculating the robust positively invariant set    
-[F_w_N0, h_w_N0] = pdiff(F_w, h_w, F_g_w, h_g_w);
+[F_w_N0, h_w_N0] = pdiff(F_w, h_w, F_d_w, h_d_w);
 
 term_poly = Polyhedron(F_w_N0, h_w_N0);
 term_poly.minHRep(); % simplifying the polyhedron/constraints
