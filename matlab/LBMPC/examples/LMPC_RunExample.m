@@ -18,7 +18,7 @@ o = size(C,1); % num of outputs
 %% Optimal control problem (OCP) setting
 disp('Setting up the OPC ...');
 % Horizon length
-N=50; 
+N=60; 
  
 % Constraints of the compressor model
 mflow_min=0; mflow_max=1;
