@@ -22,10 +22,10 @@ for k=1:N
         % obtain new state at next prediction step
         [xk1, uk] = transitionNominal(xk, ck, K);
         % H-representation of constraints
-        if k==1
-            cieq_T = term_F*[xk1;theta]-term_h;
-            cieq = [cieq; cieq_T]; %#ok<*AGROW>
-        end
+%         if k==1
+%             cieq_T = term_F*[xk1;theta]-term_h;
+%             cieq = [cieq; cieq_T]; %#ok<*AGROW>
+%         end
         % state constraints
         cieq_run1 = state_F*xk1-state_h;
         cieq  = [cieq; cieq_run1]; %#ok<*AGROW>
@@ -37,7 +37,9 @@ for k=1:N
         if k<N
             ck = c(:,k+1);
         end
-
+    else
+        cieq_T = term_F*[xk1;theta]-term_h;
+        cieq = [cieq; cieq_T]; %#ok<*AGROW>
     end
        
 end
