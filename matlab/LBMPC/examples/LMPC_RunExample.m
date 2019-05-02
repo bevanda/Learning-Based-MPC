@@ -10,7 +10,7 @@ disp('Initializing parameters...');
 [A,B,C,D,Ts]=mgcmDLTI();
 n = size(A,1); % num of states
 m = size(B,2); % num of inputs
-o = size(C,1); % num of outputs
+o = size(C,1); % num of outputs 
 
 % Obtaining all needed matrices for the optimal control problem (OCP)
 [Kstabil,Klqr,Q,R,P,T,Mtheta,LAMBDA,PSI,LAMBDA_0,PSI_0]=matOCP(A,B,C,n,m,o);
@@ -18,7 +18,7 @@ o = size(C,1); % num of outputs
 %% Optimal control problem (OCP) setting
 disp('Setting up the OPC ...');
 % Horizon length
-N=60; 
+N=50; 
  
 % Constraints of the compressor model
 mflow_min=0; mflow_max=1;
@@ -54,11 +54,20 @@ u_wp = x_wp(3);
 [F_x,h_x, ... % nominal state ineq constraints 
  F_u,h_u,...  % nominal input ineq constraints 
  F_w_N,h_w_N,... % terminal extended state ineq constraints 
- F_x_d,h_x_d]... % uncertainty ineq
-    =getCONSPOLY(...
-    xmax,xmin,umax,umin,state_uncert,...
+]... 
+    =getCONS(...
+    xmax,xmin,umax,umin,...
     x_wp,u_wp,m,n,...
-    A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0);
+    A,B,Kstabil,LAMBDA,PSI,LAMBDA_0,PSI_0);
+
+% [F_x,h_x, ... % nominal state ineq constraints 
+%  F_u,h_u,...  % nominal input ineq constraints 
+%  F_w_N,h_w_N,... % terminal extended state ineq constraints 
+%  F_x_d,h_x_d]... % uncertainty ineq
+%     =getCONSPOLY(...
+%     xmax,xmin,umax,umin,state_uncert,...
+%     x_wp,u_wp,m,n,...
+%     A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0);
 
 %% Simulation setup
 

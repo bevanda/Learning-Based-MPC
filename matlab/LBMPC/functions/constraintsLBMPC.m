@@ -40,7 +40,9 @@ for k=1:N
         if k<N
             ck = c(:,k+1);
         end
-
+%     else
+%         cieq_T = term_F*[xk1;theta]-term_h;
+%         cieq = [cieq; cieq_T]; %#ok<*AGROW>
     end
        
 end

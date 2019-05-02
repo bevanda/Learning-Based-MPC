@@ -7,11 +7,11 @@ function    [F_x,h_x,...    % nominal state constraints polytope
                 x_wp,u_wp,m,n,...
                 A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0...
                 )
-%==========================================================================
+
 % Defining polytopic constraints on input F_u*x <= h_u and
 % state F_x*x <= h_x and define model uncertainty as a F_g*x <= h_g
 % (so called H-representation)
-%==========================================================================
+
 disp('Computing constraint polytopes...');
 % Shift the system constraints w.r.t. to the linearisation point
 F_u = [eye(m); -eye(m)]; h_u = [umax-u_wp; -umin+u_wp];
