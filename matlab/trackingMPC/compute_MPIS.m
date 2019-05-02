@@ -20,5 +20,5 @@ function [Xmpi]=compute_MPIS(Xc,Ak)
             Xmpi = Xmpi_tmp;
         end
     end
-    fprintf("Interations : %d\n",i);
+    fprintf("Iterations : %d\n",i);
 end
