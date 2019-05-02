@@ -1,6 +1,6 @@
 function info=response_info(y,u,t,ys)
     T=t;
-    figure; plot(t,y);
+    plot(t,y); hold on;
     info=stepinfo(y,T,ys);
     info.CumError=compute_ctrl_error(y,T,ys,info.SettlingTime);
     info.CumEnergy=compute_ctrl_energy(u,t,info.SettlingTime);
