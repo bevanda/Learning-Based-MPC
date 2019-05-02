@@ -54,9 +54,6 @@ PSI_0 = V_0(n+1:n+m);
 
 %% Define a nominal feedback policy K and corresponding terminal cost
 K = -dlqr(A, B, Q, R); % 'baseline' stabilizing feedback gain
-umin=-0.3;
-max_admissible_ctrl_weight=1/(umin^2);
-K_t = -dlqr(A, B, Q, max_admissible_ctrl_weight*R);
 % Terminal cost chosen as solution to DARE
 P = dare(A+B*K, B, Q, R);
 % terminal steady state cost
@@ -132,6 +129,7 @@ art_refHistory = LAMBDA*theta0;
 true_refHistory = xs;
 
 for k = 1:(iterations)
+    fprintf("Iterations : %d\n",k);
     xs = set_ref(k);
     COSTFUN = @(var) costFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,xs,N,reshape(var(1:m),m,1),P,T,K,LAMBDA,PSI,params);
     CONSFUN = @(var) constraintsFunction(reshape(var(1:end-m),m,N),reshape(var(end-m+1:end),m,1),x,N,K,LAMBDA,PSI,run_F,run_h,F_xTheta,f_xTheta,params);
