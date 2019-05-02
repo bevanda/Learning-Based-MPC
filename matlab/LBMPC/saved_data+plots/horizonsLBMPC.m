@@ -1,9 +1,9 @@
 close all;
 addpath('./data/')
 %% Load data
-LBMPC50r=load('LBMPC_N50_sys_newP_newpoly_k1cons.mat');
-LBMPC60r=load('LBMPC_N60_sys_newP_newpoly_k1cons.mat');
-LBMPC80r=load('LBMPC_N80_sys_newP_newpoly_k1cons.mat');
+LBMPC50r=load('LBMPC_N50_sys_full');
+LBMPC60r=load('LBMPC_N60_sys_full');
+LBMPC80r=load('LBMPC_N80_sys_full');
 
 %% Plot
 iterations=size(LBMPC80r.sysH,2)-1;
@@ -29,7 +29,7 @@ grid on;
 xlabel('iterations');
 ylabel('\delta x_2');
 title('pressure rise');
-legend({'LBMPC50r' 'LBMPC60r','LBMPC80r'},'Location','northwest')
+legend({'LBMPC N=50' 'LBMPC N=60','LBMPC N=80'},'Location','northwest')
 
 subplot(5,1,3);
 plot(0:iterations, LBMPC50r.sysH(3,:),'Linewidth',1.5,'Color','b'); hold on;
