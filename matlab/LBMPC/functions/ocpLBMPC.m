@@ -4,10 +4,10 @@ function [sysHistory,art_refHistory,true_refHistory]...
                     A,B,Kstabil,Q,R,P,T,Mtheta,LAMBDA,PSI,m,...
                     F_x,h_x,F_u,h_u,F_w_N,h_w_N,F_x_d,h_x_d,...
                     sysHistory,art_refHistory,true_refHistory)
-%==========================================================================
+
 % Solving the Learning-Based Model Predictive optimal control problem 
 % at every timestep
-%==========================================================================
+
 for k = 1:(iterations)      
     fprintf('iteration no. %d/%d \n',k,iterations);
     if k>1     
