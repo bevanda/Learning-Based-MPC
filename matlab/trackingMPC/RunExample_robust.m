@@ -55,10 +55,10 @@ PSI_0 = V_0(n+1:n+m);
 %%
 % Define a nominal feedback policy K and corresponding terminal cost
 % 'baseline' stabilizing feedback law
-R=10*R;
-K = -dlqr(A, B, Q, R);
+
+K = -dlqr(A, B, Q, 1*R);
 % Terminal cost chosen as solution to DARE
-P = dare(A+B*K, B, Q, R);
+P = dare(A+B*K, B, Q, 1*R);
 %% terminal steady state cost
 T = 100*P;
 
@@ -159,8 +159,8 @@ for k = 1:(iterations)
     art_ref = Mtheta*theta_opt;
     % Implement first optimal control move and update plant states.
     % Add disturbance
-    x= getTransitions(x, u, params) +... %disturb(w_max,w_min);
-     1*switching_diturb(w_max(1),w_min(1),w_max(2),w_min(2),k);
+    x= getTransitions(x, u, params) + disturb(w_max,w_min); ...
+    % 1*switching_diturb(w_max(1),w_min(1),w_max(2),w_min(2),k);
     his=[x; u];
     % Save plant states for display.
     sysHistory = [sysHistory his]; %#ok<*AGROW> 
