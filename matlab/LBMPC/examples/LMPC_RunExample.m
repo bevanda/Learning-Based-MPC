@@ -60,15 +60,6 @@ u_wp = x_wp(3);
     x_wp,u_wp,m,n,...
     A,B,Kstabil,LAMBDA,PSI,LAMBDA_0,PSI_0);
 
-% [F_x,h_x, ... % nominal state ineq constraints 
-%  F_u,h_u,...  % nominal input ineq constraints 
-%  F_w_N,h_w_N,... % terminal extended state ineq constraints 
-%  F_x_d,h_x_d]... % uncertainty ineq
-%     =getCONSPOLY(...
-%     xmax,xmin,umax,umin,state_uncert,...
-%     x_wp,u_wp,m,n,...
-%     A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0);
-
 %% Simulation setup
 
 u0 = zeros(m*N,1); % start inputs

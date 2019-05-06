@@ -22,7 +22,9 @@ length_Fu = length(h_u);
 length_Fx = length(h_x);
 length_Fd = length(h_d);
 
-% uncertainty polytope
+poly=Polyhedron(F_d, h_d);
+figure; plot(poly.projection(1:2));
+
 temp = Polyhedron(F_x, h_x) - Polyhedron(F_d, h_d);
 temp.minHRep();
 F_x_d= temp.A; h_x_d = temp.b;
@@ -67,5 +69,6 @@ term_poly.minHRep(); % simplifying the polyhedron/constraints
 F_w_N = term_poly.A; h_w_N = term_poly.b;
 disp('Terminal set Polyhedron:');
 term_poly %#ok
+
 
 end

@@ -4,7 +4,7 @@ addpath('./data/')
 LBMPC40=load('LBMPC_N40_sys_full.mat');
 LBMPC50=load('LBMPC_N50_sys_full.mat');
 
-NMPC40=load('NMPC_N40_sys_full.mat');
+NMPC40=load('NMPC_N50_sys_full_new.mat');
 NMPC50=load('NMPC_N50_sys_full.mat');
 
 %% Plot
@@ -16,7 +16,7 @@ figure;
 subplot(5,1,1);
 plot(t, LBMPC40.sysH(1,:),'Linewidth',1.7,'Color','r'); hold on;
 plot(t, LBMPC50.sysH(1,:),'Linewidth',1.7,'Color','b'); hold on;
-plot(t, NMPC40.sysH(1,:),'Linewidth',1.7,'Color','r','LineStyle',':'); hold on;
+plot(t, NMPC40.sysH(1,:),'Linewidth',2.7,'Color','r','LineStyle',':'); hold on;
 plot(t, NMPC50.sysH(1,:),'Linewidth',1.7,'Color','b','LineStyle',':'); hold on;
 plot(t,0*(0:iterations),'Linewidth',1.5,'LineStyle',':','Color','k'); 
 grid on;

@@ -19,7 +19,7 @@ o = size(C,1); % num of outputs
 disp('Setting up the OPC ...');
 % Horizon length
 
-N=40;
+N=50;
 
  
 % Constraints of the compressor model
