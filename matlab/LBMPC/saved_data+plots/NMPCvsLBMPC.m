@@ -4,7 +4,7 @@ addpath('./data/')
 LBMPC40=load('LBMPC_N40_sys_full.mat');
 LBMPC50=load('LBMPC_N50_sys_full.mat');
 
-NMPC40=load('NMPC_N50_sys_full_new.mat');
+NMPC40=load('NMPC_N50_sys_full.mat');
 NMPC50=load('NMPC_N50_sys_full.mat');
 
 %% Plot
