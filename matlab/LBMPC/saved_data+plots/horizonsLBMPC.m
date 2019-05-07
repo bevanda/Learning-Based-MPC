@@ -2,8 +2,8 @@ close all;
 addpath('./data/')
 %% Load data
 LBMPC50r=load('LBMPC_N50_sys_full.mat');
-LBMPC60r=load('LBMPC_N40_sys_term.mat');
-LBMPC80r=load('LBMPC_N40_sys_full.mat');
+LBMPC60r=load('LBMPC_N60_sys_full.mat');
+LBMPC80r=load('LBMPC_N80_sys_full.mat');
 
 %% Plot
 iterations=size(LBMPC80r.sysH,2)-1;
