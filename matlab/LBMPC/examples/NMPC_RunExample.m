@@ -16,9 +16,10 @@ o = size(C,1); % num of outputs
 [Kstabil,Klqr,Q,R,P,T,Mtheta,LAMBDA,PSI,LAMBDA_0,PSI_0]=matOCP(A,B,C,n,m,o);
 
 %% Optimal control problem (OCP) setting
-disp('Setting up the OPC ...');
+
+disp('Setting up the OPC...');
 % Horizon length
-N=20; 
+N=50; 
 
 % Constraints of the compressor model
 mflow_min=0; mflow_max=1;
@@ -55,11 +56,11 @@ u_wp = x_wp(3);
 [F_x,h_x, ... % nominal state ineq constraints 
  F_u,h_u,...  % nominal input ineq constraints 
  F_w_N,h_w_N,... % terminal extended state ineq constraints 
- F_x_d,h_x_d]... % uncertainty ineq
-    =getCONSPOLY(...
-    xmax,xmin,umax,umin,state_uncert,...
+]... 
+    =getCONS(...
+    xmax,xmin,umax,umin,...
     x_wp,u_wp,m,n,...
-    A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0);
+    A,B,Kstabil,LAMBDA,PSI,LAMBDA_0,PSI_0);
 
 %% Simulation setup
 
@@ -76,7 +77,7 @@ x = x_wp+x_wp_init; % true system init state
 
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 
-%% Run LBMPC OCP simulation
+%% Run NMPC OCP simulation
 
 iterations = 10/Ts; % simulation length (iterations)
 disp('Running NMPC...');

@@ -24,7 +24,7 @@ for k=1:N
         
         % obtain new state at next prediction step
         [xk1, uk] = transitionTrue(xk,ck,xw,uw,K,Ts);
-        dxk=xk-xw; 
+        
         duk=uk-uw;
         dxk1=xk1-xw;
         % H-representation of constraints

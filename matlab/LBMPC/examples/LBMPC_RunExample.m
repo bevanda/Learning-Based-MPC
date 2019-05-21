@@ -18,7 +18,9 @@ o = size(C,1); % num of outputs
 %% Optimal control problem (OCP) setting
 disp('Setting up the OPC ...');
 % Horizon length
-N=10;
+
+N=50;
+
  
 % Constraints of the compressor model
 mflow_min=0; mflow_max=1;
@@ -36,12 +38,13 @@ xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 state_uncert = [0.02;5e-04;0;0];
 
 % The initial conditions w.r.t. to the linearisation/working point
-x_wp_init = [-0.35;...
+dx_init = [-0.35;...
             -0.4;...
             0.0;...
             0.0];
 % setpoint w.r.t. to the linearisation/working point
-x_wp_ref = [0.0;...
+
+dx_ref = [0.0;...
             0.0;...
             0.0;...
             0.0];
@@ -68,15 +71,16 @@ theta0 = zeros(m,1); % start param values
 opt_var = [u0; theta0]; 
 
 % Storing system history
-sysH = [x_wp_init;u0(1:m,1)];
+
+sysH = [dx_init;u0(1:m,1)];
 art_refH =  0;
-true_refH = x_wp_ref;
+true_refH = dx_ref;
 
 % init data from estimation
 data.X=zeros(3,1);
 data.Y=zeros(4,1);
 
-x = x_wp+x_wp_init; % true system init state
+x = x_wp+dx_init; % true system init state
 
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
 
@@ -86,7 +90,7 @@ iterations = 10/Ts; % simulation length (iterations)
 disp('Running LBMPC...');
 tic;
 [sysH,art_refH,true_refH]=ocpLBMPC(...
-                    x,x_wp,x_wp_init,x_wp_ref,u_wp,...
+                    x,x_wp,dx_init,dx_ref,u_wp,...
                     N,Ts,iterations,options,opt_var,data,...
                     A,B,Kstabil,Q,R,P,T,Mtheta,LAMBDA,PSI,m,...
                     F_x,h_x,F_u,h_u,F_w_N,h_w_N,F_x_d,h_x_d,...

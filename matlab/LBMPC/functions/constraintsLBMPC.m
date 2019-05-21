@@ -26,6 +26,8 @@ for k=1:N
         if k == 1
             cieq_run = stateD_F*xk1-stateD_h;
             cieq  = [cieq; cieq_run]; %#ok<*AGROW>
+            cieq_T = term_F*[xk1;theta]-term_h;
+            cieq = [cieq; cieq_T]; %#ok<*AGROW>
         end
         % state constraints
         cieq_run1 = state_F*xk1-state_h;
@@ -38,9 +40,6 @@ for k=1:N
         if k<N
             ck = c(:,k+1);
         end
-    else
-        cieq_T = term_F*[xk1;theta]-term_h;
-        cieq = [cieq; cieq_T]; %#ok<*AGROW>
     end
        
 end
