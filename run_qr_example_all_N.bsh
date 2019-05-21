@@ -1,7 +1,0 @@
-#!/bin/bash
-cd build
-for N in 5 10 15
-do
-    echo Running for N=${N}...
-    bin/qr_example_N${N} ../matlab/qr_example/quad_N${N}.bin 2>&1 > qr_example_N${N}.out
-done

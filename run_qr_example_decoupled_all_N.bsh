@@ -1,7 +1,0 @@
-#!/bin/bash
-cd build
-for N in 5 10 15 30 60 120 240
-do
-    echo Running for N=${N}...
-    bin/qr_example_decoupled_N${N} ../matlab/qr_example_decoupled/quad_xy_N${N}.bin ../matlab/qr_example_decoupled/quad_z_N${N}.bin 2>&1 > qr_example_decoupled_N${N}.out
-done
