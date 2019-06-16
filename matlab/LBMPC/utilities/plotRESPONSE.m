@@ -1,4 +1,4 @@
-function plotRESPONSE(sysHistory, art_refHistory, t_vec, n, m)
+function plotRESPONSE(sysHistory, t_vec, n, m)
 figure;
     for i=1:n+m
         subplot(n+m,1,i);

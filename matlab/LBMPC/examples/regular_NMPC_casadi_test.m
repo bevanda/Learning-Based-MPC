@@ -86,7 +86,7 @@ solver = nlpsol('solver', 'ipopt', nlp); %,'file_print_level',5
 t = [];
 x = [];
 u = [];
-
+solve_times=[];
 % ellipsoids toolbox needed (Matlab central)
 %E = ellipsoid(x_eq, alpha*inv(P));
 
@@ -124,7 +124,8 @@ for ii = 1:mpciterations % maximal number of iterations
     y_OL=full(res.x); 
     x_OL=y_OL(1:n*(N+1));
     u_OL=y_OL(n*(N+1)+1:end);
-    t_Elapsed = toc( t_Start );    
+    t_Elapsed = toc( t_Start );   
+    solve_times = [solve_times,t_Elapsed];
     %%    
  
     % Store closed loop data
@@ -154,12 +155,12 @@ for ii = 1:mpciterations % maximal number of iterations
     drawnow
   
 end
+%% plotting
+
+plotRESPONSE([x;u], t, n, m);
 %%
-figure(2)
-stairs(t,u);
-figure(3)
-stairs(x(1,:)); hold on;
-stairs(x(2,:));
+fprintf('Total solving time: %6.3fs \n', sum(solve_times));
+figure; histfit(solve_times);
 %%
 function xdot = system(x, u)
     % Systemn dynamics

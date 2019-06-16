@@ -79,7 +79,7 @@ u_eq = 1.15470000000000;
 mpciterations = 500;
 
 % Time horizon (continuous)
-N_t = 0.5;
+N_t = 1.0;
 
 % sampling time (Discretization steps)
 delta = 0.01;
@@ -131,6 +131,7 @@ x = [];
 u = [];
 theta = [];
 art_ref =[];
+solve_times=[];
 % ellipsoids toolbox needed (Matlab central)
 %E = ellipsoid(x_eq, alpha*inv(P));
 
@@ -169,7 +170,8 @@ for ii = 1:mpciterations % maximal number of iterations
     u_OL=y_OL(n*(N+1)+1:end-m);
     theta_OL=y_OL(end-m+1:end);
     art_ref_OL=[LAMBDA*y_OL(end-m+1:end);PSI*y_OL(end-m+1:end)];
-    t_Elapsed = toc( t_Start );    
+    t_Elapsed = toc( t_Start );   
+    solve_times = [solve_times,t_Elapsed];
     %%    
     
     % Store closed loop data
@@ -206,8 +208,10 @@ end
 
 %% plotting
 
-plotRESPONSE([x;u], art_ref, t, n, m)
-
+plot_RESPONSE([x;u], art_ref+[x_eq;u_eq], t, n, m)
+%%
+fprintf('Total solving time: %6.3fs \n', sum(solve_times));
+figure; histfit(solve_times);
 %% Help funcs
 
 function xdot = system(x, u)
@@ -231,9 +235,9 @@ function cost = costfunction(N, y, x_eq, u_eq, Q, R, P,T,LAMBDA,PSI, n,m,delta)
     for k=1:N
         x_k=x(n*(k-1)+1:n*k);
         u_k=u(m*(k-1)+1:m*k);
-        cost = cost + delta*runningcosts(x_k-x_eq, u_k-u_eq,x_art,u_art, Q, R);
+        cost = cost + delta*runningcosts(x_k, u_k,x_art+x_eq,u_art+u_eq, Q, R);
     end
-    cost = cost + terminalcosts(x(n*N+1:n*(N+1)) - x_eq, x_eq, x_art, P,T);
+    cost = cost + terminalcosts(x(n*N+1:n*(N+1)), x_eq, x_art+x_eq, P,T);
     
 end
 
