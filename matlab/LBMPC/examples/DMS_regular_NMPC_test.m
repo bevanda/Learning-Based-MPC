@@ -1,4 +1,5 @@
 %
+clearvars;
 % regular NMPC direct multiple shooting for Moore-Greitzer comperssor model
 addpath('../utilities');
 addpath('../models/'); 
@@ -9,7 +10,7 @@ import casadi.*
 % Time horizon
 T = 5.0;
 % Control discretization
-N = 25; % number of control intervals
+N = 50; % number of control intervals
 
 n = 4; m = 1;
 % eqilibilium point
@@ -43,7 +44,7 @@ xdot = [-x2+1+3*(x1/2)-(x1^3/2);...       % mass flow rate
         -1000*x3-2*sqrt(500)*x4+1000*u];    % throttle opening accelerat
 
 % Objective term
-L = (x1-x_eq(1))^2 + (x2-x_eq(2))^2 + (x3-x_eq(3))^2 + (x4-x_eq(4))^2  + (u-u_eq)^2;
+L = (x1)^2 + (x2)^2 + (x3)^2 + (x4)^2  + (u)^2;
 
 % Formulate discrete time dynamics
 if false
@@ -88,7 +89,7 @@ ubg = [];
 
 % "Lift" initial conditions
 Xk = MX.sym('X0', n);
-w = {w{:}, Xk};
+w = [w(:)', {Xk}];
 lbw = [lbw; x_init];
 ubw = [ubw; x_init];
 w0 = [w0; x_init];
@@ -97,9 +98,9 @@ w0 = [w0; x_init];
 for k=0:N-1
     % New NLP variable for the control
     Uk = MX.sym(['U_' num2str(k)]);
-    w = {w{:}, Uk};
-    lbw = [lbw; umin];
-    ubw = [ubw;  umax];
+    w = [w(:)', {Uk}];
+    lbw = [lbw; -inf];
+    ubw = [ubw;  +inf];
     w0 = [w0;  x_init(3)];
     
     % Integrate till the end of the interval
@@ -109,13 +110,13 @@ for k=0:N-1
     
     % New NLP variable for state at end of interval
     Xk = MX.sym(['X_' num2str(k+1)], n);
-    w = {w{:}, Xk};
+    w = [w(:)', {Xk}];
     lbw = [lbw; xmin];
     ubw = [ubw;  xmax];
     w0 = [w0; zeros(n,1)];
 
     % Add equality constraint
-    g = {g{:}, Xk_end-Xk};
+    g = [g(:)', {Xk_end-Xk}];
     lbg = [lbg; zeros(n,1)];
     ubg = [ubg; zeros(n,1)];
 end

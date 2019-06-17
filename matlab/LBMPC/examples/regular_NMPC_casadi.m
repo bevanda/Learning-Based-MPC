@@ -27,7 +27,7 @@ u_min=0.1547;u_max=2.1547;
 mpciterations = 500;
 
 % Horizon (continuous)
-T = 0.5;
+T = 1.0;
 
 % sampling time (Discretization steps)
 delta = 0.01;

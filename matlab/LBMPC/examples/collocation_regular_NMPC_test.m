@@ -60,7 +60,7 @@ o = size(C,1); % num of outputs
 
 
 % Time horizon
-Nt = 0.5;
+Nt = 5.0;
 
 % eqilibilium point
 x_eq = [0.500000000000000;1.68750000000000;1.15470000000000;0];
@@ -146,8 +146,8 @@ for k=0:N-1
        end
 
        % Append collocation equations
-%        [fj, qj] = f(Xkj{j},Uk); % true
-       [fj, qj] = lin_f(Xkj{j},Uk); % nominal
+       [fj, qj] = f(Xkj{j},Uk); % true
+%        [fj, qj] = lin_f(Xkj{j},Uk); % nominal
        g = {g{:}, h*fj - xp};
        lbg = [lbg; zeros(n,1)];
        ubg = [ubg; zeros(n,1)];
@@ -180,6 +180,11 @@ solver = nlpsol('solver', 'ipopt', prob);
 sol = solver('x0', w0, 'lbx', lbw, 'ubx', ubw,...
             'lbg', lbg, 'ubg', ubg);
 w_opt = full(sol.x);
+
+% 
+% opts = struct('main', true,...
+%               'mex', true);
+% solver.generate('gen.c',opts);
 
 % Plot the solution
 x1_opt = w_opt(1:(m+n)+n*d:end);

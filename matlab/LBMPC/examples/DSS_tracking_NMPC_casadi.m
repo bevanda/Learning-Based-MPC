@@ -38,8 +38,8 @@ xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max];
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
 
-T = 5.0; % Time horizon
-N = 25; % number of control intervals
+T = Nt; % Time horizon
+N = 50; % number of control intervals
 
 % Declare model variables
 x1 = SX.sym('x1');
