@@ -2,7 +2,6 @@
 clearvars;
 close all;
 clc;
-
 %% import CasADi
 import casadi.*
 
@@ -37,10 +36,8 @@ umax = u_max; umin = u_min;
 xmax = [mflow_max; prise_max; throttle_max; throttle_rate_max]; 
 xmin = [mflow_min; prise_min; throttle_min; throttle_rate_min];
 
-% Uncertainty bound obtained form the maximal linearization error
-% Lagrange Error Bound + estimation error toleranace
-state_uncert = [0.02;5e-04;0;0];
-
+% Uncertainty bound 
+state_uncert = [0;0;0;0]; % no uncertainty
 
 % The initial conditions w.r.t. to the linearisation/working point
 x_wp_init = [-0.35;...
@@ -63,11 +60,11 @@ u_wp = x_wp(3);
 [F_x,h_x, ... % nominal state ineq constraints 
  F_u,h_u,...  % nominal input ineq constraints 
  F_w_N,h_w_N,... % terminal extended state ineq constraints 
- F_x_d,h_x_d]... % uncertainty ineq
-    =getCONSPOLY(...
-    xmax,xmin,umax,umin,state_uncert,...
+]... 
+    =getCONS(...
+    xmax,xmin,umax,umin,...
     x_wp,u_wp,m,n,...
-    A,B,Q,R,LAMBDA,PSI,LAMBDA_0,PSI_0);
+    A,B,Kstabil,LAMBDA,PSI,LAMBDA_0,PSI_0);
 
 %% Setting up the OCP
 
@@ -116,19 +113,19 @@ ub(1:n)=x_init;
 xmax = [zeros(n,1); zeros(numel(h_x)+numel(h_u),1)]; 
 xmin = [zeros(n,1); -inf*ones(numel(h_x)+numel(h_u),1)];
 
-con_lb=[-inf*ones(numel(h_w_N) + numel(h_x_d),1); repmat(xmin,N,1)];
-con_ub=[zeros(numel(h_w_N) + numel(h_x_d),1); repmat(xmax,N,1)];
+con_lb=[repmat(xmin,N,1);-inf*ones(numel(h_w_N),1)];
+con_ub=[repmat(xmax,N,1);zeros(numel(h_w_N),1)];
 
 %make symbolic
 y=MX.sym('y',(N+1)*n+N*m+m);
 obj=costfunction(N, y, x_eq, u_eq,  Q, R, P,T, LAMBDA,PSI, n,m,delta);
-con=nonlinearconstraints(N,A,B, delta,x_eq,u_eq,y,n,m,...
-    F_x,h_x, F_u,h_u, F_w_N, h_w_N, F_x_d, h_x_d);
+con=nonlinearconstraints(N,A,B, delta,x_eq,u_eq,y,n,m,F_x,h_x, F_u,h_u, F_w_N, h_w_N);
 
 nlp = struct('x', y, 'f', obj, 'g', con);
 solver = nlpsol('solver', 'ipopt', nlp); %,'file_print_level',5
 
 % Set variables for output
+sysH=[]; % sim
 t = [];
 x = [];
 u = [];
@@ -151,7 +148,7 @@ fprintf('---------------------------------------------------\n');
 % initilization of measured values
 tmeasure = t_0;
 xmeasure = x_init;
-
+sysHmeasure=x_init;
 %% simulation
 for ii = 1:mpciterations % maximal number of iterations
     
@@ -176,8 +173,9 @@ for ii = 1:mpciterations % maximal number of iterations
     t_Elapsed = toc( t_Start );   
     solve_times = [solve_times,t_Elapsed];
     %%    
-    
-    % Store closed loop data
+    % Store closed loop data u_OL(1:m)
+
+    sysH = [sysH, sysHmeasure]; %sim
     t = [ t, tmeasure ];
     x = [ x, xmeasure ];
     u = [ u, u_OL(1:m) ];
@@ -187,10 +185,10 @@ for ii = 1:mpciterations % maximal number of iterations
     % Update closed-loop system (apply first control move to system)
     xmeasure = x_OL(n+1:2*n);
     tmeasure = tmeasure + delta;
-        
+    sysHmeasure = dynamic(delta, sysHmeasure, u_OL(1:m)); %sim
     % Compute initial guess for next time step, based on terminal LQR controller (K_loc)
-    u0 = [u_OL(m+1:end); K_loc*x_OL(end-n-m+1:end-m)];
-    x0 = [x_OL(n+1:end); dynamic(delta, x_OL(end-n-m+1:end-m), u0(end-m-m+1:end-m))];
+    u0 = [u_OL(m+1:end); K_loc*sysHmeasure];
+    x0 = [x_OL(n+1:end); sysHmeasure];
     theta0 = theta_OL;
     art_ref_OL=[LAMBDA*theta_OL; PSI*theta_OL];
     %%
@@ -256,8 +254,7 @@ function cost = terminalcosts(x,x_eq, x_art, P,T)
 end
 
 
-function [con] = nonlinearconstraints(N, A,B,delta,x_eq,u_eq, y,n,m,...
-      state_F,state_h, in_F,in_h, F_w_N, h_w_N, F_x_d, h_x_d) 
+  function [con] = nonlinearconstraints(N,A,B, delta,x_eq,u_eq, y,n,m,state_F,state_h, in_F,in_h, F_w_N, h_w_N) 
    % Introduce the nonlinear constraints also for the terminal state
    
    x=y(1:n*(N+1));
@@ -271,11 +268,6 @@ function [con] = nonlinearconstraints(N, A,B,delta,x_eq,u_eq, y,n,m,...
         x_k=x((k-1)*n+1:k*n);
         x_new=x(k*n+1:(k+1)*n);        
         u_k=u((k-1)*m+1:k*m);
-        if k == 1
-            cieq_run = F_x_d*(x_new-x_eq)-h_x_d;
-            cieq_T = F_w_N*[(x_new-x_eq);theta]-h_w_N;
-            con = [con; cieq_run; cieq_T]; %#ok<*AGROW>
-        end
         % dynamic constraint
         ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
         con = [con; ceqnew];
@@ -285,11 +277,16 @@ function [con] = nonlinearconstraints(N, A,B,delta,x_eq,u_eq, y,n,m,...
         con  = [con; cieq_run1; cieq_run2]; %#ok<*AGROW>
         % nonlinear constraints on state and input could be included here
     end
+   %
+   %terminal constraint
+    cieq_T = F_w_N*[(x_new-x_eq);theta]-h_w_N; % x-x_eq to be w.r.t. to the eq point
+    con = [con; cieq_T];    
   end
 
- function xk1=nominal_dynamics(xk, uk, A, B)
+function xk1=nominal_dynamics(xk, uk, A, B)
     xk1 = A*xk + B*uk;
  end
+
 
 function x_new=dynamic(delta,x,u)
     %use Ruku4 for discretization
