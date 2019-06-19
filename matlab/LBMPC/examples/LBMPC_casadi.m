@@ -103,7 +103,7 @@ theta0=zeros(m,1);
 x0=zeros(n*(N+1),1);
 x0(1:n) = x_init;
 for k=1:N
-     x0(n*k+1:n*(k+1)) = dynamic(delta,x0(n*(k-1)+1:n*k), u0(k));
+     x0(n*k+1:n*(k+1)) = nominal_dynamics(x0(n*(k-1)+1:n*k)-x_eq, u0(k)-u_eq,A,B);
 end
 
 %initial state constraint: use LB, UB
@@ -119,10 +119,14 @@ xmin = [zeros(n,1); -inf*ones(numel(h_x)+numel(h_u),1)];
 con_lb=[-inf*ones(numel(h_w_N) + numel(h_x_d),1); repmat(xmin,N,1)];
 con_ub=[zeros(numel(h_w_N) + numel(h_x_d),1); repmat(xmax,N,1)];
 
+
+% init data for oracle
+data.X=zeros(3,1);
+data.Y=zeros(4,1);
 %make symbolic
 y=MX.sym('y',(N+1)*n+N*m+m);
-obj=costfunction(N, y, x_eq, u_eq,  Q, R, P,T, LAMBDA,PSI, n,m,delta);
-con=nonlinearconstraints(N,A,B, delta,x_eq,u_eq,y,n,m,...
+obj=costfunction(N, y, x_eq, u_eq,  Q, R, P,T, LAMBDA, PSI, n,m, delta);
+con=nonlinearconstraints(N,A,B, data,x_eq,u_eq,y,n,m,...
     F_x,h_x, F_u,h_u, F_w_N, h_w_N, F_x_d, h_x_d);
 
 nlp = struct('x', y, 'f', obj, 'g', con);
@@ -172,7 +176,7 @@ for ii = 1:mpciterations % maximal number of iterations
     x_OL=y_OL(1:n*(N+1));
     u_OL=y_OL(n*(N+1)+1:end-m);
     theta_OL=y_OL(end-m+1:end);
-    art_ref_OL=[LAMBDA*y_OL(end-m+1:end);PSI*y_OL(end-m+1:end)];
+    art_ref_OL=[LAMBDA*y_OL(end-m+1:end); PSI*y_OL(end-m+1:end)];
     t_Elapsed = toc( t_Start );   
     solve_times = [solve_times,t_Elapsed];
     %%    
@@ -185,14 +189,23 @@ for ii = 1:mpciterations % maximal number of iterations
     art_ref = [art_ref, art_ref_OL];
     
     % Update closed-loop system (apply first control move to system)
-    xmeasure = x_OL(n+1:2*n);
+    xmeasure1 = dynamic(delta,xmeasure,u_OL(1:m)); % real state measurement
+    
+    % data acquisition 
+    X=[xmeasure(1:2)-x_eq(1:2);  u_OL(1:m)-u_eq]; %[δx1;δx2;δu]
+    Y=(xmeasure1-x_eq)-nominal_dynamics(xmeasure-x_eq, u_OL(1:m)-u_eq,A,B); %[δx_true-δx_nominal]
+    q=100; % moving window of q datapoints 
+    data=update_data(X,Y,q,ii,data); % update data   
+
     tmeasure = tmeasure + delta;
         
     % Compute initial guess for next time step, based on terminal LQR controller (K_loc)
     u0 = [u_OL(m+1:end); K_loc*x_OL(end-n-m+1:end-m)];
-    x0 = [x_OL(n+1:end); dynamic(delta, x_OL(end-n-m+1:end-m), u0(end-m-m+1:end-m))];
+    x0 = [x_OL(n+1:end); dynamic(delta, x_OL(end-n-m+1:end-m), u0(end-m-m+1:end-m))]; %% learned ynamics
     theta0 = theta_OL;
     art_ref_OL=[LAMBDA*theta_OL; PSI*theta_OL];
+    
+    xmeasure = xmeasure1; % UPDATE STATE MEASURE
     %%
     % Print numbers
     fprintf(' %3d  | %+11.6f %+11.6f %+11.6f  %+6.3f\n', ii, u(end),...
@@ -210,7 +223,6 @@ for ii = 1:mpciterations % maximal number of iterations
 end
 
 %% plotting
-
 plot_RESPONSE([x;u], art_ref+[x_eq;u_eq], t, n, m)
 %%
 fprintf('Total solving time: %6.3fs \n', sum(solve_times));
@@ -256,7 +268,7 @@ function cost = terminalcosts(x,x_eq, x_art, P,T)
 end
 
 
-function [con] = nonlinearconstraints(N, A,B,delta,x_eq,u_eq, y,n,m,...
+function [con] = nonlinearconstraints(N, A,B,data,x_eq,u_eq, y,n,m,...
       state_F,state_h, in_F,in_h, F_w_N, h_w_N, F_x_d, h_x_d) 
    % Introduce the nonlinear constraints also for the terminal state
    
@@ -277,6 +289,7 @@ function [con] = nonlinearconstraints(N, A,B,delta,x_eq,u_eq, y,n,m,...
             con = [con; cieq_run; cieq_T]; %#ok<*AGROW>
         end
         % dynamic constraint
+%         ceqnew=x_new - (x_eq+learned_dynamics(x_k-x_eq, u_k-u_eq,A,B,data));
         ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
         con = [con; ceqnew];
         % other constraints
@@ -290,6 +303,48 @@ function [con] = nonlinearconstraints(N, A,B,delta,x_eq,u_eq, y,n,m,...
  function xk1=nominal_dynamics(xk, uk, A, B)
     xk1 = A*xk + B*uk;
  end
+ 
+ function [xk, u] = learned_dynamics(x, u, A,B, data)
+%% Discrete-time learned dynamic model 
+% Inputs:
+%   x: states at time k
+%   u: input at time k
+%   data: struct with (X, Y) obervations for estimation
+%
+% Outputs:
+%   xk: states at time k+1
+%
+%% Discrete time state-space model of the non-square LTI system for tracking
+xk = A*x + B*u + casadiL2NW(x,u,data);
+ end
+ 
+function g = casadiL2NW(x,u,data)
+X=data.X; Y=data.Y; ksi=[x(1:2);u];
+% g = oracle(ksi, X, Y) performs a nonparametric L2 normalised Nadaraya-Watson kernel regression
+if nargin <2
+    X=zeros(3,1);
+    Y=zeros(4,1);
+end 
+
+bandwidth = 0.5;  
+lambda = 0.001; 
+s = size(Y,1);
+n = size(X,2);
+% kval = zeros(1,n);
+kval = casadi.MX.sym('kval',1,n);
+
+for i=1:n
+    kval(i) = exp(-((norm(X(:,i) - ksi).^2)/bandwidth^2));
+end
+skval = sum(kval);
+weight = kval/(lambda + skval);
+y=zeros(s,1);
+for i=1:n
+    out = Y(:,i)*weight(i);
+    y = y + out;
+end
+g = y;
+end
 
 function x_new=dynamic(delta,x,u)
     %use Ruku4 for discretization

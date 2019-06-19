@@ -23,7 +23,7 @@ length_Fx = length(h_x);
 length_Fd = length(h_d);
 
 poly=Polyhedron(F_d, h_d);
-figure; plot(poly.projection(1:2));
+% figure; plot(poly.projection(1:2));
 
 temp = Polyhedron(F_x, h_x) - Polyhedron(F_d, h_d);
 temp.minHRep();
