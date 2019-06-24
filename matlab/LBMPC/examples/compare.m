@@ -1,6 +1,5 @@
-load('DSS_tLMPC.mat'); load('DSS_tNMPC.mat'); load('tLBMPC.mat');
+load('DSS_tLMPC.mat'); load('DSS_tNMPC.mat'); load('DMS_tLBMPC_q50.mat');
 [l,n]=size(xl);
-
 figure;
     for i=1:l
         subplot(l,1,i);

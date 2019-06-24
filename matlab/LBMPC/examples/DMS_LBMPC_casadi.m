@@ -93,9 +93,6 @@ N = N_t/delta;
 t_0 = 0.0;
 x_init = [0.150000000000000;1.28750000000000;1.15470000000000;0];
 
-% Terminal set and cost
-K_loc = Kstabil;
-
 % Initial guess for input
 u0 = u_eq*ones(m*N,1);
 theta0=zeros(m,1);
@@ -103,29 +100,28 @@ theta0=zeros(m,1);
 x0=zeros(n*(N+1),1);
 x0(1:n) = x_init;
 for k=1:N
-     x0(n*k+1:n*(k+1)) = nominal_dynamics(x0(n*(k-1)+1:n*k)-x_eq, u0(k)-u_eq,A,B);
+     x0(n*k+1:n*(k+1)) = x_eq + nominal_dynamics(x0(n*(k-1)+1:n*k)-x_eq, u0(k)-u_eq,A,B);
 end
-xl0 = x0;
-%initial state constraint: use LB, UB
+xl0 = x0; % learned model = nominal at the beginning
+
 %input constraints
 lb=[-inf*ones(2*n*(N+1),1);-inf*ones(N*m+m,1)];
 ub=[+inf*ones(2*n*(N+1),1);+inf*ones(N*m+m,1)];
-lb(1:2*n)=[x_init,x_init];
-ub(1:2*n)=[x_init,x_init];
+lb(1:n)=x_init;
+ub(1:n)=x_init;
+lb((N+1)*n+1:(N+1)*n+n)=x_init;
+ub((N+1)*n+1:(N+1)*n+n)=x_init;
 %nonlinear constraints (both inequality and equality constraints)
-xmax = [zeros(n,1); zeros(n,1); zeros(numel(h_x)+numel(h_u),1)]; 
+
 xmin = [zeros(n,1); zeros(n,1); -inf*ones(numel(h_x)+numel(h_u),1)];
+xmax = [zeros(n,1); zeros(n,1); zeros(numel(h_x)+numel(h_u),1)]; 
 
 con_lb=[-inf*ones(numel(h_w_N) + numel(h_x_d),1); repmat(xmin,N,1)];
 con_ub=[zeros(numel(h_w_N) + numel(h_x_d),1); repmat(xmax,N,1)];
 
-% load('train_data.mat');
-% init data for oracle
-% data.X=zeros(3,1);
-% data.Y=zeros(4,1);
-%make symbolic
 y=SX.sym('y',2*(N+1)*n+N*m+m);
-d = SX.sym('d',7,100); %data as parameter
+q=50; % moving window of q datapoints 
+d = SX.sym('d',7,q); %data as parameter
 obj=costfunction(N, y, x_eq, u_eq,  Q, R, P,T, LAMBDA, PSI, n, m, delta);
 con=nonlinearconstraints(N,A, B, d,x_eq,u_eq,y,n,m,...
     F_x,h_x, F_u,h_u, F_w_N, h_w_N, F_x_d, h_x_d);
@@ -158,24 +154,24 @@ fprintf('---------------------------------------------------\n');
 tmeasure = t_0;
 xmeasure = x_init;
 xlmeasure = xmeasure;
-data = zeros(7,100);
+data = zeros(7,q);
 %% simulation
 for iter = 1:mpciterations % maximal number of iterations
-    
-    
     % Set initial guess and initial constraint
 
     y_init=[xl0;x0;u0;theta0];
     
     t_Start = tic;
-    lb(1:2*n)=[xmeasure,xmeasure];
-    ub(1:2*n)=[xmeasure,xmeasure];
-    res = solver('x0' , y_init,... % solution guess
+    lb(1:n)=xmeasure;
+    ub(1:n)=xmeasure;
+    lb(n*(N+1)+1:n*(N+1)+n)=xmeasure;
+    ub(n*(N+1)+1:n*(N+1)+n)=xmeasure;
+    res = solver('x0' , y_init,...   % solution guess
              'lbx', lb,...           % lower bound on x
              'ubx', ub,...           % upper bound on x
-             'lbg', con_lb,...           % lower bound on g
-             'ubg', con_ub,...             % upper bound on g
-             'p', data);
+             'lbg', con_lb,...       % lower bound on g
+             'ubg', con_ub,...       % upper bound on g
+             'p', data);             % parameters
     y_OL=full(res.x); 
     xl_OL=y_OL(1:n*(N+1));
     x_OL=y_OL(n*(N+1)+1:2*n*(N+1));
@@ -196,41 +192,35 @@ for iter = 1:mpciterations % maximal number of iterations
     
     % Update closed-loop system (apply first control move to system)
     xmeasure1 = dynamic(delta,xmeasure,u_OL(1:m)); % real state measurement
+    xlmeasure = x_eq + learned_dynamics(xmeasure-x_eq, u_OL(1:m) - u_eq, A, B, data);
     
     % data acquisition 
     X=[xmeasure(1:2)-x_eq(1:2);  u_OL(1:m)-u_eq]; %[δx1;δx2;δu]
-    Y=(xmeasure1-x_eq)-nominal_dynamics(xmeasure-x_eq, u_OL(1:m)-u_eq,A,B); %[δx_true-δx_nominal]
-    q=100; % moving window of q datapoints 
+    Y=xmeasure1-(x_eq+nominal_dynamics(xmeasure-x_eq, u_OL(1:m)-u_eq,A,B)); %[δx_true-δx_nominal]
     
-    data = get_data(X,Y,q,iter,data); % update data  
-    
-%     lm = learned_dynamics(xmeasure, u_OL(1:m), A, B, data);
-%     lm = nominal_dynamics(xmeasure, u_OL(1:m), A, B);
-%     xlmeasure = lm;
-    
-    tmeasure = tmeasure + delta;
+    data = get_data(X,Y,q,iter,data); % update data 
         
-    % Compute initial guess for next time step, based on terminal LQR controller (K_loc)
-    u0 = [u_OL(m+1:end); K_loc*xl_OL(end-n-m+1:end-m)];
-    x0 = [x_OL(n+1:end); x_eq + nominal_dynamics(xmeasure, u_OL(1:m), A, B)]; %% learned ynamics
-    xl0 = [xl_OL(n+1:end); x_eq + learned_dynamics(xmeasure, u_OL(1:m), A, B, data)]; %% learned ynamics
+    % Compute initial guess for next time step, based on terminal LQR controller (Kstabil)
+    u0 = [u_OL(m+1:end); Kstabil*xl_OL(end-n-m+1:end-m)];
+    x0 = [x_OL(n+1:end); x_eq + nominal_dynamics(xmeasure-x_eq, u_OL(1:m)- u_eq, A, B)]; %% learned ynamics
+    xl0 = [xl_OL(n+1:end); x_eq + learned_dynamics(xmeasure-x_eq, u_OL(1:m) - u_eq, A, B, data)]; %% learned dynamics
     theta0 = theta_OL;
     art_ref_OL=[LAMBDA*theta_OL; PSI*theta_OL];
-    
+        
+    tmeasure = tmeasure + delta;
     xmeasure = xmeasure1; % UPDATE STATE MEASURE
     %%
     % Print numbers
     fprintf(' %3d  | %+11.6f %+11.6f %+11.6f  %+6.3f\n', iter, u(end),...
             x(1,end), x(2,end),t_Elapsed);
-    
     %plot predicted and closed-loop state trajetories    
     f1 = figure(1);
     plot(x(1,:),x(2,:),'b'), grid on, hold on,
     plot(x_OL(1:n:n*(N+1)),x_OL(2:n:n*(N+1)),'g')
     plot(xl_OL(1:n:n*(N+1)),xl_OL(2:n:n*(N+1)),'r')
     plot(x(1,:),x(2,:),'ob')
-    xlabel('x(1)')
-    ylabel('x(2)')
+    xlabel('x_{1}')
+    ylabel('x_{2}')
     drawnow
   
 end
@@ -287,16 +277,19 @@ function [con] = nonlinearconstraints(N, A,B,data,x_eq,u_eq, y,n,m,...
       state_F,state_h, in_F,in_h, F_w_N, h_w_N, F_x_d, h_x_d) 
    % Introduce the nonlinear constraints also for the terminal state
    
-   x=y(1:n*(N+1));
-   u=y(n*(N+1)+1:end-m);
+   xl=y(1:n*(N+1));
+   x=y(n*(N+1)+1:2*n*(N+1));
+   u=y(2*n*(N+1)+1:end-m);
    theta=y(end-m+1:end);
    con = [];
    %con_ub = [];
    %con_lb = [];
    % constraints along prediction horizon
     for k=1:N
+        xl_k=xl((k-1)*n+1:k*n);
+        xl_new=xl(k*n+1:(k+1)*n);   
         x_k=x((k-1)*n+1:k*n);
-        x_new=x(k*n+1:(k+1)*n);        
+        x_new=x(k*n+1:(k+1)*n); 
         u_k=u((k-1)*m+1:k*m);
         if k == 1
             cieq_run = F_x_d*(x_new-x_eq)-h_x_d;
@@ -304,10 +297,11 @@ function [con] = nonlinearconstraints(N, A,B,data,x_eq,u_eq, y,n,m,...
             con = [con; cieq_run; cieq_T]; %#ok<*AGROW>
         end
         % dynamic constraint
-        ceqnew1=x_new - (x_eq+learned_dynamics(x_k-x_eq, u_k-u_eq,A,B,data));
+        ceqnew1=xl_new - (x_eq + learned_dynamics(xl_k-x_eq, u_k-u_eq,A,B,data));
         ceqnew2=x_new - (x_eq + nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
         con = [con; ceqnew1; ceqnew2];
         % other constraints
+        
         cieq_run1 = state_F*(x_new-x_eq)-state_h;
         cieq_run2 = in_F*(u_k-u_eq)-in_h;
         con  = [con; cieq_run1; cieq_run2]; %#ok<*AGROW>
@@ -335,7 +329,6 @@ xk = A*x + B*u + casadiL2NW(x,u,data);
  
 function g = casadiL2NW(x,u,data)
 X=data(1:3,:); Y=data(4:7,:); ksi=[x(1:2);u];
-% g = oracle(ksi, X, Y) performs a nonparametric L2 normalised Nadaraya-Watson kernel regression
 if nargin <2
     X=zeros(3,1);
     Y=zeros(4,1);
