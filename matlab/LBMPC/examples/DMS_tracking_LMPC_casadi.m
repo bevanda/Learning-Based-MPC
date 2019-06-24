@@ -78,7 +78,7 @@ u_eq = 1.15470000000000;
 mpciterations = 500;
 
 % Time horizon (continuous)
-N_t = 0.5;
+N_t = 1.0;
 
 % sampling time (Discretization steps)
 delta = 0.01;
@@ -106,10 +106,9 @@ end
 
 %initial state constraint: use LB, UB
 %input constraints
-%????????????????????????
 lb=[-inf*ones(n*(N+1),1);-inf*ones(N*m+m,1)];
 ub=[+inf*ones(n*(N+1),1);+inf*ones(N*m+m,1)];
-%????????????????????????
+
 lb(1:n)=x_init;
 ub(1:n)=x_init;
 %nonlinear constraints (both inequality and equality constraints)
@@ -120,7 +119,7 @@ con_lb=[repmat(xmin,N,1);-inf*ones(numel(h_w_N),1)];
 con_ub=[repmat(xmax,N,1);zeros(numel(h_w_N),1)];
 
 %make symbolic
-y=MX.sym('y',(N+1)*n+N*m+m);
+y=SX.sym('y',(N+1)*n+N*m+m);
 obj=costfunction(N, y, x_eq, u_eq,  Q, R, P,T, LAMBDA,PSI, n,m,delta);
 con=nonlinearconstraints(N,A,B, delta,x_eq,u_eq,y,n,m,F_x,h_x, F_u,h_u, F_w_N, h_w_N);
 

@@ -76,7 +76,7 @@ con_lb=repmat(xmin,N,1);
 con_ub=repmat(xmax,N,1);
 
 %make symbolic
-y=MX.sym('y',N*m+(N+1)*n);
+y=SX.sym('y',N*m+(N+1)*n);
 obj=costfunction(N, y, x_eq, u_eq, Q, R, P,n,m,delta);
 con=nonlinearconstraints(N, delta, y, x_eq, P, alpha,n,m);
 nlp = struct('x', y, 'f', obj, 'g', con);

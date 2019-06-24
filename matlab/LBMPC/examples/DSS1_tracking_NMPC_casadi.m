@@ -1,7 +1,8 @@
 % clear workspace, close open figures
 clearvars;
-close all;
+% close all;
 clc;
+
 %% import CasADi
 import casadi.*
 
@@ -78,7 +79,7 @@ u_eq = 1.15470000000000;
 mpciterations = 500;
 
 % Time horizon (continuous)
-N_t = 0.5;
+N_t = 1.0;
 
 % sampling time (Discretization steps)
 delta = 0.01;
@@ -96,37 +97,25 @@ K_loc = Kstabil;
 % Initial guess for input
 u0 = u_eq*ones(m*N,1);
 theta0=zeros(m,1);
-% Initial gues for states by simulation
-x0=zeros(n*(N+1),1);
-x0(1:n) = x_init;
-for k=1:N
-     x0(n*k+1:n*(k+1)) = x_eq+...
-         nominal_dynamics(x0(n*(k-1)+1:n*k)-x_eq, u0(k)-u_eq,A,B); 
-end
-
 %initial state constraint: use LB, UB
 %input constraints
-%????????????????????????
-lb=[-inf*ones(n*(N+1),1);-inf*ones(N*m+m,1)];
-ub=[+inf*ones(n*(N+1),1);+inf*ones(N*m+m,1)];
-%????????????????????????
-lb(1:n)=x_init;
-ub(1:n)=x_init;
-% lb(1:n)=x_init;
-% ub(1:n)=x_init;
+lb=-inf*ones(N*m+m,1);
+ub=+inf*ones(N*m+m,1);
 %nonlinear constraints (both inequality and equality constraints)
-xmax = [zeros(n,1); zeros(numel(h_x)+numel(h_u),1)]; 
-xmin = [zeros(n,1); -inf*ones(numel(h_x)+numel(h_u),1)];
+xmax = zeros(numel(h_x)+numel(h_u),1); 
+xmin = -inf*ones(numel(h_x)+numel(h_u),1);
 
 con_lb=[repmat(xmin,N,1);-inf*ones(numel(h_w_N),1)];
 con_ub=[repmat(xmax,N,1);zeros(numel(h_w_N),1)];
 
 %make symbolic
-y=MX.sym('y',(N+1)*n+N*m+m);
-obj=costfunction(N, y, x_eq, u_eq,  Q, R, P,T, LAMBDA,PSI, n,m,delta);
-con=nonlinearconstraints(N,A,B, delta,x_eq,u_eq,y,n,m,F_x,h_x, F_u,h_u, F_w_N, h_w_N);
+y=SX.sym('y',N*m+m);
+init_x = SX.sym('init_x',n); % init state as param
 
-nlp = struct('x', y, 'f', obj, 'g', con);
+obj=costfunction(N, y, init_x,x_eq, u_eq,  Q, R, P,T, LAMBDA,PSI, n,m,delta);
+con=nonlinearconstraints(N, delta,x_eq,u_eq,y,init_x,n,m,F_x,h_x, F_u,h_u, F_w_N, h_w_N);
+
+nlp = struct('x', y, 'f', obj, 'g', con,'p', init_x);
 solver = nlpsol('solver', 'ipopt', nlp); %,'file_print_level',5
 
 % Set variables for output
@@ -152,31 +141,31 @@ fprintf('---------------------------------------------------\n');
 % initilization of measured values
 tmeasure = t_0;
 xmeasure = x_init;
+
 %% simulation
 for ii = 1:mpciterations % maximal number of iterations
     
     
     % Set initial guess and initial constraint
     beq=xmeasure;
-    y_init=[x0;u0;theta0];
+    y_init=[u0;theta0];
     
     t_Start = tic;
-    lb(1:n)=xmeasure;
-    ub(1:n)=xmeasure;
     res = solver('x0' , y_init,... % solution guess
              'lbx', lb,...           % lower bound on x
              'ubx', ub,...           % upper bound on x
              'lbg', con_lb,...           % lower bound on g
-             'ubg', con_ub);             % upper bound on g
+             'ubg', con_ub,...             % upper bound on g
+              'p', xmeasure);
     y_OL=full(res.x); 
-    x_OL=y_OL(1:n*(N+1));
-    u_OL=y_OL(n*(N+1)+1:end-m);
+    u_OL=y_OL(1:end-m);
     theta_OL=y_OL(end-m+1:end);
     art_ref_OL=[LAMBDA*y_OL(end-m+1:end);PSI*y_OL(end-m+1:end)];
     t_Elapsed = toc( t_Start );   
     solve_times = [solve_times,t_Elapsed];
     %%    
-    % Store closed loop data u_OL(1:m)
+    
+    % Store closed loop data
     t = [ t, tmeasure ];
     x = [ x, xmeasure ];
     u = [ u, u_OL(1:m) ];
@@ -184,11 +173,11 @@ for ii = 1:mpciterations % maximal number of iterations
     art_ref = [art_ref, art_ref_OL];
     
     % Update closed-loop system (apply first control move to system)
-    xmeasure = dynamic(delta, xmeasure, u_OL(1:m)); %simulate 
+    xmeasure = dynamic(delta, xmeasure, u_OL(1:m)); %simulate on real sys
     tmeasure = tmeasure + delta;
+        
     % Compute initial guess for next time step, based on terminal LQR controller (K_loc)
-    u0 = [u_OL(m+1:end); K_loc*x_OL(end-n-m+1:end-m)];
-    x0 = [x_OL(n+1:end); (x_eq+nominal_dynamics(x_OL(end-n-m+1:end-m)-x_eq, u0(end-m-m+1:end-m)-u_eq,A,B))];
+    u0 = [u_OL(m+1:end); x_init(3)*ones(m,1)];
     theta0 = theta_OL;
     art_ref_OL=[LAMBDA*theta_OL; PSI*theta_OL];
     %%
@@ -199,7 +188,6 @@ for ii = 1:mpciterations % maximal number of iterations
     %plot predicted and closed-loop state trajetories    
     f1 = figure(1);
     plot(x(1,:),x(2,:),'b'), grid on, hold on,
-    plot(x_OL(1:n:n*(N+1)),x_OL(2:n:n*(N+1)),'g')
     plot(x(1,:),x(2,:),'ob')
     xlabel('x(1)')
     ylabel('x(2)')
@@ -208,12 +196,11 @@ for ii = 1:mpciterations % maximal number of iterations
 end
 
 %% plotting
-xl=x;
-plot_RESPONSE([xl;u], art_ref+[x_eq;u_eq], t, n, m)
+xnl=x;
+plot_RESPONSE([xnl;u], art_ref+[x_eq;u_eq], t, n, m)
 %%
 fprintf('Total solving time: %6.3fs \n', sum(solve_times));
 figure; histfit(solve_times);
-
 %% Help funcs
 
 function xdot = system(x, u)
@@ -224,22 +211,22 @@ function xdot = system(x, u)
             -1000*x(3)-2*sqrt(500)*x(4)+1000*u];    % throttle opening acceleration
 end
 
-function cost = costfunction(N, y, x_eq, u_eq, Q, R, P,T,LAMBDA,PSI, n,m,delta)
+function cost = costfunction(N, y, init_x,x_eq, u_eq, Q, R, P,T,LAMBDA,PSI, n,m,delta)
     % Formulate the cost function to be minimized
     cost = 0;
-    x=y(1:n*(N+1));
-    u=y(n*(N+1)+1:end-m);
+    x_k=init_x;
+    u=y(1:end-m);
     theta=y(end-m+1:end);
     x_art=LAMBDA*theta;
     u_art=PSI*theta;
     % Build the cost by summing up the stage cost and the
     % terminal cost
     for k=1:N
-        x_k=x(n*(k-1)+1:n*k);
         u_k=u(m*(k-1)+1:m*k);
         cost = cost + delta*runningcosts(x_k, u_k,x_art+x_eq,u_art+u_eq, Q, R);
+        x_k = dynamic(delta, x_k, u_k);
     end
-    cost = cost + terminalcosts(x(n*N+1:n*(N+1)), x_eq, x_art+x_eq, P,T);
+    cost = cost + terminalcosts(x_k, x_eq, x_art+x_eq, P,T);
     
 end
 
@@ -255,48 +242,32 @@ function cost = terminalcosts(x,x_eq, x_art, P,T)
 end
 
 
-function [con] = nonlinearconstraints(N,A,B, delta,x_eq,u_eq, y,n,m,state_F,state_h, in_F,in_h, F_w_N, h_w_N) 
+  function [con] = nonlinearconstraints(N, delta,x_eq,u_eq, y, init_x,n,m,state_F,state_h, in_F,in_h, F_w_N, h_w_N) 
    % Introduce the nonlinear constraints also for the terminal state
    
-   x=y(1:n*(N+1));
-   u=y(n*(N+1)+1:end-m);
+   x_k=init_x;
+   u=y(1:end-m);
    theta=y(end-m+1:end);
    con = [];
    %con_ub = [];
    %con_lb = [];
    % constraints along prediction horizon
-    for k=1:N
-        x_k=x((k-1)*n+1:k*n);
-        x_new=x(k*n+1:(k+1)*n);        
+   for k=1:N
         u_k=u((k-1)*m+1:k*m);
-        % dynamic constraint
-        % init condition 
-        if k == 1
-            ceqnew=x_new;
-        else
-            ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
-        end
-        ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
-        con = [con; ceqnew];
+        x_new = dynamic(delta, x_k, u_k);   
         % other constraints
         cieq_run1 = state_F*(x_new-x_eq)-state_h;
         cieq_run2 = in_F*(u_k-u_eq)-in_h;
         con  = [con; cieq_run1; cieq_run2]; %#ok<*AGROW>
+        x_k = x_new;
         % nonlinear constraints on state and input could be included here
     end
    %
    %terminal constraint
     cieq_T = F_w_N*[(x_new-x_eq);theta]-h_w_N; % x-x_eq to be w.r.t. to the eq point
     con = [con; cieq_T];    
-  end
-
-function xk1=nominal_dynamics(xk, uk, A, B)
-    xk1 = A*xk + B*uk;
- end
-
-function [w] = disturb(w_max,w_min)
-    w = rand(4, 1).*(w_max - w_min)+w_min;
 end
+
 
 function x_new=dynamic(delta,x,u)
     %use Ruku4 for discretization
