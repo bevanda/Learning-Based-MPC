@@ -16,8 +16,7 @@ for k = 1:(iterations)
        
         x=x_k1; % update state vars for estimation
         q=100; % moving window of q datapoints 
-        data=update_data(X,Y,q,k,data); % update data
-        
+        data=update_data(X,Y,q,k,data); % update data     
     % get the real state w.r.t. equilibrium
         dx=x-x_wp;
     else

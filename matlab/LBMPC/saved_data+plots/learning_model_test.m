@@ -1,4 +1,5 @@
-clearvars; clc; close all;
+clearvars; clc; 
+addpath('../');
 %% INIT CONTROLLER DESIGN
 syms u ... % control input
     x1 ... % mass flow
@@ -53,7 +54,7 @@ sys = tf([b(1,:)],[a]);
 % pzmap(sys2);
 %% Exact discretisation
 
-dT = 0.02; % sampling time
+dT = 0.01; % sampling time
 
 Ad = expm(A*dT);
 Bd = (Ad-eye(n))*inv(A)*B;
@@ -91,7 +92,7 @@ pzmap(sys);
 
 
 %% TRACKING piecewise constant REFERENCE MPC example
-close all;
+
 % clearvars;
 
 %% Parameters
@@ -142,7 +143,7 @@ opt_var = [u0; theta0];
 sysHistory = [x_eq_init;u0(1:m,1)];
 sysHistoryL=sysHistory;
 sysHistoryO=sysHistory;
-
+sysHistoryO2=sysHistory;
 art_refHistory =  0;
 true_refHistory = x_eq_ref;
 options = optimoptions('fmincon','Algorithm','sqp','Display','notify');
@@ -150,20 +151,21 @@ x = x_w+x_eq_init; % true sistem init state
 % init states from models used in MPC
 xl=x_eq_init;
 xo=x_eq_init;
+xo2=x_eq_init;
 % init data form estimation
 data.X=zeros(3,1);
 data.Y=zeros(4,1);
-
+data2=zeros(7,100);
 tic;
 for k = 1:(iterations)      
     %%
     fprintf('iteration no. %d/%d \n',k,iterations);
     c=0;
     % Implement first optimal control move and update plant states.
-    [x_k1, u] = getTransitionsTrue(x,c,x_w,r0,Kstabil,dT); % true model
-    [xl_k1, ul] = getTransitions(xl,c,Kstabil); % linear model
-    [xo,uo]=getTransitionsLearn(xo,c,Kstabil,data); % learned model
-    
+    [x_k1, u] = transitionTrue(x,c,x_w,r0,Kstabil,dT); % true model
+    [xl_k1, ul] = transitionNominal(xl,c,Kstabil); % linear model
+    [xo,uo]=transitionLearned(xo,c,Kstabil,data); % learned model
+    [xo2,uo2]=transitionLearned2(xo2,c,Kstabil,data2); % learned model2
     %%%%%%%%%%%%%% DATA GENERATION %%%%%%%%%%%%%
     X=[x(1:2)-x_w(1:2); u-r0]; %[δphi;δpsi;δu]
     switch dT
@@ -173,21 +175,28 @@ for k = 1:(iterations)
             Y=-((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
     end
     
-    q=iterations/1; % moving window of q datapoints 
+    q=iterations/20; % moving window of q datapoints 
+    q2 = q;
     data=update_data(X,Y,q,k,data);
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % data acquisition 
+    X2=[x(1:2)-x_w(1:2); u-r0]; %[δx1;δx2;δu]
+    Y2=x_k1-(x_w+A*(x-x_w)+ B*(u-r0)); %[δx_true-δx_nominal]
+    data2 = get_data(X2,Y2,q2,k,data2); % update data     
+   
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]
     his = [x-x_w; u-r0]; % c: decision var; u-r0: delta u;
     hisO=[xo;uo];
+    hisO2=[xo2;uo2];
     hisL=[xl;ul];
     
     % Save plant states for display.
     sysHistory = [sysHistory his]; %#ok<*AGROW>
     sysHistoryL = [sysHistoryL hisL]; %#ok<*AGROW>
     sysHistoryO = [sysHistoryO hisO]; %#ok<*AGROW>
-    
+    sysHistoryO2 = [sysHistoryO2 hisO2]; %#ok<*AGROW>
     x=x_k1;
     xl=xl_k1;
 end
@@ -200,6 +209,7 @@ subplot(n+m,1,1);
 plot(0:iterations,sysHistory(1,:),'Linewidth',1.5); hold on;
 plot(0:iterations,sysHistoryL(1,:),'Linewidth',1.5,'LineStyle','--'); hold on;
 plot(0:iterations,sysHistoryO(1,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
+plot(0:iterations,sysHistoryO2(1,:),'Linewidth',1.5,'Color','r','LineStyle','--');
 grid on
 xlabel('iterations');
 ylabel('x1');
@@ -208,6 +218,7 @@ subplot(n+m,1,2);
 plot(0:iterations,sysHistory(2,:),'Linewidth',1.5); hold on;
 plot(0:iterations,sysHistoryL(2,:),'Linewidth',1.5,'LineStyle','--'); hold on;
 plot(0:iterations,sysHistoryO(2,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
+plot(0:iterations,sysHistoryO2(2,:),'Linewidth',1.5,'Color','r','LineStyle','--');
 grid on
 xlabel('iterations');
 ylabel('x2');
@@ -216,6 +227,7 @@ subplot(n+m,1,3);
 plot(0:iterations,sysHistory(3,:),'Linewidth',1.5); hold on;
 plot(0:iterations,sysHistoryL(3,:),'Linewidth',1.5,'LineStyle','--'); hold on;
 plot(0:iterations,sysHistoryO(3,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
+plot(0:iterations,sysHistoryO2(3,:),'Linewidth',1.5,'Color','r','LineStyle','--');
 grid on
 xlabel('iterations');
 ylabel('x3');
@@ -224,6 +236,7 @@ subplot(n+m,1,4);
 plot(0:iterations,sysHistory(4,:),'Linewidth',1.5); hold on;
 plot(0:iterations,sysHistoryL(4,:),'Linewidth',1.5,'LineStyle','--'); hold on;
 plot(0:iterations,sysHistoryO(4,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
+plot(0:iterations,sysHistoryO2(4,:),'Linewidth',1.5,'Color','r','LineStyle','--');
 grid on
 xlabel('iterations');
 ylabel('x4');
@@ -232,18 +245,19 @@ subplot(n+m,1,5);
 plot(0:iterations,sysHistory(5,:),'Linewidth',1.5); hold on;
 plot(0:iterations,sysHistoryL(5,:),'Linewidth',1.5,'LineStyle','--'); hold on;
 plot(0:iterations,sysHistoryO(5,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
-
+plot(0:iterations,sysHistoryO2(5,:),'Linewidth',1.5,'Color','r','LineStyle','--');
 grid on
 xlabel('iterations');
 ylabel('u');
 title('Sys input');
-legend({'True system', 'Linear system', 'Learned true system'});
+legend({'True system', 'Linear system', 'Learned true system', 'Learned true system2'});
 
 
 figure;
 plot(sysHistory(1,:),sysHistory(2,:),'Linewidth',1.5,'LineStyle','-'); hold on;
 plot(sysHistoryL(1,:),sysHistoryL(2,:),'Linewidth',1.5,'LineStyle','--');  hold on;
 plot(sysHistoryO(1,:),sysHistoryO(2,:),'Linewidth',1.5,'LineStyle','-.','Color','g');
+plot(sysHistoryO2(1,:),sysHistoryO2(2,:),'Linewidth',1.5,'Color','r','LineStyle','--');
 grid on
 xlabel('x1');
 ylabel('x2');

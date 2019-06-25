@@ -1,13 +1,13 @@
 % clear workspace, close open figures
-clearvars
-close all
-clc
-
+clearvars;
+close all;
+clc;
 %% import CasADi
 import casadi.*
-addpath('/home/pbevanda/casadi-linux-matlabR2014b-v3.4.5/');
 
-%%
+addpath('../utilities');
+addpath('../models/'); 
+addpath('../functions/'); 
 %% Parameter initialization
 disp('Initializing parameters...');
 % Generate the DLTI verison of the continouous Moore-Greitzer Compressor 
@@ -57,46 +57,46 @@ x_wp = [0.5;...
         0.0];
 u_wp = x_wp(3);
 
+[F_x,h_x, ... % nominal state ineq constraints 
+ F_u,h_u,...  % nominal input ineq constraints 
+ F_w_N,h_w_N,... % terminal extended state ineq constraints 
+]... 
+    =getCONS(...
+    xmax,xmin,umax,umin,...
+    x_wp,u_wp,m,n,...
+    A,B,Kstabil,LAMBDA,PSI,LAMBDA_0,PSI_0);
 
-% system dimensions
+%% Setting up the OCP
+
 
 % eqilibilium point
 x_eq = [0.500000000000000;1.68750000000000;1.15470000000000;0];
 u_eq = 1.15470000000000;
 
-mflow_min=0; mflow_max=1;
-prise_min=1.1875; prise_max=2.1875;
-throttle_min=0.1547; throttle_max=2.1547;
-throttle_rate_min=-20; throttle_rate_max=20;
-u_min=0.1547;u_max=2.1547;
 
 % Number of MPC iterations
-mpciterations = 600;
+mpciterations = 500;
 
-% Horizon (continuous)
-T = 1.0;
+% Time horizon (continuous)
+N_t = 1.0;
 
 % sampling time (Discretization steps)
 delta = 0.01;
 
 % Horizon (discrete)
-N = T/delta;
+N = N_t/delta;
 
 % initial conditions
 t_0 = 0.0;
 x_init = [0.150000000000000;1.28750000000000;1.15470000000000;0];
 
 % Terminal set and cost
-K_loc = [-3.07418713694076,2.09578024408799,0.119436236659434,-0.00894688869207627];
-P = [2379.75328799635,-1408.52636933972,586.834405598336,2.54452796979169;
-    -1408.52636933972,1020.35695741999,-486.636840230204,-2.14515528702556;
-    586.834405598336,-486.636840230204,376.289369319808,1.71242577067112;
-    2.54452796979169,-2.14515528702556,1.71242577067112,1.01279182904087];
-%alpha = 0.0250; % Caution! Computation may last several minutes per iteration!
-alpha = 0.7000; % obtained via the alternative way
+K_loc = Kstabil;
 
 % Initial guess for input
+c0 = zeros(N*m,1);
 u0 = u_eq*ones(m*N,1);
+theta0=zeros(m,1);
 % Initial gues for states by simulation
 x0=zeros(n*(N+1),1);
 x0(1:n) = x_init;
@@ -107,29 +107,36 @@ end
 
 %initial state constraint: use LB, UB
 %input constraints
-lb=[-inf*ones(n*(N+1),1);(u_eq-1)*ones(m*N,1)];
-ub=[+inf*ones(n*(N+1),1);(u_eq+1)*ones(m*N,1)];
+lb=[-inf*ones(n*(N+1),1);-inf*ones(2*N*m+m,1)];
+ub=[+inf*ones(n*(N+1),1);+inf*ones(2*N*m+m,1)];
+
 lb(1:n)=x_init;
 ub(1:n)=x_init;
+% lb(n*(N+1)+1:n*(N+1)+m)=zeros(m,1);
+% ub(n*(N+1)+1:n*(N+1)+m)=zeros(m,1);
+
 %nonlinear constraints (both inequality and equality constraints)
+run_cons_ub = [zeros(m,1); zeros(n,1); zeros(numel(h_x)+numel(h_u),1)]; %[u_e, x_e, term_cons]
+run_cons_lb = [zeros(m,1); zeros(n,1); -inf*ones(numel(h_x)+numel(h_u),1)]; %[u_e, x_e, term_cons]
 
-xmax = [zeros(n,1); mflow_max; prise_max; throttle_max; throttle_rate_max]; 
-xmin = [zeros(n,1); mflow_min; prise_min; throttle_min; throttle_rate_min];
-
-con_lb=repmat(xmin,N,1);
-con_ub=repmat(xmax,N,1);
+con_lb=[repmat(run_cons_lb,N,1);-inf*ones(numel(h_w_N),1)];
+con_ub=[repmat(run_cons_ub,N,1);zeros(numel(h_w_N),1)];
 
 %make symbolic
-y=SX.sym('y',N*m+(N+1)*n);
-obj=costfunction(N, y, x_eq, u_eq,Q, R,P,n,m,delta);
-con=nonlinearconstraints(N,  A,B,delta, y, x_eq,u_eq ,P, alpha,n,m);
+y=SX.sym('y',(N+1)*n + 2*N*m + m);
+obj=costfunction(N, y, Kstabil, x_eq, u_eq,  Q, R, P,T, LAMBDA,PSI, n,m,delta);
+con=nonlinearconstraints(N,A,B, Kstabil, delta,x_eq,u_eq,y,n,m,F_x,h_x, F_u,h_u, F_w_N, h_w_N);
+
 nlp = struct('x', y, 'f', obj, 'g', con);
 solver = nlpsol('solver', 'ipopt', nlp); %,'file_print_level',5
 
 % Set variables for output
 t = [];
 x = [];
+c = [];
 u = [];
+theta = [];
+art_ref =[];
 solve_times=[];
 % ellipsoids toolbox needed (Matlab central)
 %E = ellipsoid(x_eq, alpha*inv(P));
@@ -140,7 +147,6 @@ set(f1,'Units','pixels')
 % plot terminal set
 %plot(E,'r'), axis equal, grid on
 
-
 % Print Header
 fprintf('   k  |      u(k)        x(1)        x(2)     Time \n');
 fprintf('---------------------------------------------------\n');
@@ -148,14 +154,13 @@ fprintf('---------------------------------------------------\n');
 % initilization of measured values
 tmeasure = t_0;
 xmeasure = x_init;
-
-% simulation
+%% simulation
 for ii = 1:mpciterations % maximal number of iterations
     
     
     % Set initial guess and initial constraint
     beq=xmeasure;
-    y_init=[x0;u0];
+    y_init=[x0;c0;u0;theta0];
     
     t_Start = tic;
     lb(1:n)=xmeasure;
@@ -167,23 +172,30 @@ for ii = 1:mpciterations % maximal number of iterations
              'ubg', con_ub);             % upper bound on g
     y_OL=full(res.x); 
     x_OL=y_OL(1:n*(N+1));
-    u_OL=y_OL(n*(N+1)+1:end);
+    c_OL=y_OL(n*(N+1)+1:n*(N+1)+N*m);
+    u_OL=y_OL(n*(N+1)+N*m+1:end-m);
+    theta_OL=y_OL(end-m+1:end);
+    art_ref_OL=[LAMBDA*y_OL(end-m+1:end);PSI*y_OL(end-m+1:end)];
     t_Elapsed = toc( t_Start );   
     solve_times = [solve_times,t_Elapsed];
     %%    
- 
-    % Store closed loop data
+    % Store closed loop data u_OL(1:m)
     t = [ t, tmeasure ];
     x = [ x, xmeasure ];
+    c = [ c, c_OL(1:m)];
     u = [ u, u_OL(1:m) ];
+    theta = [theta, theta_OL];
+    art_ref = [art_ref, art_ref_OL];
     
     % Update closed-loop system (apply first control move to system)
-    xmeasure =  dynamic(delta,xmeasure, u_OL(1:m));
+    xmeasure = dynamic(delta, xmeasure, u_OL(1:m)); %simulate 
     tmeasure = tmeasure + delta;
-        
     % Compute initial guess for next time step, based on terminal LQR controller (K_loc)
-    u0 = [u_OL(m+1:end); K_loc*x_OL(end-n+1:end)];
-    x0 = [x_OL(n+1:end); (x_eq+nominal_dynamics(x_OL(end-n+1:end)-x_eq, u0(end-m+1:end)-u_eq,A,B))];
+    c0 = zeros(N*m,1);
+    u0 = [u_OL(m+1:end); K_loc*x_OL(end-n-m+1:end-m)];
+    x0 = [x_OL(n+1:end); (x_eq+nominal_dynamics(x_OL(end-n-m+1:end-m)-x_eq, u0(end-m-m+1:end-m)-u_eq,A,B))];
+    theta0 = theta_OL;
+    art_ref_OL=[LAMBDA*theta_OL; PSI*theta_OL];
     %%
     % Print numbers
     fprintf(' %3d  | %+11.6f %+11.6f %+11.6f  %+6.3f\n', ii, u(end),...
@@ -199,85 +211,103 @@ for ii = 1:mpciterations % maximal number of iterations
     drawnow
   
 end
-%% plotting
 
-plotRESPONSE([x;u], t, n, m);
+%% plotting
+xl=x;
+plot_RESPONSE([xl;u], art_ref+[x_eq;u_eq], t, n, m)
 %%
 fprintf('Total solving time: %6.3fs \n', sum(solve_times));
 figure; histfit(solve_times);
-%%
+
+%% Help funcs
+
 function xdot = system(x, u)
     % Systemn dynamics
-    xdot = [ -x(2)+1+3*(x(1)/2)-(x(1)^3/2);... % mass flow rate 
-            (x(1)+1-x(3)*sqrt(x(2)));... % pressure rise rate 
-            x(4);... % throttle opening rate
-            -1000*x(3)-2*sqrt(500)*x(4)+1000*u]; % throttle opening acceleration];
-    
+    xdot = [-x(2)+1+3*(x(1)/2)-(x(1)^3/2);...       % mass flow rate 
+            (x(1)+1-x(3)*sqrt(x(2)));...            % pressure rise rate 
+            x(4);...                                % throttle opening rate
+            -1000*x(3)-2*sqrt(500)*x(4)+1000*u];    % throttle opening acceleration
 end
 
-function cost = costfunction(N, y, x_eq, u_eq, Q, R, P,n,m,delta)
+function cost = costfunction(N, y, K, x_eq, u_eq, Q, R, P,T,LAMBDA,PSI, n,m,delta)
     % Formulate the cost function to be minimized
-    
     cost = 0;
     x=y(1:n*(N+1));
-    u=y(n*(N+1)+1:end);
-    
+%     c=y(n*(N+1)+1:n*(N+1)+N*m);
+    u=y(n*(N+1)+N*m+1:end-m);
+    theta=y(end-m+1:end);
+    x_art=LAMBDA*theta;
+    u_art=PSI*theta;
     % Build the cost by summing up the stage cost and the
     % terminal cost
     for k=1:N
         x_k=x(n*(k-1)+1:n*k);
         u_k=u(m*(k-1)+1:m*k);
-        cost = cost + delta*runningcosts(x_k, u_k, x_eq, u_eq, Q, R);
+%         u_k=u((k-1)*m+1:k*m)+K*(x_k-x_eq)+u_eq; % u_hat = K*x+c constraint
+        cost = cost + delta*runningcosts(x_k, u_k,x_art+x_eq,u_art+u_eq, Q, R);
     end
-    cost = cost + terminalcosts( x(n*N+1:n*(N+1)), x_eq, P);
+    cost = cost + terminalcosts(x(n*N+1:n*(N+1)), x_eq, x_art+x_eq, P,T);
     
 end
 
-function cost = runningcosts(x, u, x_eq, u_eq, Q, R)
+function cost = runningcosts(x, u, x_art, u_art, Q, R)
     % Provide the running cost   
-    cost = (x-x_eq)'*Q*(x-x_eq) + (u-u_eq)'*R*(u-u_eq);
+    cost = (x-x_art)'*Q*(x-x_art) + (u-u_art)'*R*(u-u_art);
     
 end
 
+function cost = terminalcosts(x,x_eq, x_art, P,T)
+    % Introduce the terminal cost
+    cost = (x-x_art)'*P*(x-x_art)+(x_eq-x_art)'*T*(x_eq-x_art);
+end
 
-  function [con] = nonlinearconstraints(N, A,B,delta, y, x_eq, u_eq,P, alpha,n,m) 
+
+function [con] = nonlinearconstraints(N,A,B, K,delta,x_eq,u_eq, y,n,m,state_F,state_h, in_F,in_h, F_w_N, h_w_N) 
    % Introduce the nonlinear constraints also for the terminal state
    
-   x=y(1:n*(N+1));
-   u=y(n*(N+1)+1:end);
-   con = [];
-   %con_ub = [];
-   %con_lb = [];
-   % constraints along prediction horizon
+    x=y(1:n*(N+1));
+    c=y(n*(N+1)+1:n*(N+1)+N*m);
+    u=y(n*(N+1)+N*m+1:end-m);
+    theta=y(end-m+1:end);
+    con = [];
+    %con_ub = [];
+    %con_lb = [];
+    % constraints along prediction horizon
     for k=1:N
         x_k=x((k-1)*n+1:k*n);
         x_new=x(k*n+1:(k+1)*n);        
         u_k=u((k-1)*m+1:k*m);
-        %dynamic constraint
+        c_k=c((k-1)*m+1:k*m);
+    %         u_k=u((k-1)*m+1:k*m)+K*(x_k-x_eq)+u_eq; % u_hat = K*x+c constraint
+        % dynamic constraint
+        % init condition 
+        if k == 1
+            ceqnew=x_new;
+        else
+            ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
+        end
         ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
-        ceqnew2 = x_new;
-        con = [con; ceqnew; ceqnew2];
-        
-        %nonlinear constraints on state and input could be included here
+        con = [con; ceqnew];
+        ceqnew2= u_k - (c_k + u_eq + K*(x_k-x_eq)); % u_hat = K*x+c constraint
+        con = [con; ceqnew2];
+        % other constraints
+        cieq_run1 = state_F*(x_new-x_eq)-state_h;
+        cieq_run2 = in_F*(u_k-u_eq)-in_h;
+        con  = [con; cieq_run1; cieq_run2]; %#ok<*AGROW>
+        % nonlinear constraints on state and input could be included here
     end
-   %
-   %terminal constraint
-%    [cnew] = terminalconstraints( x(n*N+1:n*(N+1)), x_eq, P, alpha);
-%     con = [con; cnew];    
-end
-
-function cost = terminalcosts(x, x_eq, P)
-    % Introduce the terminal cost
-    cost = (x-x_eq)'*P*(x-x_eq);
-end
+    %
+    %terminal constraint
+    cieq_T = F_w_N*[(x_new-x_eq);theta]-h_w_N; % x-x_eq to be w.r.t. to the eq point
+    con = [con; cieq_T];    
+    end
 
 function xk1=nominal_dynamics(xk, uk, A, B)
     xk1 = A*xk + B*uk;
  end
 
-function [con] = terminalconstraints(x, x_eq, P, alpha)
-    % Introduce the terminal constraint
-    con   = (x-x_eq)'*P*(x-x_eq) - alpha;
+function [w] = disturb(w_max,w_min)
+    w = rand(4, 1).*(w_max - w_min)+w_min;
 end
 
 function x_new=dynamic(delta,x,u)

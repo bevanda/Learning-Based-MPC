@@ -205,8 +205,7 @@ for ii = 1:mpciterations % maximal number of iterations
 end
 
 %% plotting
-xl=x;
-plot_RESPONSE([xl;u], art_ref+[x_eq;u_eq], t, n, m)
+plot_RESPONSE([x;u], art_ref+[x_eq;u_eq], t, n, m)
 %%
 fprintf('Total solving time: %6.3fs \n', sum(solve_times));
 figure; histfit(solve_times);
@@ -268,11 +267,11 @@ function [con] = nonlinearconstraints(N,A,B, delta,x_eq,u_eq, y,n,m,state_F,stat
         u_k=u((k-1)*m+1:k*m);
         % dynamic constraint
         % init condition 
-        if k == 1
-            ceqnew=x_new;
-        else
+%         if k == 1
+%             ceqnew=x_new;
+%         else
             ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
-        end
+%         end
         ceqnew=x_new - (x_eq+nominal_dynamics(x_k-x_eq, u_k-u_eq,A,B));
         con = [con; ceqnew];
         % other constraints
