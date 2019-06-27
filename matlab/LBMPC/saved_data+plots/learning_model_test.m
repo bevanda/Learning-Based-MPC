@@ -1,5 +1,7 @@
 clearvars; clc; 
-addpath('../');
+addpath('../functions/');
+addpath('../models/');
+addpath('../utilities/');
 %% INIT CONTROLLER DESIGN
 syms u ... % control input
     x1 ... % mass flow
@@ -155,7 +157,8 @@ xo2=x_eq_init;
 % init data form estimation
 data.X=zeros(3,1);
 data.Y=zeros(4,1);
-data2=zeros(7,100);
+q=iterations/20; % moving window of q datapoints 
+data2=zeros(8,q); % data2(8,1)=1;
 tic;
 for k = 1:(iterations)      
     %%
@@ -175,15 +178,13 @@ for k = 1:(iterations)
             Y=-((x_k1-x_w)-(A*(x-x_w)+B*(u-r0))); %[δx_true-δx_nominal]
     end
     
-    q=iterations/20; % moving window of q datapoints 
-    q2 = q;
     data=update_data(X,Y,q,k,data);
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % data acquisition 
     X2=[x(1:2)-x_w(1:2); u-r0]; %[δx1;δx2;δu]
     Y2=x_k1-(x_w+A*(x-x_w)+ B*(u-r0)); %[δx_true-δx_nominal]
-    data2 = get_data(X2,Y2,q2,k,data2); % update data     
+    data2 = get_data(X2,Y2,q,k,data2); % update data     
    
     % shift the output so that it's from the working point perspective
     % setpoint being [0;0;0;0]

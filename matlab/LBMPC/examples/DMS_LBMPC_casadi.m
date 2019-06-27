@@ -120,8 +120,8 @@ con_lb=[-inf*ones(numel(h_w_N) + numel(h_x_d),1); repmat(xmin,N,1)];
 con_ub=[zeros(numel(h_w_N) + numel(h_x_d),1); repmat(xmax,N,1)];
 
 y=SX.sym('y',2*(N+1)*n+N*m+m);
-q=10; % moving window of q datapoints 
-d = SX.sym('d',7,q); %data as parameter
+q=100; % moving window of q datapoints 
+d = SX.sym('d',8,q); %data as parameter
 obj=costfunction(N, y, x_eq, u_eq,  Q, R, P,T, LAMBDA, PSI, n, m, delta);
 con=nonlinearconstraints(N,A, B, d,x_eq,u_eq,y,n,m,...
     F_x,h_x, F_u,h_u, F_w_N, h_w_N, F_x_d, h_x_d);
@@ -150,15 +150,15 @@ xmeasure = x_init;
 xlmeasure = x_init;
 
 % Set logging vectors
-t = tmeasure;
-x = xmeasure;
-xl = xlmeasure;
-u = u_eq;
-theta = zeros(m,1);
-art_ref = zeros(n+m,1);
+t = [];
+x = [];
+xl = [];
+u = [];
+theta = [];
+art_ref = [];
 solve_times=[];
-data = zeros(7,q);
-% load('train_data.mat');
+data = zeros(8,q); 
+data(8,1)=1; % take into account init data
 
 for iter = 1:mpciterations % maximal number of iterations
 
@@ -201,11 +201,10 @@ for iter = 1:mpciterations % maximal number of iterations
     xlmeasure = x_eq + learned_dynamics(xmeasure-x_eq, u_in - u_eq, A, B, data);
     
     u_o = u_OL(1:m);
-%     % data acquisition 
+     % data acquisition 
     X=[xmeasure(1:2)-x_eq(1:2); u_o-u_eq]; %[δx1;δx2;δu]
     Y=xmeasure1-(x_eq+A*(xmeasure-x_eq)+ B*(u_o-u_eq)); %[δx_true-δx_nominal]
-    data = get_data(X,Y,q,iter,data); % update data     
-%    
+    data = get_data(X,Y,q,iter,data); % update data      
     
     % Compute initial guess for next time step, based on terminal LQR controller (Kstabil)
     u0 = [u_OL(m+1:end); u_eq + Kstabil*(x_OL(end-n+1:end))];
@@ -249,8 +248,6 @@ function xdot = system(x, u)
             x(4);...                                % throttle opening rate
             -1000*x(3)-2*sqrt(500)*x(4)+1000*u];    % throttle opening acceleration
 end
-
-% function cost = costfunction(N, y,data,A,B, x_eq, u_eq, Q, R, P,T,LAMBDA,PSI, n,m,delta)
 
 function cost = costfunction(N, y, x_eq, u_eq, Q, R, P,T,LAMBDA,PSI, n,m,delta)
     % Formulate the cost function to be minimized

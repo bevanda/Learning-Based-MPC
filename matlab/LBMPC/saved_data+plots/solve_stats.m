@@ -1,4 +1,4 @@
-close all;
+close all; addpath('data/casadi/');
 %% Plot the solving time througout iteration AMD
 load('solve_sample_full.mat');% Create Dependent Variable ‘Experiments’ Data
 y1 = [solve_times_1; solve_times_2; solve_times_3; solve_times_4; solve_times_5];   

@@ -1,55 +1,62 @@
-%% Qualitative assesment of responses
-% load data
-clc; close all;
-addpath('./data/');
-addpath('./utilities/');
+addpath('data/casadi/');
 
-LMPC_N50_sys=load('LMPC_N50_sys_full.mat');
-LBMPC_N50_sys=load('LBMPC_N50_sys_full.mat');
-LBMPC_N60_sys=load('LBMPC_N60_sys_full.mat');
-LBMPC_N80_sys=load('LBMPC_N80_sys_full.mat');
-Ts=0.01;
-iterations=length(LBMPC_N50_sys.sysH)-1;
-t=Ts*(0:iterations);
+%% N=100
+load('DMS_tLBMPC_q100.mat');
+load('tLMPC.mat'); 
+load('tNMPC.mat');
+[l,n]=size(xlo);
+figure;
+    for i=1:l
+        subplot(l,1,i);
+        plot(xlo(i,:),'Linewidth',1.5); hold on;
+        plot(xl(i,:),'Linewidth',1.5,'LineStyle','-.'); hold on;
+        plot(xnl(i,:),'Linewidth',1.5,'LineStyle','--','Color','g'); hold on;
+        grid on
+        xlabel('time [s]');
+        if i<=n
+            lableTex = ['x_{',num2str(i),'}'];
+        else
+            lableTex = ['u_{',num2str(i-n),'}'];
+        end
+        ylabel(lableTex,'Interpreter','tex' );
+        legend('LBMPC','LMPC','NMPC')
+    end
+%%  N=50
+load('DMS_N50_tLBMPC_q10.mat');
+load('DMS_N50_tLMPC.mat'); 
+[l,n]=size(xlo);
+figure;
+    for i=1:l
+        subplot(l,1,i);
+        plot(xlo(i,:),'Linewidth',1.5); hold on;
+        plot(xl(i,:),'Linewidth',1.5,'LineStyle','-.'); hold on;
+        grid on
+        xlabel('time [s]');
+        if i<=n
+            lableTex = ['x_{',num2str(i),'}'];
+        else
+            lableTex = ['u_{',num2str(i-n),'}'];
+        end
+        ylabel(lableTex,'Interpreter','tex' );
+        legend('LBMPC','LMPC')
+    end
+%%
+load('DMS_N50_tLBMPC_q100.mat');
+load('DMS_N50_tLMPC.mat'); 
+[l,n]=size(xlo);
 
-figure; 
-% get response info 1
-disp('LMPC N=50 performance');
-disp('x_1');
-response_info(LMPC_N50_sys.sysH(1,:),LMPC_N50_sys.sysH(5,:),t,0)
-
-disp('LBMPC N=50 performance');
-disp('x_1');
-response_info(LBMPC_N50_sys.sysH(1,:),LBMPC_N50_sys.sysH(5,:),t,0)
-
-disp('LBMPC N=60 performance');
-disp('x_1');
-response_info(LBMPC_N60_sys.sysH(1,:),LBMPC_N60_sys.sysH(5,:),t,0)
-
-disp('LBMPC N=80 performance');
-disp('x_1');
-response_info(LBMPC_N80_sys.sysH(1,:),LBMPC_N80_sys.sysH(5,:),t,0)
-
-title('x_1 response');
-
-
-figure; 
-% get response info 2
-disp('LMPC N=50 performance');
-disp('x_2');
-response_info(LMPC_N50_sys.sysH(2,:),LMPC_N50_sys.sysH(5,:),t,0)
-
-disp('LBMPC N=50 performance');
-disp('x_2');
-response_info(LBMPC_N50_sys.sysH(2,:),LBMPC_N50_sys.sysH(5,:),t,0)
-
-disp('LBMPC N=60 performance');
-disp('x_2');
-response_info(LBMPC_N60_sys.sysH(2,:),LBMPC_N60_sys.sysH(5,:),t,0)
-
-disp('LBMPC N=80 performance');
-disp('x_2');
-response_info(LBMPC_N80_sys.sysH(2,:),LBMPC_N80_sys.sysH(5,:),t,0)
-
-title('x_2 response');
-
+figure;
+    for i=1:l
+        subplot(l,1,i);
+        plot(xlo(i,:),'Linewidth',1.5); hold on;
+        plot(xl(i,:),'Linewidth',1.5,'LineStyle','-.'); hold on;
+        grid on
+        xlabel('time [s]');
+        if i<=n
+            lableTex = ['x_{',num2str(i),'}'];
+        else
+            lableTex = ['u_{',num2str(i-n),'}'];
+        end
+        ylabel(lableTex,'Interpreter','tex' );
+        legend('LBMPC','LMPC')
+    end

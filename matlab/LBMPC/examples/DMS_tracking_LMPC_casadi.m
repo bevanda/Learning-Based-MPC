@@ -78,7 +78,7 @@ u_eq = 1.15470000000000;
 mpciterations = 500;
 
 % Time horizon (continuous)
-N_t = 1.0;
+N_t = 0.5;
 
 % sampling time (Discretization steps)
 delta = 0.01;
